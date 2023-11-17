@@ -1,0 +1,153 @@
+---
+title: "chronotype"
+output: html_document
+date: "2023-10-06"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Installing mctq package
+
+```{r}
+#install.packages("mctq")
+library(mctq)
+library(tidyverse)
+library(readr)
+library(dplyr)
+library(hms)
+library(lubridate)
+```
+
+## Loading the data
+
+```{r}
+rawfile <- "mctq_cw45_20231117.csv"
+rawredcap_chronotype <- read.csv(rawfile, sep = ";")
+rawredcap_chronotype <- rawredcap_chronotype %>%
+  select(-c("record_id", "redcap_repeat_instrument", "redcap_repeat_instance", "mctq_timestamp")) 
+```
+
+## We would like to rename the variables so that they are recognised by the package
+```{r}
+colnames(rawredcap_chronotype) <- c("id", "work","wd", "bt_w", "sprep_w", "slat_w", "se_w", "si_w", "alarm_w", "wake_before_w", "bt_f", "sprep_f", "slat_f", "se_f", "si_f", "alarm_f", "reasons_f", "mctq_reason_1", "mctq_reason_2", "mctq_reason_3", "mctq_reason_spec")
+
+rawredcap_chronotype <-rawredcap_chronotype[, 1:21]
+```
+
+## Now we start to do some analyses
+We have different time formats (hours:minutes) or just minutes. We want to parse the data with the code below.
+```{r}
+mctq_data <- rawredcap_chronotype %>% dplyr::mutate(
+  dplyr::across(c("id", "wd"), as.integer),
+  dplyr::across(dplyr::matches("^work$|^alarm_|^wake_|^reasons_f$"),
+                as.logical),
+  dplyr::across(dplyr::matches("^bt_|^sprep_|^se_"), hms::parse_hm),
+  dplyr::across(dplyr::matches("^slat_|^si_"),
+                ~ lubridate::dminutes(as.numeric(.x))),
+  dplyr::across(dplyr::matches("^le_"), 
+                ~ lubridate::as.duration(hms::parse_hm(.x)))
+  )
+```
+
+# Workdays and free work days
+
+We can now start to look at interesting things and compute new variables. For example, we will compute the number of work-free days per week (fd)
+```{r}
+mctq_data <- mctq_data %>%
+  mutate(fd = fd(wd))
+```
+
+## Local time of sleep onset
+We want to see the local time of sleep onset for workdays and freedays
+```{r}
+mctq_data <- mctq_data %>%
+  mutate(so_w = so(sprep_w, slat_w)) %>%
+  mutate(so_f = so(sprep_f, slat_f))
+```
+
+## Local time of getting out of bed 
+```{r}
+mctq_data <- mctq_data %>%
+  mutate(gu_w = gu(se_w, si_w)) %>%
+  mutate(gu_f = gu(se_f, si_w))
+```
+## Sleep duration
+```{r}
+mctq_data <- mctq_data %>%
+  mutate(sd_w = sdu(so_w, se_w)) %>%
+  mutate(sd_f = sdu(so_f, se_f))
+```
+## Total time in bed 
+```{r}
+mctq_data <- mctq_data %>%
+  mutate(tbt_w = tbt(bt_w, gu_w)) %>%
+  mutate(tbt_f = tbt(bt_f, gu_f))
+```
+## Local time of mid-sleep
+Mid-sleep is the sum of sleep onset time (so) and half of sleep duartion (sd)
+```{r}
+mctq_data <- mctq_data %>%
+  mutate(msw = msl(so_w, sd_w)) %>%
+  mutate(msf = msl(so_f, sd_f))
+```
+# Combining workdays and work-free days 
+We now want to summarise the findings from workdays and work free days variables
+
+## Average weekly sleep duration
+The output is a weighted mean of sd_w and sd_f, with wd and fd(wd) as weights
+```{r}
+mctq_data <- mctq_data %>%
+  mutate(sd_week = sd_week(sd_w, sd_f, wd))
+           
+```
+## Weekly sleep loss
+It takes three arguments: sd_w (sleep duration on workdays), sd_f (sleep duration on work-free days), and wd (number of workdays per week).If sd_week(average weekly sleep duration) is greater than sd_w, the output must be the difference between sd_week and sd_w times wd. Else, it must return the difference between sd_week and sd_f times fd(wd) (number of free days per week). 
+```{r}
+mctq_data <- mctq_data %>%
+  mutate(sloss_week = sloss_week(sd_w, sd_f, wd))
+```
+## Chronotype or sleep-corrected local time of mid-sleep on work-free days 
+If sd_f (sleep duration on free days is less or equal than sd_w (sleep duration on work-days), the output must be msf (local time of sleep onset for free days). Else, it must return msf (local time of sleep onset for free days) minus the difference between sd_f and sd_week (average weekly sleep duration) divided by 2. msf_sc can only be computed if alarm_f is equal to FALSE (the function will return NA when alarm_f == TRUE).
+
+msf_sc applies a correction to msf, removing an estimation of the effect from accumulated sleep debt on workdays that usually is compensated on work-free days
+```{r}
+mctq_data <- mctq_data %>%
+  mutate(msf_sc = msf_sc(msf, sd_w, sd_f, sd_week, alarm_f))
+  
+```
+
+```{r}
+mctq_data <- mctq_data %>%
+  mutate(msf_sc_rounded = round_time(msf_sc))
+```
+## Create a MSF_sc dataset 
+We now just want to store the MSF and MSF_sc data from participants in a single dataframe
+```{r}
+msf_sc <- mctq_data %>%
+  select(id, msf_sc_rounded, msf)
+```
+
+
+```{r}
+# If alarm_f or if sd_f (sleep duration on free days is less or equal than sd_w (sleep duration on work-days), msf_sc returns NA and the chrnotype we are inetersted in visualising is then MSF (no correction applied). So, we want to mutate the msf_sc_rounded column to nclude the msf values in case msf_sc cannot be calculated
+msf_sc <- msf_sc %>%
+  group_by(id) %>%
+  mutate(msf_sc_rounded = ifelse(is.na(msf_sc_rounded), msf, msf_sc_rounded)) %>%
+  ungroup()
+
+# Convert column to hms
+msf_sc$msf_sc_rounded <- as_hms(msf_sc$msf_sc_rounded)
+```
+
+```{r}
+msf_sc <- msf_sc %>%
+  mutate(msf_sc_rounded = as.POSIXct(msf_sc_rounded))
+```
+
+```{r}
+msf_sc <- msf_sc %>%
+  select(msf_sc_rounded, id) 
+```
+
