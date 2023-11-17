@@ -1,0 +1,486 @@
+---
+title: "non-wear time preprocessing"
+author: "Carolina Guidolin"
+date: "2023-10-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Data preprocessing step 1b: detection of non-wear time
+
+## Calculation of wear and non- wear time according to the Wear log
+
+Here, we'd like to provide a duration of non-wear time according to the information the participants enter in their "Wear log" questionnaire every day. 
+
+#### Loading packages 
+```{r}
+library(tidyverse)
+library(hms)
+# JZ: not needed, because it is loaded with tidyverse:
+# library(ggplot2)
+# library(purrr)
+# library(tidyr)
+
+# JZ: needed for shareable (i.e. non-absolute) paths:
+library(here)
+library(scales)
+library(lubridate)
+
+```
+
+#### Loading in the wearlog data for all participants and merge it into a single dataframe
+All participants until 2023.11.10, meaning n = 22
+```{r}
+#JZ: set filepaths relative
+
+filepath <- here("D:/cyepi/code/pre-processing/nonwear_detection/wearlog")
+
+# Get the files names from directory
+wearlogfiles = list.files(filepath, pattern="*.csv", full.names = TRUE)
+
+# First apply read.csv, then rbind
+#JZ: use list_c instead of the do.call(rbind, ...) construct. That makes the code more readable
+wearlog_df <- lapply(
+  wearlogfiles, 
+  function(x) read.csv(x, stringsAsFactors = FALSE, sep = ";")
+  ) %>% 
+  list_c()
+
+```
+### Calculate nonwear time
+First, we want to convert the wearlog information in long format. We also want to select the relevant columns for calculation of nonwear time. For example, here we don't care whether a participant left Tübingen or not, whether they put the glasses in the bag etc. We just want to keep the info from when they took the light glasses on, when they put them on, and when they took them off before sleep. We get this info both from "current" events and "past events". 
+
+```{r}
+wearlog_df_long <- wearlog_df %>%
+  select("record_id", "wearlog_on", "wearlog_off", "wearlog_past_on", "wearlog_past_off", "wearlog_bed", "wearlog_past_sleep") %>%
+  group_by(record_id) %>%
+  pivot_longer(cols = c("wearlog_on", "wearlog_off", "wearlog_past_on", "wearlog_past_off",  "wearlog_bed", "wearlog_past_sleep"),
+               names_to = "event",
+               values_to = "timestamp")
+
+```
+
+Second, we want to assign NA values to the blank cells and eliminate them. These cells are created when transforming the data from wide to long format, so we do not need them. 
+```{r}
+#Create function to to this (took this from Stack overflow)
+#JZ: You could also use is.factor() instead of "factor" %in% class(x)
+#JZ: You could also use the forcats package to change the names and levels of factors
+empty_as_na <- function(x){
+    if("factor" %in% class(x)) x <- as.character(x) ## since ifelse wont work with factors
+    ifelse(as.character(x)!="", x, NA)
+}
+
+#Apply function to the dataset
+#JZ: careful with deprecated functions - these will be removed in the future, see ?mutate_each
+wearlog_df_long <- wearlog_df_long %>%
+  mutate_each(funs(empty_as_na))
+
+#Filter out the NAs
+wearlog_df_long <- wearlog_df_long %>%
+  filter(! is.na(timestamp))
+```
+
+Third, we want to create a ternary signal where the "on" events are coded as 1, the "off" events are coded as 0 and "off before sleep" is coded as 2. 
+```{r}
+#JZ: case_match would be a slightly more concise way of doing this, also the .default argument was introduced to handle all non matching events
+wearlog_df_long <- wearlog_df_long %>%
+  mutate(event_ternary = case_when(
+    event %in% c("wearlog_on", "wearlog_past_on") ~ 1,
+    event %in% c("wearlog_off", "wearlog_past_off") ~ 0,
+    event %in% c("wearlog_bed", "wearlog_past_sleep") ~ 2,
+    TRUE ~ NA  # Handle other cases as needed
+  ))
+```
+
+Fourth, we now want to turn the timestamp column into a POSIXct class
+```{r}
+#JZ: If haven´t tried it, bud the lubridate package in tidyverse should be able to detect the string correctly even without the preparations
+#Currently, the date timestamp column has format dd.mm.yyyy with dot rather than -, so first we change that
+wearlog_df_long <- wearlog_df_long %>%
+  mutate(timestamp = gsub("\\.", "-", timestamp))
+
+#Here, we clean the timestamp column using trimws() and then turn the timestamp column in a column called datetime, which is POSIXct 
+wearlog_df_long <- wearlog_df_long %>%
+  mutate(timestamp = trimws(timestamp),
+         datetime = dmy_hm(timestamp))
+
+```
+
+Fifth, we need to sort the datetime column chronologically for each record_id
+```{r}
+#We remove the timestamp column (character)
+wearlog_df_long <- wearlog_df_long %>%
+  select(-timestamp) 
+
+#We use arrange() to sort the timestamps chronologically
+wearlog_df_long <- wearlog_df_long %>%
+  group_by(record_id) %>%
+  arrange(datetime, .by_group = TRUE) 
+```
+
+Sixth, we'd like to insert some quality checks for our dataset now: 
+A) The first event for every participant has to be an "on" (1) event. 
+```{r}
+wearlog_qualitycheck <- wearlog_df_long %>%
+#  group_by(record_id) %>%
+  group_walk(~{
+    if (first(.x$event_ternary) != 1) {
+      stop(paste("Error: first event not ON for record_id", first(.x$record_id)))
+    }
+  })
+## I think this is a rather complex way of doing what I am trying to do. Maybe a for loop would work better?
+
+##JZ: actually I find this rather elegant, because you are remaining inside your groups. You can omit the group_by, because the wearlog_df_long is already grouped.
+##JZ: I think I would have used a summarize command here, with first = first(event_ternary) and then filter for first != 1. If the length of the filter is > 0, then you can throw an error and also have a data frame with the relevant id´s
+```
+
+B) There are no two consecutive events, e.g. no 2 "on" events logged one after the other (this would not make sense)
+```{r}
+error_messages <- character(0) # We create an empty vector where we can store the errors
+
+# We iterate through the data frame starting from the second row until the second to last row
+for (i in 2:(nrow(wearlog_df_long) - 1)) {
+  if (wearlog_df_long$event_ternary[i] == wearlog_df_long$event_ternary[i - 1]) { # we check if the current row has the same value as the previous row
+    # If that's the case, add an error message
+    error_messages <- c(
+      error_messages,
+      paste("Consecutive values at record_id:", wearlog_df_long$record_id[i],
+            "datetime:", wearlog_df_long$datetime[i])
+    )
+  }
+}
+
+# Check if there are error messages
+if (length(error_messages) > 0) {
+  # There are errors; print the error messages
+  for (error_message in error_messages) {
+    cat("Error:", error_message, "\n")
+  }
+} else {
+  cat("No consecutive value errors found.")
+}
+
+#JZ: the use of for loops leads to the loss of grouping (see above), but it can certainly done this way. I like the use of the cat function to print the error messages.
+#JZ: I think I would have done it similarly to above, but instead of summarize I would use reframe and instead of first, I would use lag, i.e. consecutive = event_ternary == lag(event_ternary. And then filter by consecutive == TRUE
+
+```
+We got around 10 errors. Going back to the original file (csv downloaded from REDCap), I check was was going on at these timestamps. Here a brief description and how I adjusted it manually:
+
+1. Participants accidentally reported same event one after the other. In this case, the first entry was kept.
+2. Participants forgot to report the first ON event in the morning or their OFF event in the evening. In this case, the timestamp was given sing the sleep diary information (at what time the participant woke up). Although this is not 100% accurate, participants are instructed to wear the light glasses after wake up and take them off before sleep, so it is the best approximation.
+3. Participants did not correct for the date when logging an "off before sleep" event which was past midnight. This means that when arranging the timestamps chronologically, this event got placed elsewhere than intended.
+
+Finally, we want to calculate the duration between on an ON and an OFF event.To do this, we make two dataframes: 
+
+1) on_events contains all the "on" events. These are defined by event_ternary == 1 (on) OR == 2 and the previous entry being a "off" entry (lag(event_ternary) == 0). The reason why we treat event_ternary ==2 ("off before sleep") as an "on" entry is because if participants remove the glasses at 22:20 and then place them on the bedside table before sleep at 22:50, that time is considered non-wear time. Similarly, we need to make sure that we count "on" events any entry which is ONLY preceded by an "off" entry. For example, if an "on" entry is preceeded by an "off before sleep" entry, I don't want to be calculating this as non-wear time, since it's actually just "sleep time".
+
+2) off_events contains all the "off" events. These are defined as "off" entries (event_ternary == 0) AND the previous entry being an "on" event ((lag(event_ternary) == 1)).
+
+```{r}
+
+on_events <- wearlog_df_long %>%
+  filter((event_ternary == 1 | event_ternary == 2) & lag(event_ternary) == 0) %>%
+  select(record_id, datetime) %>%
+  rename("off_end" = datetime)
+
+off_events <- wearlog_df_long %>%
+  filter(event_ternary == 0 & (lag(event_ternary) == 1)) %>%
+  select(record_id, datetime) %>%
+  rename("off_start" = datetime)
+
+```
+
+OK, we now want to bring these 2 dataframes together
+```{r}
+#JZ: I think I would do this with an inner_join, which automatically takes care of the naming
+
+nonwear_events <- bind_cols(on_events, off_events) %>%
+  select(-record_id...3) %>% #get rid of this self-originated column 
+  rename("record_id" = record_id...1) %>% #rename this column to the original name
+  mutate(nonwear_time = difftime(off_end, off_start, units = "mins", tz = tz)) %>% #calculate the difference between end of an off event and start of the off event
+  mutate(nonwear_time = as_hms(nonwear_time)) %>% #turn this into a POSIXct object
+  #JZ - Just as a note, this is not a POSIXct object, it is an hms object. POSIXct is a date-time object, hms is a time object.
+  mutate(date = as.Date(off_end)) # since ultimately care about the daily nonwear, we want to extract the date from the POSIXct 
+
+#JZ: what are you doing if non-wear spans midnight?
+
+```
+Now that we have calculated all the non-wear times, we want to sum them up for every day. In other words, we want to calculate the daily non-wear of each participant. 
+```{r}
+#JZ: your first mutate should be a summarize, no? because you want to summarize the non-wear time by date and record_id. This would also make the next code chunk unnecessary (not speaking for the Sys.setlocale)
+nonwear_df_daily <- nonwear_events %>%
+  group_by(record_id, date) %>%
+  mutate(nonwear_daily = sum(nonwear_time)) %>%
+  mutate(nonwear_daily = as_hms(nonwear_daily)) %>% # turn it into a POSIXct object
+  select(-c(date, nonwear_time)) %>%
+  ungroup()
+
+```
+Note that the caveat of this method is that it doesn't calculate the total non-wear time according to the individual's day (sleep/wake time), but rather according to the 24-h day starting at 00:0 and ending at 00:00 of the next day. 
+
+This works, but we still have multipe entries for every date. Instead, we just need one value representing the daily non-wear for each day for each participant. Also, since we don't necessarily care about the dates but rather days of the week, we can turn dates into days 
+```{r}
+nonwear_df_daily <- nonwear_df_daily %>%
+  group_by(record_id) %>%
+  distinct(date, .keep_all = TRUE) %>%
+  ungroup() 
+
+Sys.setlocale("LC_TIME", "en_US.UTF-8") #needed to run this code to have the days displayed in English and not German
+nonwear_df_daily$day <- format(nonwear_df_daily$date, format = "%A", locale="English")
+```
+
+And now, it's time to plot the non-wear time according to the wear log!
+```{r}
+nonwear_df_daily$day <- factor(nonwear_df_daily$day, levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")) #use the factor function with levels specified so that the plot will show the days of the week in order, i.e. Monday to Sunday
+
+nonwear_df_daily$nonwear_daily <- as.POSIXct(nonwear_df_daily$nonwear_daily, format = "%H:%M", tz = tz)
+
+nonwear_duration <- ggplot(nonwear_df_daily, aes(x = day, y = nonwear_daily)) +
+  geom_violin(alpha = 0.3, aes(fill=day), trim = FALSE) + 
+  geom_dotplot(binaxis = "y",
+               stackdir = "center",
+               dotsize = 0.5) +
+  theme_bw() +
+  theme(legend.position = "none") +
+  theme(plot.title = element_text(hjust = 0.5, size = 12, face = "bold")) +
+  xlab("Experimental day") + 
+  ylab("Non-wear time (hours)") +
+  scale_y_datetime(
+    #breaks = as.POSIXct(c("1970-01-01 01:00:00", "1970-01-01 05:00:00", "1970-01-01 09:00:00", "1970-01-01 13:00:00", "1970-01-01 17:00:00"),
+    labels = scales::time_format("%H:%M")) +
+  ggtitle("Participants' (n=26) non-wear time during the experimental week\n according to self-reported wear log entries")
+  
+```
+It looks like the range of weekly non-wear time for most participants is something between 00:00:00 and 04:00:00. At the weekend, it looks like this increases slightly for some participants. We also have some outliers, where non-wear time seems to be very high (>4hrs). 
+After visual inspection, I can say that for participants 201, 204, 208, 215, 221 and 223, the wear log data is correct and they just did not wear the light glasses for a long time. For example, they took them off in the evening at around 22:00, then went partying (information from other questionnaires where participants are asked about their activity) and came back late and placed the light glasses on the nightstand in the early hours of the morning. However, for participant 224 (non-wear time on Sat ~14hrs) probably something went wrong with the logging of wear time on the wear log (e.g. participant forgot to report putting the glasses back on). For now we will leave it as such and hope to fix this when looking at other sources of non-wear.
+
+Let's save this 
+```{r}
+ggsave(filename = "nonwearduration6.png",
+       plot = nonwear_duration,
+       width = 7,
+       height = 8,
+       path= "D:/cyepi/code/pre-processing/nonwear_detection")
+```
+
+### Calculating the centre point of non-wear
+Say that now we want to calculate the mid point for every off period to see where it falls
+```{r}
+tz <- "Europe/Berlin"
+
+#For each non-wear time interval, we calculate the centre point 
+nonwear_df_daily <- nonwear_df_daily %>%
+  mutate(centre_point = off_start + difftime(off_end,off_start) /2,
+  centre_point_format = format(centre_point, format = "%H:%M:%S"))
+
+#Turn it into a POSIXct class
+nonwear_df_daily <- nonwear_df_daily %>%
+  mutate(centre_point_format = as.POSIXct(centre_point_format, format = "%H:%M:%S", tz = tz))
+
+#Bin the centre points into 30 minutes bins 
+nonwear_df_daily_binned <- nonwear_df_daily %>%
+  mutate(centre_point_binned = cut(centre_point_format, breaks = "30 min"))
+
+
+
+```
+
+Let's plot this in this way: we want to see the number of events are in which bin across all participants
+
+```{r}
+#Again, we want to make sure we are working with POSIXct objects
+nonwear_df_daily_binned <- nonwear_df_daily_binned %>%
+  mutate(centre_point_binned = trimws(centre_point_binned),
+         centre_point_binned = as.POSIXct(centre_point_binned))
+
+#Plotting
+ggplot(nonwear_df_daily_binned, aes(x = centre_point_binned, y = ..density..)) +
+  geom_histogram(fill = "steelblue", bins = 30) +
+  geom_density(color = "black", alpha = 0.5) +
+  labs(x = "Centre point of non-wear time interval", y = "Number of events") +
+  scale_x_datetime(
+    labels = date_format("%H:%M"),
+    breaks = date_breaks("1 hour"),
+    expand = c(0, 0),
+    limits = c(as.POSIXct("2023-11-17 01:00"), as.POSIXct("2023-11-18 01:00"), tz = tz )
+  ) +
+   scale_y_continuous(
+    breaks = c(1, 3, 5, 7, 9, 11),
+    labels = c(1, 3, 5, 7, 9, 11)
+  ) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+   ggtitle("Timing of non-wear time across the day for n=26 participants") +
+   theme(plot.title = element_text(hjust = 0.5, size = 12, face = "bold")) 
+
+```
+
+
+### Old visualisation
+This visualisation looks at the number of participants logging an event in the bins, rather than the number of events.
+```{r}
+tz = "Europe/Berlin"
+
+
+nonwear_df_daily_binned$record_id <- as.factor(nonwear_df_daily_binned$record_id)
+
+nonwear_df_daily_binned_count <- nonwear_df_daily_binned %>%
+  group_by(centre_point_binned) %>%
+  summarise(count_participants = n_distinct(record_id))
+
+
+nonwear_df_daily_binned_count <- nonwear_df_daily_binned_count %>%
+  mutate(centre_point_binned = trimws(centre_point_binned),
+         centre_point_binned = as.POSIXct(centre_point_binned))
+
+
+color_palette <- c(	"#363062" ,"darkblue", "darkblue", "#F1EB90", "#ffe85d", "#ffe85d", "#ffb70c", "#EC8F5E" , "#5148b2", "darkblue", "#363062")
+
+nonwear_timing <- ggplot(nonwear_df_daily_binned_count, aes(x = centre_point_binned, y = count_participants, fill = centre_point_binned))+
+  geom_bar(stat = "identity") +
+    scale_fill_gradientn(
+     colors = color_palette,
+    breaks = seq(from = as.POSIXct("2023-11-16 01:00"), to = as.POSIXct("2023-11-17 01:00"), by = "1 hour"),
+    labels = date_format("%H:%M")
+  ) +
+  labs(x = "Centre point of non-wear time", y = "Number of participants") +
+  scale_x_datetime(
+    labels = date_format("%H:%M"), 
+    breaks = date_breaks("1 hour"),
+    expand = c(0,0),
+    limits = c(as.POSIXct("2023-11-16 01:00"), as.POSIXct("2023-11-17 01:00"), tz = tz )) +
+  scale_y_continuous(
+    breaks = c(1, 3, 5, 7, 9, 11),
+    labels = c(1, 3, 5, 7, 9, 11)
+  ) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  theme(legend.position = "none") +
+  ggtitle("Timing of non-wear time across the day for n=26 participants") +
+   theme(plot.title = element_text(hjust = 0.5, size = 12, face = "bold")) 
+
+nonwear_df_daily_binned <- nonwear_df_daily_binned %>%
+  mutate(centre_point_binned = trimws(centre_point_binned),
+         centre_point_binned = as.POSIXct(centre_point_binned))
+
+
+```
+```{r}
+ggsave(nonwear_timing, filename = "nonwear_timing1.png", width = 10, height = 7)
+```
+
+
+### Finally, we want to filter our light logging dataset according to nonwear time and 
+```{r}
+offtime_intervals <- 
+  #filenames:
+  wearlogfiles %>% 
+  #import.Statechanges creates already much of the necessary structure
+  LightLogR::import.Statechanges(
+    sep = ";", dec = ",", Datetime.format = "dmyHM", tz = "Europe/Berlin", 
+    ID.colname = record_id,
+    State.colnames = 
+      c("wearlog_on", "wearlog_off", "wearlog_past_on", "wearlog_past_off", "wearlog_bed", "wearlog_past_sleep"),
+    State.encoding = 
+      c("1", "0", "1", "0", "2", "2")
+    ) %>% 
+  #recoding and filtering has to be done manually
+  mutate(State = case_when(
+      (State == 1 | State == 2) & lag(State) == 0 ~ "on",
+      State == 0 & lag(State) == 1 ~ "off",
+      .default = NA_character_
+  )) %>% 
+  filter(!is.na(State)) %>%
+  #creating the intervals
+  LightLogR::sc2interval() %>%
+  #filter out intervals we do not like
+  filter(State == "off") %>% 
+  #calculate the nonwear time through the interval column
+  mutate(off_start = int_start(Interval)) %>% 
+  mutate(off_end = int_end(Interval))
+
+#Filter the original dataset and replace nonwear time with NA values
+dataset.LL.all_filtered <- dataset.LL.all %>%
+  group_by(Id) %>%
+  left_join(Test, by = "Id") %>%
+  mutate(ind = (Datetime >= off_start & Datetime <= off_end),
+         MEDI = ifelse(ind, NA, MEDI)) %>%
+  select(-off_start, -off_end, -ind) %>%
+  ungroup()
+
+#Check that it looks as it is supposed to 
+dataset.LL.all_filtered_check <- dataset.LL.all_filtered %>%
+  filter(is.na(MEDI))
+  
+```
+
+## Old code
+```{r}
+nonwear_df_daily$off_start <- with_tz(nonwear_df_daily$off_start, tz = "Europe/Berlin")
+nonwear_df_daily$off_end <- with_tz(nonwear_df_daily$off_end, tz = "Europe/Berlin")
+
+nonwear_df_daily_filtering <- nonwear_df_daily %>%
+  rename(Id = record_id) %>%
+  mutate(Id = as.character(Id)) %>%
+  select(Id, off_start, off_end)
+
+
+
+```
+
+## JZ: Trying how far I can get within the LightLogR framework
+
+```{r}
+#creating the dataset
+Test <- 
+  #filenames:
+  wearlogfiles %>% 
+  #import.Statechanges creates already much of the necessary structure
+  LightLogR::import.Statechanges(
+    sep = ";", dec = ",", Datetime.format = "dmyHM", tz = "Europe/Berlin", 
+    ID.colname = record_id,
+    State.colnames = 
+      c("wearlog_on", "wearlog_off", "wearlog_past_on", "wearlog_past_off", "wearlog_bed", "wearlog_past_sleep"),
+    State.encoding = 
+      c("1", "0", "1", "0", "2", "2")
+    ) %>% 
+  #recoding and filtering has to be done manually
+  mutate(State = case_when(
+      (State == 1 | State == 2) & lag(State) == 0 ~ "on",
+      State == 0 & lag(State) == 1 ~ "off",
+      .default = NA_character_
+  )) %>% 
+  filter(!is.na(State)) %>%
+  #creating the intervals
+  LightLogR::sc2interval() %>%
+  #filter out intervals we do not like
+  filter(State == "off") %>% 
+  #calculate the nonwear time through the interval column
+  mutate(nonwear_time = int_length(Interval) %>% as_hms()) %>% 
+  #group by date and summarize the nonwear time
+  group_by(Date = date(int_end(Interval)), .add = TRUE) %>% 
+  summarize(nonwear_time = sum(nonwear_time))
+
+#plotting the data
+Test %>% 
+  mutate(day = format(Date, format = "%A", locale="English") %>% 
+           forcats::fct_inorder()) %>%
+ggplot(aes(x = day, y = nonwear_time)) +
+  geom_violin(alpha = 0.3, aes(fill=day), trim = FALSE) + 
+  geom_dotplot(binaxis = "y",
+               stackdir = "center",
+               dotsize = 0.5) +
+  #JZ: I only added the axis for correct display of time in my data
+  scale_y_time()+
+  theme_bw() +
+  theme(legend.position = "none") +
+  theme(plot.title = element_text(hjust = 0.5, size = 12, face = "bold")) +
+  xlab("Experimental day") + 
+  ylab("Non-wear time (hours)") +
+  ggtitle("Participants' non-wear time during the experimental week\n according to self-reported wear log entries") 
+
+
+```

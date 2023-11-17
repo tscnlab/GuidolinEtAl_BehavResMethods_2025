@@ -1,0 +1,180 @@
+---
+title: "pre-processing"
+author: "Carolina Guidolin"
+date: "2023-10-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Data pre-processing step 1: detection of non-wear time
+
+## Description of wear and non- wear time
+
+The first thing we'd like to do is to provide some summary statistics to describe our particiants' wear and non wear time. We will start by describing the information obtained from the wear log and compare this within- and between- people.First, we start by analysis the wear log data from participant 212.
+
+#### Loading packages 
+
+
+```{r}
+library(LightLogR)
+library(tidyverse)
+library(gt)
+library(patchwork)
+library(ggplot2)
+library(purrr)
+library(tidyr)
+library(hms)
+
+```
+
+#### Loading actlumus data 
+First, we need to import the ActLumus file where the button press information is contained. We will need this later.
+```{r}
+path <- "D:/cyepi/code/pre-processing/nonwear_detection/actlumus"
+tz <- "Europe/Berlin"
+
+# Get a list of file paths in the specified directory
+actlumusfiles <- list.files(path, pattern = ".txt", full.names = TRUE)
+
+# Create an empty dataframe to store the combined data
+dataset.LL.all <- data.frame()
+
+# Iterate over each file and import data
+dataset.LL.all <- import$ActLumus(actlumusfiles, tz = tz, auto.id = "^(\\d{3})")
+
+```
+#### Every participant started at different times. We will have to specify start and end time manually
+```{r}
+filtered_time <- data.frame(
+  Id = c("201", "202", "204", "205", "206", "208", "209", "210", "212", "213", "214", "215", "216", "218", "219", "221", "222", "223", "224", "225", "226", "227", "228", "229", "230", "231"),
+  start = as.POSIXct(c("2023-08-14 12:40:00", "2023-08-14 13:26:00", "2023-08-14 14:43:00", "2023-08-28 15:42:00", "2023-08-28 14:16:00", "2023-09-04 12:36:00", "2023-09-04 14:01:00", "2023-09-04 15:20:00", "2023-09-11 13:03:00", "2023-09-11 15:06:00", "2023-09-25 14:56:00", "2023-10-02 11:30:00", "2023-10-02 14:31:00", "2023-10-16 11:18:00", "2023-10-16 12:40:00", "2023-10-23 11:22:00", "2023-10-23 13:10:00", "2023-10-30 11:34:00", "2023-10-30 13:24:00", "2023-10-30 15:05:00", "2023-10-30 16:34:00", "2023-10-30 17:44:00", "2023-11-06 11:02", "2023-11-06 12:34", "2023-11-06 14:02", "2023-11-06 17:12" )),    # Add start times
+  end = as.POSIXct(c("2023-08-20 23:59:59", "2023-08-20 23:59:59", "2023-08-20 23:59:59", "2023-09-03 23:59:59", "2023-09-03 23:59:59", "2023-09-10 23:59:59", "2023-09-10 23:59:59", "2023-09-10 23:59:59", "2023-09-17 23:59:59", "2023-09-17 23:59:59", "2023-10-01 23:59:59", "2023-10-08 23:59:59", "2023-10-08 23:59:59", "2023-10-22 23:59:59" , "2023-10-22 23:59:59", "2023-10-29 23:59:59", "2023-10-29 23:59:59", "2023-11-05 23:59:59", "2023-11-05 23:59:59", "2023-11-05 23:59:59", "2023-11-05 23:59:59", "2023-11-05 23:59:59", "2023-11-12 23:59:59", "2023-11-12 23:59:59", "2023-11-12 23:59:59", "2023-11-12 23:59:59"))            # Add end times
+)
+
+dataset.LL.all <- dataset.LL.all %>%
+  inner_join(filtered_time, by = "Id") %>%
+  filter(Datetime >= start, Datetime <= end) %>%
+  select(-start, -end)
+
+```
+
+#### Loading in the wearlog data 
+```{r}
+
+files <- setwd("D:/cyepi/code/pre-processing/nonwear_detection/wearlog")
+# Get the files names
+wearlogfiles = list.files(pattern="*.csv")
+# First apply read.csv, then rbind
+wearlog_df = do.call(rbind, lapply(wearlogfiles, function(x) read.csv(x, stringsAsFactors = FALSE, sep = ";")))
+```
+
+### Frequency of reporting taking the light glasses off, putting them on, and taking them off before sleep
+How often did the participants report taking off the light glasses? We know that wearlog_event = 0 and wearlog_past = 0 correspond to an "off" event (current and retrospectie), while wearlog_1 and wearlog_past = 1 correspond to a "on" event (current and retropsective). wearlog_event = 2 and wearlog_past = 2 correspond to taking he light glasses off to go to sleep. 
+
+### Frequency of using the black bag for reporting light glasses off
+When participants take off the light glasses (wearlog_event and wearlog_past = 0), they are instructed to place in in a black bag. If they forget to the bag, they can also report this in the app. So how often did they use the black bag upon removing the light glasses?
+
+```{r}
+wearlog_events <- wearlog_df %>%
+  group_by(record_id) %>%
+  summarise(
+            wearlog_off_current = sum(wearlog_event == 0, na.rm = TRUE),
+            wearlog_off_retrospective = sum(wearlog_past == 0, na.rm = TRUE),
+          #  wearlog_on_total = sum(wearlog_event == 1 | wearlog_past == 1, na.rm = TRUE),
+            wearlog_on_current = sum(wearlog_event == 1, na.rm = TRUE),
+            wearlog_on_retrospective = sum(wearlog_past == 1, na.rm = TRUE),
+          #  wearlog_sleep_total = sum(wearlog_event == 2 | wearlog_past == 2, na.rm = TRUE),
+            wearlog_sleep_current = sum(wearlog_event == 2, na.rm = TRUE),
+            wearlog_sleep_retrospective = sum(wearlog_past == 2, na.rm = TRUE),
+            wearlog_anyevent_z1 = n(),
+            wearlog_bagused_z2 = sum(wearlog_bag == 1 | wearlog_past_bag == 1, na.rm = TRUE),
+            wearlog_bagnotused_z3 = sum(wearlog_bag == 0 | wearlog_past_bag == 0, na.rm = TRUE),
+            wearlog_leavingtubingen_z4 = sum(wearlog_event == 3 | wearlog_past == 3, na.rm = TRUE),
+            wearlog_reenteringtubingen_z5 = sum(wearlog_event == 4 | wearlog_past == 4, na.rm = TRUE))
+
+```
+
+### Frequency of using button press for reporting light glasses on, off, and off before sleep
+Participants are also instructed to press the button every time they take off the light glasses as well as any time they put them back on. This is saved in the device file itself as "event", where event = 1 means a button press took place. 
+
+For this, we need to combine the dataset.LL.all and the nonwear_df datasets
+
+We identify numbers of button
+```{r}
+button_press <- dataset.LL.all %>%
+  group_by(Id) %>%
+  summarise(wearlog_buttonpress_z6 = sum(EVENT == 1)) %>%
+  rename(record_id = Id)
+```
+
+Let's incorporate the button press information into the nonwear_df
+```{r}
+nonwear_all <- merge(wearlog_events, button_press, by = "record_id")
+
+nonwear_all_long <- pivot_longer(nonwear_all, cols = c("wearlog_anyevent_z1", "wearlog_off_current","wearlog_off_retrospective", "wearlog_on_current", "wearlog_on_retrospective",  "wearlog_sleep_current", "wearlog_sleep_retrospective", "wearlog_bagused_z2", "wearlog_bagnotused_z3", "wearlog_buttonpress_z6", "wearlog_leavingtubingen_z4", "wearlog_reenteringtubingen_z5"), names_to = "event", values_to = "count")
+```
+
+
+#### Let's visualise this information 
+First, we start by visualising ALL events for all participants with a stacked barplot
+
+We need to convert in long format for this:
+```{r}
+stacked_overview_long <- nonwear_all %>%
+  pivot_longer(
+    cols = -record_id,
+    names_to = c("event", "time"),
+    names_pattern = "wearlog_(\\w+)_(\\w+)",
+    values_to = "count"
+  )
+
+```
+
+```{r}
+custom_order_stacked <- c("reenteringtubingen", "leavingtubingen", "bagnotused", "bagused", "sleep", "off", "on", "buttonpress", "anyevent")
+
+summary_plot_all <- ggplot(stacked_overview_long, aes(x = count, y = factor(event, custom_order_stacked), fill = time)) +
+  geom_bar(position = "stack", stat = "identity")  +
+  ggtitle("Number of total self-reported wear log entries and\n light logger button press events for n=26 participants") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 12, face = "bold")) +
+  xlab("Count") +
+  ylab("Event") +
+
+  scale_y_discrete(breaks = custom_order_stacked, labels = c("Re-entering Tübingen", "Leaving Tübingen", "Off and black bag not used", "Off and black bag used", "Off before sleep ", "Off", "On", "Button press", "All wear log entries")) +
+scale_fill_manual(name = "Time of reporting", values = c("#66CCFF", "#0066CC","#006633", "#CC66FF", "#FF99FF", "#FF9933", "#CC0033", "#009933"), labels = c( "Current", "Retrospective", "z1", "z2", "z3","z4", "z5", "z6" )) 
+  
+```
+Let's save this
+```{r}
+ggsave(plot = summary_plot_all, filename ="summaryplot7.png", dpi =300, width = 9, height = 6)
+```
+
+Another visualisation is to look at each individual participant in a facet
+```{r}
+faceted_plot_wearlog2 <- ggplot(stacked_overview_long, aes(x = count, y = factor(event, custom_order_stacked), fill = time)) +
+  geom_bar(position = "stack", stat = "identity")  +
+  facet_wrap(~record_id, ncol = 4, scales = "free_x") + 
+  scale_y_discrete(breaks = custom_order_stacked, labels = c("Re-entering Tübingen", "Leaving Tübingen", "Off and black bag not used", "Off and black bag used", "Off before sleep ", "Off", "On", "Button press", "All wear log entries")) +
+scale_fill_manual(name = "Time of reporting", values = c("#66CCFF", "#0066CC","#006633", "#CC66FF", "#FF99FF", "#FF9933", "#CC0033", "#009933"), labels = c( "Current", "Retrospective", "z1", "z2", "z3","z4", "z5", "z6" )) +
+   ggtitle("Number of total self-reported wear log entries and\n light logger button press events for n=26 participants") +
+  theme(plot.title = element_text(hjust = 0.5, size = 12, face = "bold")) +
+  xlab("Count") +
+  ylab("Event") +
+   theme_bw() +
+ # theme(axis.text.y=element_blank(),
+        #axis.ticks.y=element_blank(),
+        theme(legend.key.size = unit(0.3, "cm")) +
+  theme(legend.position = "top",
+        legend.direction = "horizontal")  +
+   theme(plot.title = element_text(hjust = 0.5, size = 12, face = "bold"))
+
+```
+
+Let's save this 
+```{r}
+ggsave(plot = faceted_plot_wearlog2, filename ="faceted_plotA.png", dpi =300, width = 12, height = 14)
+```
