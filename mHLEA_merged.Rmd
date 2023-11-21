@@ -1,0 +1,129 @@
+---
+title: "mhlea_merge"
+author: "Carolina Guidolin"
+date: "2023-11-17"
+output: html_document
+---
+
+
+
+##This script looks into the subjective light exposure that individuals report during the week
+
+###Importing the files
+First, we need to import the xlsx files which contain the transcribed mHLEA questionnaire. Paticipants filled this in on paper and the researcher transcribed them to an excel table in long format. Let's load them in.
+
+```{r}
+library(tidyverse)
+library(hms)
+library(here)
+library(scales)
+library(lubridate)
+library(readxl)
+```
+
+
+```{r cars}
+filepath <- here("D:/cyepi/code/sublightexp_analysis/mHLEA_transcribed")
+
+# Get the files names from directory
+mhleafiles = list.files(filepath, pattern="*.xlsx", full.names = TRUE)
+
+# Create an empty data frame to store the combined data
+mhlea_df <- data.frame()
+
+# Loop through each file
+for (file in mhleafiles) {
+  # Extract participant ID from the file name
+  record_id <- substr(basename(file), 1, 3)
+  
+  # Read the Excel file
+  df <- read_excel(file)
+  
+  # Check if "activity" column exists before converting its type
+  if ("activity" %in% colnames(df)) {
+    df$activity <- as.character(df$activity)
+  }
+  
+  # Add participant ID column
+  df$Id <- record_id
+  
+  # Combine data frames
+  mhlea_df <- bind_rows(mhlea_df, df)
+}
+```
+We actually only care about the light, and not the activity, in our first analysis
+```{r}
+tz = "Europe/Berlin"
+
+mhlea_df <- mhlea_df %>%
+  select(main_light, second_light, Id, lightsource, timestamp) %>%
+  force_tz(timestamp, tzone = tz)
+```
+
+
+The first 16 participants had the information stored in the columns main_light and second_light. Let's bring them together under lightsource
+
+```{r}
+for (Id in 201:216) {
+  # Create a subset for the participant
+  subset_df <- mhlea_df[mhlea_df$Id == as.character(Id), ]
+  
+    # Create a new "lightsource" column by pasting values from "main_light" and "second_light"
+  subset_df$lightsource <- paste(subset_df$main_light, subset_df$second_light, sep = "+")
+    
+    # Update the combined data frame with the modified subset
+  mhlea_df[mhlea_df$Id == as.character(Id), ] <- subset_df
+  
+}
+
+# Select columns
+mhlea_df <- mhlea_df %>%
+  select(Id, lightsource, timestamp)
+
+
+# Handle NA+NA, NA+(character), and (something)+NA cases
+mhlea_df$lightsource <- str_replace_all(mhlea_df$lightsource, "NA\\+", "")  # Remove NA+ part
+mhlea_df$lightsource <- gsub("\\+NA", "", mhlea_df$lightsource)  # Remove +NA part
+mhlea_df$lightsource <- gsub("NA+NA", NA, mhlea_df$lightsource)  # Replace NA+NA with NA
+
+# Replace any empty strings with NA
+mhlea_df$lightsource[mhlea_df$lightsource == ""] <- NA
+mhlea_df$lightsource[mhlea_df$lightsource == "NA"] <- NA
+
+navalues <- mhlea_df %>%
+  filter(is.na(lightsource))
+```
+
+
+### Incorporate questionnaire to light logger data 
+```{r}
+
+mhlea_df <- mhlea_df %>%
+  sc2interval(Datetime.colname = timestamp, Statechange.colname = lightsource, full = FALSE, length.restriction = 60*60*24) 
+
+mhlea_LL_combined <- data.LL.filtered %>%
+  interval2state(mhlea_df) %>%
+  select(-lightsource)
+
+                    
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+mhlea_LL_combined %>%
+  ggplot(aes(x = Datetime, y = MEDI)) +
+  labs(title = "Light Exposure Over 24 Hours",
+       x = "Hour of Day",
+       y = "Median Light Exposure") +
+  facet_wrap(~Id, scales = "free_y") +
+  theme_minimal() +
+  
+  # Add second plot for self-reported light
+ # geom_line(aes(x = Datetime, y = as.numeric(State)/6), color = "red") +
+ # labs(y = "Self-Reported Light")
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
