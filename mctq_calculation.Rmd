@@ -148,6 +148,7 @@ msf_sc <- msf_sc %>%
 
 ```{r}
 msf_sc <- msf_sc %>%
-  select(msf_sc_rounded, id) 
+  select(msf_sc_rounded, id) %>%
+  force_tz(msf_sc_rounded, tzone = tz)
 ```
 
