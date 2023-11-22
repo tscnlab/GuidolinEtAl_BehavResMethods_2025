@@ -19,6 +19,7 @@ library(here)
 library(scales)
 library(lubridate)
 library(readxl)
+library(ggrepel)
 ```
 
 
@@ -105,6 +106,8 @@ mhlea_LL_combined <- data.LL.filtered %>%
   interval2state(mhlea_df) %>%
   select(-lightsource)
 
+
+mhlea_LL_combined$State <- gsub("\\+(.+)", "", mhlea_LL_combined$State)
                     
 ```
 
@@ -113,24 +116,41 @@ mhlea_LL_combined <- data.LL.filtered %>%
 You can also embed plots, for example:
 
 ```{r pressure, echo=FALSE}
-mhlea_201 <- mhlea_LL_combined %>%
-  filter(Id == 201) %>%
-  mutate(rounded_datehour = round_date(Datetime, unit = "hour")) 
+mhlea_205 <- mhlea_LL_combined %>%
+  filter(Id == 205) %>%
+#  mutate(rounded_datehour = round_date(Datetime, unit = "hour")) %>%
+  select(Id, Datetime, State, MEDI) %>%
+  filter(!is.na(State)) %>%
+ # distinct(rounded_datehour, .keep_all = TRUE) %>%
+  mutate(date = as.Date(Datetime, tz = tz)) %>%
+  filter(date == "2023-09-02")
 
-mhlea_201 <- mhlea_201 %>%
 
-  summarise() %>%
-  round()
-  ggplot(aes(x = Datetime, y = MEDI)) +
-  labs(title = "Light Exposure Over 24 Hours",
-       x = "Hour of Day",
-       y = "Median Light Exposure") +
-  facet_wrap(~Id, scales = "free_y") +
-  theme_minimal() +
-  
-  # Add second plot for self-reported light
- # geom_line(aes(x = Datetime, y = as.numeric(State)/6), color = "red") +
- # labs(y = "Self-Reported Light")
+midpoints <- mhlea_205 %>%
+  group_by(State) %>%
+  summarise(midpoint = mean(Datetime))
+
+ggplot(mhlea_205, aes(x = Datetime, y = State, color = State)) +
+  geom_point() +
+  geom_text_repel(aes(label = ifelse(duplicated(State), "", State)),
+                   max.overlaps = Inf,
+                   segment.color = NA,
+                   nudge_y = 0.2,
+                   hjust = 0) +
+  scale_x_datetime(
+    labels = scales::time_format(format = "%H:%M", tz = tz),
+    breaks = "1 hour"
+  ) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+   
+custom_positions <- data.frame(
+  State = "X",
+  midpoint = c(as.POSIXct("2023-08-15 04:30:00", tz = tz), as.POSIXct("2023-08-15 15:00:00", tz = tz))
+)
+
+
+
 ```
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
