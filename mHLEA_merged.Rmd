@@ -108,12 +108,19 @@ mhlea_LL_combined <- data.LL.filtered %>%
                     
 ```
 
-## Including Plots
+## Plot light exposure of one participant over time
 
 You can also embed plots, for example:
 
 ```{r pressure, echo=FALSE}
-mhlea_LL_combined %>%
+mhlea_201 <- mhlea_LL_combined %>%
+  filter(Id == 201) %>%
+  mutate(rounded_datehour = round_date(Datetime, unit = "hour")) 
+
+mhlea_201 <- mhlea_201 %>%
+
+  summarise() %>%
+  round()
   ggplot(aes(x = Datetime, y = MEDI)) +
   labs(title = "Light Exposure Over 24 Hours",
        x = "Hour of Day",
