@@ -106,7 +106,7 @@ mhlea_LL_combined <- data.LL.filtered %>%
   interval2state(mhlea_df) %>%
   select(-lightsource)
 
-
+##We only want to keep the first light exposure category indicated by the participants 
 mhlea_LL_combined$State <- gsub("\\+(.+)", "", mhlea_LL_combined$State)
                     
 ```
@@ -116,41 +116,133 @@ mhlea_LL_combined$State <- gsub("\\+(.+)", "", mhlea_LL_combined$State)
 You can also embed plots, for example:
 
 ```{r pressure, echo=FALSE}
+library("cowplot")
+
 mhlea_205 <- mhlea_LL_combined %>%
   filter(Id == 205) %>%
-#  mutate(rounded_datehour = round_date(Datetime, unit = "hour")) %>%
   select(Id, Datetime, State, MEDI) %>%
-  filter(!is.na(State)) %>%
- # distinct(rounded_datehour, .keep_all = TRUE) %>%
-  mutate(date = as.Date(Datetime, tz = tz)) %>%
-  filter(date == "2023-09-02")
+  mutate(randomdate = as.Date(Datetime, tz = tz))
+
+mhlea_205_singleday <- mhlea_205 %>%
+  filter(randomdate == as.Date("2023-09-02", tz = tz))
+
+mhlea_205_singleday <- mhlea_205_singleday %>%
+  force_tz(randomdate, tzone = "Europe/Berlin") %>%
+  mutate(statenames = case_when(
+    State == "X" ~ "Sleeping",
+    State == "O" ~ "Daylight outdoors",
+    State == "L" ~ "Electric light indoors",
+    State == "I" ~ "Daylight indoors",
+    TRUE ~ as.character(State)
+  ))
 
 
-midpoints <- mhlea_205 %>%
-  group_by(State) %>%
-  summarise(midpoint = mean(Datetime))
-
-ggplot(mhlea_205, aes(x = Datetime, y = State, color = State)) +
+weekendday_205_sub <- ggplot(mhlea_205_singleday, aes(x = Datetime, y = State, color = State)) +
   geom_point() +
-  geom_text_repel(aes(label = ifelse(duplicated(State), "", State)),
+  geom_label(aes(label = ifelse(duplicated(State), "", statenames)),
                    max.overlaps = Inf,
                    segment.color = NA,
-                   nudge_y = 0.2,
-                   hjust = 0) +
+                   nudge_x = 0.3,
+                   nudge_y = 0.3,
+                   hjust = -0.17) +
   scale_x_datetime(
     labels = scales::time_format(format = "%H:%M", tz = tz),
-    breaks = "1 hour"
+    breaks = "3 hours",
+    limits = as.POSIXct(c("2023-09-02 00:00:00", "2023-09-03 00:00:00"), tz = tz),
+    expand = c(0,0)
   ) +
+  scale_color_manual(name = "Light sources",
+                     labels = c("Daylight indoors", "Electric light source indoors", "Daylight outdoors", "Sleeping"),
+                     values = c("#0099CC", "#FFCC00", "#0066CC", "black")) +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-   
-custom_positions <- data.frame(
-  State = "X",
-  midpoint = c(as.POSIXct("2023-08-15 04:30:00", tz = tz), as.POSIXct("2023-08-15 15:00:00", tz = tz))
-)
-
-
+  theme(axis.text.x = element_text(size = 12)) +
+     #   legend.position = "none",
+      #  plot.title = ) +
+  labs(x = "Time of day", y = "Light source", title = "Self-reported light exposure over a "~italic(weekend)~" day") +
+  theme(plot.title = element_text(hjust = 0.5))
 
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+ggplot2::ggsave(plot = weekendday_205_sub, filename = "205weekend_day_sub.png", width = 7, height = 4, dpi = 600, bg = "white")
+```
+
+```{r}
+mHLEA_boxplot <- data.LL.binned %>%
+  interval2state(mhlea_df) %>%
+  select(-lightsource) 
+#  filter(!is.na(State))
+
+##We only want to keep the first light exposure category indicated by the participants 
+mHLEA_boxplot$State <- gsub("\\+(.+)", "", mHLEA_boxplot$State)
+mHLEA_boxplot$State <- gsub("W", "X", mHLEA_boxplot$State)
+
+mHLEA_boxplot2 <- mHLEA_boxplot %>%
+  mutate(hour= hour(Datetime)) %>%
+           group_by(Date = as.Date(Datetime, tz = tz), hour, State, Id) %>%
+           summarise(median_medi = median(MEDI, na.rm = TRUE))
+
+options(scipen = 999)
+
+new_order <- with(mHLEA_boxplot, reorder(as.factor(State) , MEDI, median , na.rm=T))
+mHLEA_boxplot2$State <- factor(mHLEA_boxplot2$State, levels = c("D", "X", "E", "L", "S", "I", "O"))
+
+ggplot(mHLEA_boxplot2, aes(x = State, y = median_medi)) +
+  geom_violin(alpha = 0.3, aes(fill = State), trim = FALSE) + 
+  geom_boxplot(width = 0.2) +
+  scale_y_log10(
+    breaks = c(0.1, 1, 10, 100, 1000, 10000, 100000),
+    labels = c("0.1", "1", "10", "100", "1000", "10000", "100000")
+  ) +
+  scale_fill_manual(
+    name = "Light sources",
+    values = c("D" = "black" ,
+               "X" = "#999999",
+               "E" = "#99FFFF",
+               "L" = "#FFCC33",
+               "S" = "#FF9933",
+               "I" = "#0099CC",
+               "O" = "#0066CC"),
+    labels = c("Darkness (outdoors/indoors)",
+               "Sleeping",
+               "Emissive displays",
+               "Electric light indoors",
+               "Electric light outdoors",
+               "Daylight indoors",
+               "Daylight outdoors")) +
+  theme_bw() +
+  labs(x = "Light source", y = "Melanopic equivalent daylight illuminance (mEDI) [lux]", title = "Objective light exposure by self-reported light environment") + 
+  theme(plot.title = element_text(hjust = 0.5))
+  
+```
+
+```{r}
+Sys.setlocale("LC_TIME", "en_US.UTF-8")
+mHLEA_boxplot2$day <- format(mHLEA_boxplot2$Date, format = "%A", locale="English")
+```
+
+### We need to load in all the data from the participants
+```{r}
+setwd("D:/cyepi/data/raw/group/demographics")
+
+filedem <- "D:/cyepi/data/raw/group/demographics/201_231_demog_20231123.csv"
+
+demographics <- read.csv(file = filedem, sep = ";", fileEncoding = "UTF-8")
+
+demographics_select <- demographics %>%
+  select(record_id, age, sex, employment_status) %>%
+  rename(Id = record_id) %>%
+  mutate(Id = as.character(Id))
+
+mHLEA_ancova <- 
+  left_join(demographics_select, mHLEA_boxplot2, by = "Id")
+
+mHLEA_ancova <- mHLEA_ancova %>%
+  left_join(msf_sc, by = "Id")
+  
+```
+
+```{r}
+State
+```
+
