@@ -102,7 +102,7 @@ navalues <- mhlea_df %>%
 mhlea_df <- mhlea_df %>%
   sc2interval(Datetime.colname = timestamp, Statechange.colname = lightsource, full = FALSE, length.restriction = 60*60*24) 
 
-mhlea_LL_combined <- data.LL.filtered %>%
+mhlea_LL_combined <- data.LL.binned %>%
   interval2state(mhlea_df) %>%
   select(-lightsource)
 
@@ -168,10 +168,10 @@ ggplot2::ggsave(plot = weekendday_205_sub, filename = "205weekend_day_sub.png", 
 ```
 
 ```{r}
-mHLEA_boxplot <- data.LL.binned %>%
+mHLEA_boxplot <- data.LL.filtered %>%
   interval2state(mhlea_df) %>%
-  select(-lightsource) 
-#  filter(!is.na(State))
+  select(-lightsource) %>%
+  filter(!is.na(State))
 
 ##We only want to keep the first light exposure category indicated by the participants 
 mHLEA_boxplot$State <- gsub("\\+(.+)", "", mHLEA_boxplot$State)
@@ -180,14 +180,15 @@ mHLEA_boxplot$State <- gsub("W", "X", mHLEA_boxplot$State)
 mHLEA_boxplot2 <- mHLEA_boxplot %>%
   mutate(hour= hour(Datetime)) %>%
            group_by(Date = as.Date(Datetime, tz = tz), hour, State, Id) %>%
-           summarise(median_medi = median(MEDI, na.rm = TRUE))
+           summarise(mean_medi = mean(MEDI, na.rm = TRUE)) %>%
+          filter(!is.na(State))
 
 options(scipen = 999)
 
 new_order <- with(mHLEA_boxplot, reorder(as.factor(State) , MEDI, median , na.rm=T))
-mHLEA_boxplot2$State <- factor(mHLEA_boxplot2$State, levels = c("D", "X", "E", "L", "S", "I", "O"))
+mHLEA_boxplot$State <- factor(mHLEA_boxplot$State, levels = c("D", "X", "E", "L", "S", "I", "O"))
 
-ggplot(mHLEA_boxplot2, aes(x = State, y = median_medi)) +
+ggplot(mHLEA_boxplot, aes(x = State, y = MEDI)) +
   geom_violin(alpha = 0.3, aes(fill = State), trim = FALSE) + 
   geom_boxplot(width = 0.2) +
   scale_y_log10(

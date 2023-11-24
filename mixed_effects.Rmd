@@ -1,0 +1,74 @@
+---
+title: "mHLEA_mixedeffects"
+author: "Carolina Guidolin"
+date: "2023-11-24"
+output: html_document
+---
+
+```{r}
+library(lme4)
+library(Matrix)
+
+```
+
+## Code for doing a mixed effect model 
+
+```{r}
+mHLEA_mixedeffects <- data.LL.binned %>%
+  interval2state(mhlea_df) %>%
+  select(-lightsource, file.name) 
+
+##We only want to keep the first light exposure category indicated by the participants 
+mHLEA_mixedeffects$State <- gsub("\\+(.+)", "", mHLEA_mixedeffects$State)
+
+##Account for participants who reported "W+X" which means that they would be sleeping, so we need to substitute to X
+mHLEA_mixedeffects$State <- gsub("W", "X", mHLEA_mixedeffects$State)
+
+
+```
+
+## Organising our data structure
+We need a column containing hourly self-reported light exposure categories (categorical variable, our fixed effect) and a column containing the dependent variable median objective light exposure (mEDI). We also want our grouping variable to be the participant. 
+
+```{r pressure, echo=FALSE}
+mHLEA_mixedeffects <- mHLEA_mixedeffects %>%
+  mutate(hour= hour(Datetime)) %>% #extract the hour information
+           group_by(Date = as.Date(Datetime, tz = tz), hour, State, Id) %>% #for each Id, hour and State, calculate the median medi
+           summarise(median_medi = median(MEDI, na.rm = TRUE)) 
+
+small_nonzero_value <- 0.0001
+
+mHLEA_mixedeffects$median_medi[mHLEA_mixedeffects$median_medi == 0] <- small_nonzero_value
+
+mHLEA_mixedeffects$log_median_medi <- log(mHLEA_mixedeffects$median_medi, base = 10)
+
+mHLEA_mixedeffects$Id <- as.factor(mHLEA_mixedeffects$Id)
+mHLEA_mixedeffects$hour <- as.ordered(mHLEA_mixedeffects$hour)
+```
+
+
+```{r}
+formula_mixedeffect <- log_median_medi ~ State + (1 + State | Id) 
+
+model <- lmer(formula_mixedeffect, data = mHLEA_mixedeffects)
+
+summary(model)
+
+plot(model)
+
+isSingular(model)
+
+confint(model)
+
+
+qqnorm(resid(model))
+qqline(resid(model))
+```
+
+```{r}
+residuals <- residuals(model)
+
+# Plotting histogram of residuals
+hist(residuals, main = "Histogram of Residuals", xlab = "Residuals")
+```
+

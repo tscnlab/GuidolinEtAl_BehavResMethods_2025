@@ -150,5 +150,9 @@ msf_sc <- msf_sc %>%
 msf_sc <- msf_sc %>%
   select(msf_sc_rounded, id) %>%
   force_tz(msf_sc_rounded, tzone = tz)
+
+msf_sc <- msf_sc %>%
+  mutate(id = as.character(id)) %>%
+  rename(Id = id)
 ```
 
