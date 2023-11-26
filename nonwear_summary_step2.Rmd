@@ -117,6 +117,41 @@ nonwear_all <- merge(wearlog_events, button_press, by = "record_id")
 nonwear_all_long <- pivot_longer(nonwear_all, cols = c("wearlog_anyevent_z1", "wearlog_off_current","wearlog_off_retrospective", "wearlog_on_current", "wearlog_on_retrospective",  "wearlog_sleep_current", "wearlog_sleep_retrospective", "wearlog_bagused_z2", "wearlog_bagnotused_z3", "wearlog_buttonpress_z6", "wearlog_leavingtubingen_z4", "wearlog_reenteringtubingen_z5"), names_to = "event", values_to = "count")
 ```
 
+```{r}
+##Getting some summary statistics
+
+nonwear_all_summary <- colSums(nonwear_all, na.rm = TRUE)
+sums_df <- data.frame(
+  Variable = names(nonwear_all_summary),
+  Sum = column_sums
+)
+
+nonwear_all_summary <- nonwear_all %>%
+  summarise(
+    across(-record_id, list(Sum = sum), na.rm = TRUE),
+    across(-record_id, list(ParticipantWithMax = ~record_id[which.max(.)])),
+    across(-record_id, list(ParticipantWithMin = ~record_id[which.min(.)]))
+  )
+
+summary_table <- nonwear_all_long %>%
+  group_by(event) %>%
+  summarise(Mean = mean(count), SD= sd(count)) %>%
+  rename(Event = event)
+
+summary_table$Event[summary_table$Event %in% c("wearlog_anyevent_z1", "wearlog_off_current","wearlog_off_retrospective", "wearlog_on_current", "wearlog_on_retrospective",  "wearlog_sleep_current", "wearlog_sleep_retrospective", "wearlog_bagused_z2", "wearlog_bagnotused_z3", "wearlog_buttonpress_z6", "wearlog_leavingtubingen_z4", "wearlog_reenteringtubingen_z5")] <- c("All wear log entries", "Taking the light glasses off (current)", "Taking the light glasses off (retrospective)", "Putting the light glasses on (current)", "Putting the light glasses on (retrospective)", "Taking the light glasses off before sleep (current)" ,"Taking the light glasses off before sleep (retrospective)","Black bag used", "Black bag not used", "Button press", "Leaving Tübingen", "Re-entering Tübingen")
+
+summary_table <- gt(summary_table)
+
+summary_table <- summary_table %>%
+  tab_header(title = "Summary of self-reported \"Wear log\" entries and button presses for n=26 participants")     
+
+summary_table
+gt_preview(summary_table)
+
+gtsave(summary_table, filename = "wearlog_table.png")
+```
+
+
 
 #### Let's visualise this information 
 First, we start by visualising ALL events for all participants with a stacked barplot
@@ -138,19 +173,19 @@ custom_order_stacked <- c("reenteringtubingen", "leavingtubingen", "bagnotused",
 
 summary_plot_all <- ggplot(stacked_overview_long, aes(x = count, y = factor(event, custom_order_stacked), fill = time)) +
   geom_bar(position = "stack", stat = "identity")  +
-  ggtitle("Number of total self-reported wear log entries and\n light logger button press events for n=26 participants") +
+  ggtitle(bquote("Number of total self-reported \"Wear log\" entries and\n light logger button press events for n=26 participants")) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5, size = 12, face = "bold")) +
   xlab("Count") +
   ylab("Event") +
-
   scale_y_discrete(breaks = custom_order_stacked, labels = c("Re-entering Tübingen", "Leaving Tübingen", "Off and black bag not used", "Off and black bag used", "Off before sleep ", "Off", "On", "Button press", "All wear log entries")) +
-scale_fill_manual(name = "Time of reporting", values = c("#66CCFF", "#0066CC","#006633", "#CC66FF", "#FF99FF", "#FF9933", "#CC0033", "#009933"), labels = c( "Current", "Retrospective", "z1", "z2", "z3","z4", "z5", "z6" )) 
-  
+scale_fill_manual(name = "Time of reporting", values = c( "#66CCFF", "#0066CC",  "#006633", "#CC66FF", "#FF99FF", "#FF9933", "#CC0033" , "#009933"), labels = c( "Current", "Retrospective", "z1", "z2", "z3","z4", "z5", "z6" )) 
+
 ```
 Let's save this
 ```{r}
-ggsave(plot = summary_plot_all, filename ="summaryplot7.png", dpi =300, width = 9, height = 6)
+ggsave(plot = summary_plot_all, filename ="thesis_summary_events.png", dpi =600, width = 9, height = 6, path ="D:/cyepi/code/outputs")
+ggsave(plot = summary_plot_all, filename ="thesis_summary_events.pdf", dpi =600, width = 9, height = 6, path ="D:/cyepi/code/outputs")
 ```
 
 Another visualisation is to look at each individual participant in a facet
@@ -160,7 +195,7 @@ faceted_plot_wearlog2 <- ggplot(stacked_overview_long, aes(x = count, y = factor
   facet_wrap(~record_id, ncol = 4, scales = "free_x") + 
   scale_y_discrete(breaks = custom_order_stacked, labels = c("Re-entering Tübingen", "Leaving Tübingen", "Off and black bag not used", "Off and black bag used", "Off before sleep ", "Off", "On", "Button press", "All wear log entries")) +
 scale_fill_manual(name = "Time of reporting", values = c("#66CCFF", "#0066CC","#006633", "#CC66FF", "#FF99FF", "#FF9933", "#CC0033", "#009933"), labels = c( "Current", "Retrospective", "z1", "z2", "z3","z4", "z5", "z6" )) +
-   ggtitle("Number of total self-reported wear log entries and\n light logger button press events for n=26 participants") +
+   ggtitle(bquote("Number of total self-reported \"Wear log\" entries and\n light logger button press events for n=26 participants")) +
   theme(plot.title = element_text(hjust = 0.5, size = 12, face = "bold")) +
   xlab("Count") +
   ylab("Event") +
@@ -176,5 +211,36 @@ scale_fill_manual(name = "Time of reporting", values = c("#66CCFF", "#0066CC","#
 
 Let's save this 
 ```{r}
-ggsave(plot = faceted_plot_wearlog2, filename ="faceted_plotA.png", dpi =300, width = 12, height = 14)
+ggsave(plot = faceted_plot_wearlog2, filename ="thesis_facetedplot.png", dpi =600, width = 12, height = 14, path ="D:/cyepi/code/outputs")
+ggsave(plot = faceted_plot_wearlog2, filename ="thesis_facetedplot.pdf", dpi =600, width = 12, height = 14, path ="D:/cyepi/code/outputs")
+
 ```
+
+##Now let's look at individual participants
+We identified 201 as the participant with most wearlog entries and participant 213 with the least. 
+```{r}
+mostentries_leastentries <- stacked_overview_long %>%
+  filter(record_id == "201" | record_id == "213")
+
+mostentries_leastentries_p <- ggplot(mostentries_leastentries, aes(x = count, y = factor(event, custom_order_stacked), fill = time)) +
+  geom_bar(position = "stack", stat = "identity")  +
+  facet_wrap(~record_id, ncol = 1, scales = "fixed") + 
+  scale_y_discrete(breaks = custom_order_stacked, labels = c("Re-entering Tübingen", "Leaving Tübingen", "Off and black bag not used", "Off and black bag used", "Off before sleep ", "Off", "On", "Button press", "All wear log entries")) +
+scale_fill_manual(name = "Time of reporting", values = c("#66CCFF", "#0066CC","#006633", "#CC66FF", "#FF99FF", "#FF9933", "#CC0033", "#009933"), labels = c( "Current", "Retrospective", "z1", "z2", "z3","z4", "z5", "z6" )) +
+   ggtitle(bquote("Comparison between self-reported \"Wear log\" entries for two participants")) +
+  theme(plot.title = element_text(hjust = 0.5, size = 12, face = "bold")) +
+  xlab("Count") +
+  ylab("Event") +
+   theme_bw() +
+  scale_x_continuous(breaks = c(5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60), labels = c(5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60)) +
+        theme(legend.key.size = unit(0.3, "cm")) +
+  theme(legend.position = "top",
+        legend.direction = "horizontal")  +
+   theme(plot.title = element_text(hjust = 0.5, size = 12, face = "bold"))
+```
+
+```{r}
+ggsave(plot = mostentries_leastentries_p, filename ="most_leastentries.png", dpi =600, width = 9, height = 10, path ="D:/cyepi/code/outputs")
+ggsave(plot = mostentries_leastentries_p, filename ="most_leastentries.pdf", dpi =600, width = 12, height = 14, path ="D:/cyepi/code/outputs")
+```
+
