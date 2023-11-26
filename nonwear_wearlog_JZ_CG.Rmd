@@ -242,7 +242,7 @@ nonwear_duration <- ggplot(nonwear_df_daily, aes(x = day, y = nonwear_daily)) +
   geom_violin(alpha = 0.3, aes(fill=day), trim = FALSE) + 
   geom_dotplot(binaxis = "y",
                stackdir = "center",
-               dotsize = 0.5) +
+               dotsize = 0.3) +
   theme_bw() +
   theme(legend.position = "none") +
   theme(plot.title = element_text(hjust = 0.5, size = 12, face = "bold")) +
@@ -251,7 +251,7 @@ nonwear_duration <- ggplot(nonwear_df_daily, aes(x = day, y = nonwear_daily)) +
   scale_y_datetime(
     #breaks = as.POSIXct(c("1970-01-01 01:00:00", "1970-01-01 05:00:00", "1970-01-01 09:00:00", "1970-01-01 13:00:00", "1970-01-01 17:00:00"),
     labels = scales::time_format("%H:%M")) +
-  ggtitle("Participants' (n=26) non-wear time during the experimental week\n according to self-reported wear log entries")
+  ggtitle("Participants' non-wear time during the experimental week\n according to self-reported wear log entries")
   
 ```
 It looks like the range of weekly non-wear time for most participants is something between 00:00:00 and 04:00:00. At the weekend, it looks like this increases slightly for some participants. We also have some outliers, where non-wear time seems to be very high (>4hrs). 
@@ -259,11 +259,19 @@ After visual inspection, I can say that for participants 201, 204, 208, 215, 221
 
 Let's save this 
 ```{r}
-ggsave(filename = "nonwearduration6.png",
+ggsave(filename = "thesis_nonwear_duration.png",
        plot = nonwear_duration,
        width = 7,
        height = 8,
-       path= "D:/cyepi/code/pre-processing/nonwear_detection")
+       dpi = 600,
+       path= "D:/cyepi/code/outputs")
+
+ggsave(filename = "thesis_nonwear_duration.pdf",
+       plot = nonwear_duration,
+       width = 7,
+       height = 8,
+       dpi = 600,
+       path= "D:/cyepi/code/outputs")
 ```
 
 ### Calculating the centre point of non-wear
@@ -282,7 +290,7 @@ nonwear_df_daily <- nonwear_df_daily %>%
 
 #Bin the centre points into 30 minutes bins 
 nonwear_df_daily_binned <- nonwear_df_daily %>%
-  mutate(centre_point_binned = cut(centre_point_format, breaks = "30 min"))
+  mutate(centre_point_binned = cut(centre_point_format, breaks = "60 min"))
 
 
 
@@ -294,22 +302,22 @@ Let's plot this in this way: we want to see the number of events are in which bi
 #Again, we want to make sure we are working with POSIXct objects
 nonwear_df_daily_binned <- nonwear_df_daily_binned %>%
   mutate(centre_point_binned = trimws(centre_point_binned),
-         centre_point_binned = as.POSIXct(centre_point_binned))
+         centre_point_binned = as.POSIXct(centre_point_binned, tz = tz))
 
 #Plotting
 ggplot(nonwear_df_daily_binned, aes(x = centre_point_binned, y = ..density..)) +
-  geom_histogram(fill = "steelblue", bins = 30) +
-  geom_density(color = "black", alpha = 0.5) +
+  geom_histogram(color = "black", fill = "#0072B2", alpha = 0.8, position = "identity") +
+  geom_density(color = "black", alpha = 0.3) +
   labs(x = "Centre point of non-wear time interval", y = "Number of events") +
   scale_x_datetime(
     labels = date_format("%H:%M"),
     breaks = date_breaks("1 hour"),
     expand = c(0, 0),
-    limits = c(as.POSIXct("2023-11-17 01:00"), as.POSIXct("2023-11-18 01:00"), tz = tz )
-  ) +
+    limits = c(as.POSIXct("2023-11-26 01:00"), as.POSIXct("2023-11-27 01:00"), tz = tz )) +
    scale_y_continuous(
-    breaks = c(1, 3, 5, 7, 9, 11),
-    labels = c(1, 3, 5, 7, 9, 11)
+    breaks = c(0, 1, 3, 5, 7, 9, 11),
+    labels = c(0, 1, 3, 5, 7, 9, 11),
+    expand = c(0,0)
   ) +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
@@ -368,6 +376,7 @@ nonwear_df_daily_binned <- nonwear_df_daily_binned %>%
 
 
 ```
+
 ```{r}
 ggsave(nonwear_timing, filename = "nonwear_timing1.png", width = 10, height = 7)
 ```
@@ -400,22 +409,69 @@ offtime_intervals <-
   filter(State == "off") %>% 
   #calculate the nonwear time through the interval column
   mutate(off_start = int_start(Interval)) %>% 
-  mutate(off_end = int_end(Interval))
+  mutate(off_end = int_end(Interval)) %>%
+  select(-Interval)
 
 #Filter the original dataset and replace nonwear time with NA values
 dataset.LL.all_filtered <- dataset.LL.all %>%
-  group_by(Id) %>%
-  left_join(Test, by = "Id") %>%
+#  group_by(Id) %>%
+  full_join(offtime_intervals) %>%
   mutate(ind = (Datetime >= off_start & Datetime <= off_end),
          MEDI = ifelse(ind, NA, MEDI)) %>%
-  select(-off_start, -off_end, -ind) %>%
+  distinct(Id, Datetime, .keep_all = TRUE) %>%
   ungroup()
 
 #Check that it looks as it is supposed to 
 dataset.LL.all_filtered_check <- dataset.LL.all_filtered %>%
   filter(is.na(MEDI))
   
+
 ```
+
+```{r}
+tz <- "Europe/Berlin"
+
+#For each non-wear time interval, we calculate the centre point 
+offtime_intervals_centre <- offtime_intervals %>%
+  mutate(centre_point = off_start + difftime(off_end, off_start) / 2,
+         centre_point_format = format(centre_point, format = "%H:%M:%S"))
+
+offtime_intervals_centre <- offtime_intervals_centre %>%
+  mutate(centre_point_format = as.POSIXct(centre_point_format, format = "%H:%M:%S", tz = tz))
+
+
+custom_breaks <- as.POSIXct(paste(Sys.Date(), c("00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00", "07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:59:59")), format="%Y-%m-%d %H:%M", tz = tz)
+
+offtime_intervals_centre$centre_point_bins <- cut(as.POSIXct(offtime_intervals_centre$centre_point_format, format="%H:%M", tz =tz), breaks= custom_breaks)
+
+offtime_intervals_centre <- offtime_intervals_centre %>%
+  mutate(centre_point_bins = as.POSIXct(centre_point_bins, format="%Y-%m-%d %H:%M:%S", tz = tz)) 
+
+offtime_intervals_centre$centre_point_bins[is.na(offtime_intervals_centre$centre_point_bins)] <- as.POSIXct("2023-11-26 00:00:00")
+
+options(scipen = 999)
+ggplot(offtime_intervals_centre, aes(x = centre_point_bins)) +
+  geom_histogram(aes(y = ..density..), color = "black", fill = "#0072B2", alpha = 0.8) +
+  theme_bw() +
+   geom_density(aes(y = ..density..), color = "black") +
+  labs(x = "Centre point of non-wear time interval", y = "Density") +
+  scale_x_datetime(
+    labels = scales::date_format("%H:%M"),
+    breaks = seq(from = floor_date(min(offtime_intervals_centre$centre_point_bins), "day"),
+                  to = ceiling_date(max(offtime_intervals_centre$centre_point_bins), "day"),
+                  by = "1 hour")
+  ) +
+   scale_y_continuous(limits = c(0, 0.00004), expand = c(0,0)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+   ggtitle("Timing of non-wear time across the day all participants") +
+   theme(plot.title = element_text(hjust = 0.5, size = 12, face = "plain")) 
+
+
+
+
+```
+
+
 
 ## Old code
 ```{r}
