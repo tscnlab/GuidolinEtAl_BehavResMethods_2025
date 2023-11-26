@@ -1,0 +1,594 @@
+---
+title: "205_LightLogR"
+output: html_document
+date: "2023-09-29"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Loading necessary packages
+
+You can also embed plots, for example:
+
+```{r}
+library(LightLogR)
+library(tidyverse)
+library(gt)
+library(patchwork)
+library(lightdosimetry)
+```
+## Importing data
+1. Light logger data
+2. Environmental data (from rooftop sensor)
+3. Sleep diary data 
+
+
+```{r}
+file.LL <- "205_actlumus_Log_1020_20230904101707532.txt"
+file.env <- "cyepiamb_CW35_Log_1431_20230904081953614.txt"
+file.sleep <- "205_sleepdiary_all_20230904.csv"
+```
+
+## Work with personal light exposure data 
+We now create a dataset for the personal light exposure data for participant 212. We also want to filter the Datetime so that we start at the first timestamp and end on Sunday night. The timestamp information is taken from the quality_check37.xlsx file. 
+```{r}
+tz <- "Europe/Berlin"
+dataset.LL <- import$ActLumus(file.LL, auto.id = "^(\\d{3})", tz = tz)
+
+#We would like to filter according to when exactly the participant started and ended the experiment
+dataset.LL <- dataset.LL %>%
+  filter_Datetime(start = "2023-08-28 15:41:00", end = "2023-09-03 23:59:59")
+```
+
+## Visualisation of personal light exposure over 7 days 
+We start by a simple visualisation of the participant's light exposure over the seven days of participation. To gain a little insight into the MEDI levels we are dealing with, we colour the MEDI datapoints >250 lx as orange and the ones <250 lx as light blue. 
+```{r}
+dataset.LL %>%
+  gg_day(size = 0.25, color = "#EFC000", geom = "line", x.axis.label = "Time of day", title = "Example personal light exposure over a week", format.day = "%A", locale = "English") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+Sys.setlocale("LC_TIME", "en_US.UTF-8") #needed to run this code to have the days displayed in English and not German
+```
+
+
+
+We see that a lot of datapoints are <0 lx. This is because this is raw data - meaning it includes non-wear time when participants placed the light glasses in the black bag (and thus MEDI ~0 lx). 
+## Importing the environmental dataset for the corresponding week
+```{r}
+dataset.env <- import$ActLumus(file.env, manual.id = "CW35", tz = tz)
+
+#Here as well, we would like to filter according to when the participant started, so we apply the same timestamps to the dataset.env
+dataset.env <- dataset.env %>%
+  filter_Datetime(start = "2023-08-28 15:41:00", end = "2023-09-03 23:59:59")
+```
+
+## Importing the sleep diary data 
+Using the state changes function, we now also import data from the sleep diary. 
+```{r}
+dataset.sleep <- 
+  import_Statechanges(file.sleep, 
+                      Datetime.format = "dmyHM",
+                      State.colnames = c("sleep", "offset"),
+                      State.encoding = c("sleep", "wake"),
+                      Id.colname = record_id,
+                      sep = ";",
+                      dec = ",",
+                      tz = tz)
+
+dataset.sleep %>% head() %>% gt()
+```
+
+## Combing the personal and environmental datasets
+Using the data2reference function, we compare personal light exposure to a Reference - in this case the enviornmental light (daylight). Since sampling interval of cyepi_ambient is 30s and of personal light glasses is 10s, the same ref value is assignes to 3 consecutive participant values. 
+```{r}
+dataset.LL <- 
+  dataset.LL %>% data2reference(Reference.data = dataset.env, across.id = TRUE)
+
+dataset.LL <- 
+  dataset.LL %>% select(Id, Datetime, MEDI, Reference) #removing unnecessary columns
+
+dataset.LL %>% head() %>% gt()
+```
+
+## Visualise personal and environmental light exposure in one plot
+```{r}
+thesis_weeklyoverview_205 <- dataset.LL %>% 
+  gg_day(geom = "point", size = 0.25, color = "#EFC000", x.axis.label = "Time of day", title = "Example of continuous personal and environmental light exposure over a week", format.day = "%A", y.axis.label = "Illuminance (mEDI) [lux]", y.axis.breaks = c(-10^(5:0), 0, 10^(0:6))) +
+  theme(plot.title = element_text(face = "plain", hjust = 0.5))+
+  geom_line(aes(y=Reference), lty = 2, col = "#0073C2FF")
+```
+
+```{r}
+ggsave(plot = thesis_weeklyoverview_205, filename = "205_week_overview.png", width = 8, height = 10, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
+
+ggsave(plot = thesis_weeklyoverview_205, filename = "205_week_overview.pdf", width = 7, height = 4, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
+
+```
+
+## Recommendations from Brown et al (2022)
+We convert the timepoints when a state changes into intervals during which the participants is either awake or asleep. 
+```{r}
+dataset.sleep <- dataset.sleep %>% sc2interval()
+
+dataset.sleep %>% head() %>% gt()
+```
+
+Now we transform them into intervals for the Brown et al recommendations (evening/night/day)
+```{r}
+Brown.intervals <- dataset.sleep %>% sleep_int2Brown()
+
+Brown.intervals %>% head() %>% gt()
+```
+
+We now apply this data to our dataset
+```{r}
+dataset.LL <- 
+  dataset.LL %>% 
+  interval2state(
+    State.interval.dataset = Brown.intervals, State.colname = State.Brown, Interval.colname = Interval)
+#dataset.LL %>% tail() %>% gt()
+```
+
+We now add the threshold of MEDI for each of the Brown "states" and check whether our participant is within this range
+```{r}
+dataset.LL <- dataset.LL %>% Brown2reference(Brown.rec.colname = Reference.Brown)
+dataset.LL %>% select(!Reference.Brown.label) %>% tail() %>% gt()
+```
+
+Let's have a look at the data
+```{r}
+dataset.LL %>% #dataset
+  gg_day(geom = "point", size = 0.25, color = '#EFC000', x.axis.label = "Time", title = "P205 personal and environmental light exposure over 7 days") + 
+  theme(plot.title = element_text(hjust = 0.5)) + #base plot
+  geom_line(aes(y=Reference), lty = 2, col = "#0073C2FF") + #solar reference
+  geom_line(aes(y=Reference.Brown), lty = 1, col = "black") #Brown reference
+```
+
+## Zooming into one day 
+```{r}
+dataset.LL.partial <- 
+dataset.LL %>% 
+  filter_Date(start = "2023-09-02", length = days(1)) #use only one day
+
+solar.reference <-   geom_line(aes(y=Reference), lty = 1, col = "#0073C2FF") #solar reference
+brown.reference <-   geom_line(aes(y=Reference.Brown), lty = 2, col = "black") #Brown reference
+
+dataset.LL.partial  %>% 
+  gg_day(size = 0.25, facetting = FALSE, geom = "line", color = '#EFC000', x.axis.label = "Time") + #base plot
+  solar.reference + brown.reference
+```
+
+## Styling the data 
+```{r}
+scale.correction <- coord_cartesian(
+  ylim = c(0.1, 10^5), # tweak the y axis
+  xlim = c(0, 24.5*60*60), #make sure the x axis covers 24 hours (+a bit for the label)
+  expand = FALSE)  #set the axis limits exactly at ylim and xlim
+```
+
+##Aggregate the data 
+Create aggregate function
+```{r}
+aggregate_Datetime2 <- function(...) {
+  aggregate_Datetime(...) %>% #aggregate the data
+  select(-Reference.Brown) %>% #remove the rounded 
+  Brown2reference(Brown.rec.colname = Reference.Brown) #recalculate the brown times
+    }
+```
+
+## Apply the aggregate function (here 5 minutes)
+```{r}
+Plot <- dataset.LL.partial %>% aggregate_Datetime2(unit = "5 mins")  %>% 
+  gg_day(facetting = FALSE, geom = "ribbon", alpha = 0.25, size = 0.25,
+         fill = "#EFC000", color = "#EFC000", x.axis.label = "Time of day", title = "Example of continuous personal and environmental light exposure over a week", y.axis.label = "Illuminance (mEDI) [lux]") + #base plot
+  solar.reference + brown.reference + scale.correction
+
+```
+
+```{r}
+Plot_nobrown <- dataset.LL.partial %>% aggregate_Datetime2(unit = "5 mins")  %>% 
+  gg_day(facetting = FALSE, geom = "ribbon", alpha = 0.25, size = 0.25,
+         fill = "#EFC000", color = "#EFC000", x.axis.label = "Time of day", title = "Example of continuous personal and environmental light exposure over a week", y.axis.label = "Illuminance (mEDI) [lux]") + #base plot
+  solar.reference ++ scale.correction
+
+```
+
+```{r}
+# Calculate the time difference between consecutive rows
+
+data.LL.weekend <- data.LL.filtered %>%
+  filter(Id == "205") %>%
+  filter_Date(start = "2023-09-02", length = days(1))
+
+data.LL.weekend <- 
+  data.LL.weekend %>% 
+  interval2state(
+    State.interval.dataset = Brown.intervals, State.colname = State.Brown, Interval.colname = Interval)
+
+data.LL.weekend <- data.LL.weekend %>% Brown2reference(Brown.rec.colname = Reference.Brown)
+
+df <- data.LL.weekend %>% aggregate_Datetime2(unit = "5 mins")  %>%
+  mutate(time_diff = c(0, diff(Datetime)))
+
+# Create a new column that accumulates time spent during the 'day' when reference is TRUE
+df <- df %>% group_by(State.Brown) %>%
+  mutate(accumulated_time_day = cumsum(ifelse(State.Brown == 'day' & Reference.Brown.check == TRUE, time_diff, 0)))
+
+df_day <- df %>%
+  filter(State.Brown == "day") %>%
+  group_by(State.Brown) %>%
+  summarise(range = range(MEDI),
+            mean = mean(MEDI),
+            median = median(MEDI),
+            min_datetime = Datetime[which.min(MEDI)],
+            max_datetime = Datetime[which.max(MEDI)]
+  )
+
+
+# Filter rows starting from sunset until "MEDI" is 0
+awake_after_sunset <- df[252:nrow(df), ]
+
+# Find the index where "MEDI" is 0
+medi_0_index <- which(awake_after_sunset$MEDI == 0)[1]
+
+# Calculate the duration of time awake after sunset
+duration_awake_after_sunset <- difftime(awake_after_sunset$Datetime[medi_0_index], awake_after_sunset$Datetime[1], units = "hours")
+
+timing_weekendday = df %>%
+  dplyr::summarise(
+    mlit(MEDI, Datetime, 250))
+
+
+day_length_weekendday <- as.difftime(as.POSIXct("2023-09-02 20:00:00") - as.POSIXct("2023-09-02 09:10:00"))
+	
+day_length_weekendday
+
+```
+
+
+
+## Style it 
+```{r}
+sat_plot_205 <- Plot + 
+  geom_ribbon(aes(ymin = MEDI, ymax=Reference), alpha = 0.25, fill = "#0073C2FF") #solar reference
+```
+
+## Make a second plot 
+```{r}
+Day.end <- as_datetime("2023-09-02 23:59:59", tz = tz)
+
+
+Day.start <- as_datetime("2023-09-02 00:00:00", tz = tz)
+
+Brown.times <- 
+  Brown.intervals %>% 
+ # filter(int_overlaps(Interval)) %>% 
+  mutate(ymin = case_match(State.Brown,
+                           "night"  ~ 0,
+                           "day" ~ 250,
+                           "evening" ~ 0),
+         ymax = case_match(State.Brown,
+                           "night"  ~ 1,
+                           "day" ~ Inf,
+                           "evening" ~ 10),
+         xmin = int_start(Interval),
+         xmax = int_end(Interval),
+         xmin = if_else(xmin < Day.start, Day.start, xmin)  %>% hms::as_hms(),
+         xmax = if_else(xmax > Day.end, Day.end, xmax) %>% hms::as_hms()
+         )
+
+Brown.times <- 
+  Brown.times %>% 
+  mutate(xmean = (xmax - xmin)/2 + xmin,
+         label.Brown = case_match(State.Brown,
+                                  "night" ~ "sleep",
+                                  "evening" ~ "pre-bed",
+                                  .default = State.Brown))
+
+Brown.times_2 <- Brown.times[15:17,]
+x <- 900
+
+thesis_weekendday_205 <- dataset.LL.partial %>% 
+  aggregate_Datetime2(unit = "5 mins") %>% filter_Datetime(end = Day.end) %>% 
+  gg_day(facetting = FALSE, geom = "blank", 
+         x.axis.label = "Time of day",
+         title = "Example personal light exposure for a weekend day",  y.axis.label = "Illuminance (mEDI) [lux]", y.axis.breaks = c(-10^(5:0), 0, 10^1, 10^2, 250, 10^3, 10^4, 10^5 )) +
+  theme(plot.title = element_text(hjust = 0.5, face = "plain")) +#base plot
+    geom_ribbon(aes(ymin = MEDI, ymax=Reference), 
+              alpha = 0.25, fill = "#0073C2FF",
+              outline.type = "upper", col = "#0073C2FF", size = 0.15) + #solar reference
+  geom_ribbon(aes(ymin = 0, ymax = MEDI), alpha = 0.30, fill = "#EFC000", 
+              outline.type = "upper", col = "#EFC000", size = 0.4) + #ribbon geom
+  scale.correction +
+  #geom_point(aes(col = Reference.Brown.check), size = 0.5)+
+  geom_line(aes(y=Reference.Brown, 
+                # group = consecutive_id(State.Brown)
+                ), 
+            col = "grey40",
+            lty = 2, size = 0.4) + #Brown reference
+  scale_color_manual(values = c("grey50", "#EFC000"))+
+  guides(color = "none") +
+  geom_label(data = Brown.times, 
+             aes(x = xmean, y = 0.5, label = label.Brown), 
+             col = "grey40", alpha = 0.75) +
+  annotate("text", x=x, y = 1.7, label = "Brown et al. (2022)", 
+           hjust = 0, col = "grey25") +
+   annotate("rect", fill = "white", xmin = 0, xmax = 7.5*60*60, 
+           ymin = 10000, ymax = 60000)+
+  annotate("text", x=x, y = 20000, label = "Personal light exposure", 
+           hjust = 0, col = "#EFC000")+
+  annotate("text", x=x, y = 40000, label = "Daylight potential", 
+           hjust = 0, col = "#0073C2DD")
+
+
+```
+
+```{r}
+ggsave(plot = thesis_weekendday_205, filename = "thesis_weekendday_205.png", width = 8, height = 5, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
+
+ggsave(plot = thesis_weekendday_205, filename = "thesis_weekendday_205.pdf", width = 8, height = 5, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
+```
+
+
+
+```{r}
+weekendday_205 / weekendday_205_sub
+```
+
+
+## Make weekday plot
+```{r}
+dataset.LL.weekday <- 
+dataset.LL %>% 
+  filter_Date(start = "2023-08-29", length = days(1)) #use only one day
+
+solar.reference <-   geom_line(aes(y=Reference), lty = 1, col = "#0073C2FF") #solar reference
+brown.reference <-   geom_line(aes(y=Reference.Brown), lty = 2, col = "black") #Brown reference
+
+dataset.LL.weekday %>% 
+  gg_day(size = 0.25, facetting = FALSE, geom = "line", color = '#EFC000', x.axis.label = "Time") + #base plot
+  solar.reference + brown.reference
+```
+
+## Calculate some metrics for weekday 
+```{r}
+# Calculate the time difference between consecutive rows
+df_weekd <- dataset.LL.weekday %>% aggregate_Datetime2(unit = "5 mins")  %>%
+  mutate(time_diff = c(0, diff(Datetime)))
+
+# Create a new column that accumulates time spent during the 'day' when reference is TRUE
+df_weekd <- df_weekd %>% group_by(State.Brown) %>%
+  mutate(accumulated_time_day = cumsum(ifelse(State.Brown == 'day' & Reference.Brown.check == TRUE, time_diff, 0)))
+
+df_weekd <- df_weekd %>%
+  filter(State.Brown == "day") %>%
+  group_by(State.Brown) %>%
+  summarise(range = range(MEDI),
+            mean = mean(MEDI),
+            median = median(MEDI),
+            min_datetime = Datetime[which.min(MEDI)],
+            max_datetime = Datetime[which.max(MEDI)]
+  )
+
+
+# Filter rows starting from sunset until "MEDI" is 0
+awake_after_sunset <- df_weekd[252:nrow(df_weekd), ]
+
+# Find the index where "MEDI" is 0
+medi_0_index <- which(awake_after_sunset$MEDI == 0)[1]
+
+# Calculate the duration of time awake after sunset
+duration_awake_after_sunset <- difftime(awake_after_sunset$Datetime[medi_0_index], awake_after_sunset$Datetime[1], units = "hours")
+
+timing_weekday = df_weekd %>%
+  dplyr::summarise(
+    mlit(MEDI, Datetime, 250))
+
+day_length_weekday <- as.difftime(as.POSIXct("2023-08-29 20:40:00") - as.POSIXct("2023-08-29 09:40:00"))
+```
+
+```{r}
+Day.end_2 <- as_datetime("2023-08-29 23:59:59", tz = tz)
+
+
+Day.start_2 <- as_datetime("2023-08-29 00:00:00", tz = tz)
+
+Brown.times_2 <- 
+  Brown.intervals %>% 
+ # filter(int_overlaps(Interval)) %>% 
+  mutate(ymin = case_match(State.Brown,
+                           "night"  ~ 0,
+                           "day" ~ 250,
+                           "evening" ~ 0),
+         ymax = case_match(State.Brown,
+                           "night"  ~ 1,
+                           "day" ~ Inf,
+                           "evening" ~ 10),
+         xmin = int_start(Interval),
+         xmax = int_end(Interval),
+         xmin = if_else(xmin < Day.start_2 , Day.start_2 , xmin)  %>% hms::as_hms(),
+         xmax = if_else(xmax > Day.end_2, Day.end_2, xmax) %>% hms::as_hms()
+         )
+
+Brown.times_2 <- 
+  Brown.times_2 %>% 
+  mutate(xmean = (xmax - xmin)/2 + xmin,
+         label.Brown = case_match(State.Brown,
+                                  "night" ~ "sleep",
+                                  "evening" ~ "pre-bed",
+                                  .default = State.Brown))
+
+Brown.times_2 <- Brown.times_2[3:5,]
+x <- 900
+
+thesis_week_day_205 <- dataset.LL.weekday %>% 
+  aggregate_Datetime2(unit = "5 mins") %>% filter_Datetime(end = Day.end) %>% 
+  gg_day(facetting = FALSE, geom = "blank", 
+         x.axis.label = "Time of day",
+         title = "Example personal light exposure for a weekday",  y.axis.label = "Illuminance (mEDI) [lux]", y.axis.breaks = c(-10^(5:0), 0, 10^1, 10^2, 250, 10^3, 10^4, 10^5 )) +
+  theme(plot.title = element_text(hjust = 0.5, face = "plain")) +#base plot
+    geom_ribbon(aes(ymin = MEDI, ymax=Reference), 
+              alpha = 0.25, fill = "#0073C2FF",
+              outline.type = "upper", col = "#0073C2FF", size = 0.15) + #solar reference
+  geom_ribbon(aes(ymin = 0, ymax = MEDI), alpha = 0.30, fill = "#EFC000", 
+              outline.type = "upper", col = "#EFC000", size = 0.4) + #ribbon geom
+  scale.correction +
+  #geom_point(aes(col = Reference.Brown.check), size = 0.5)+
+  geom_line(aes(y=Reference.Brown, 
+                # group = consecutive_id(State.Brown)
+                ), 
+            col = "grey40",
+            lty = 2, size = 0.4) + #Brown reference
+  scale_color_manual(values = c("grey50", "#EFC000"))+
+  guides(color = "none") +
+  geom_label(data = Brown.times_2, 
+             aes(x = xmean, y = 0.5, label = label.Brown), 
+             col = "grey40", alpha = 0.75) +
+  annotate("text", x=x, y = 1.7, label = "Brown et al. (2022)", 
+           hjust = 0, col = "grey25") +
+   annotate("rect", fill = "white", xmin = 0, xmax = 7.5*60*60, 
+           ymin = 10000, ymax = 60000)+
+  annotate("text", x=x, y = 20000, label = "Personal light exposure", 
+           hjust = 0, col = "#EFC000")+
+  annotate("text", x=x, y = 40000, label = "Daylight potential", 
+           hjust = 0, col = "#0073C2DD")
+
+```
+
+
+```{r}
+ggsave(plot = thesis_week_day_205, filename = "thesis_weekday_205.png", width = 8, height = 5, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
+
+ggsave(plot = thesis_weekendday_205, filename = "thesis_weekendday_205.pdf", width = 8, height = 5, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
+```
+
+
+```{r}
+library(cowplot)
+
+thesis_week_day_205_grid <-dataset.LL.weekday %>% 
+  aggregate_Datetime2(unit = "5 mins") %>% filter_Datetime(end = Day.end) %>% 
+  gg_day(facetting = FALSE, geom = "blank", 
+         x.axis.label = "Time of day",
+         title = "Example personal light exposure for a weekday",  y.axis.label = "Illuminance (mEDI) [lux]", y.axis.breaks = c(-10^(5:0), 0, 10^1, 10^2, 250, 10^3, 10^4, 10^5 )) +
+  theme(plot.title = element_text(hjust = 0.5, face = "plain")) +#base plot
+    geom_ribbon(aes(ymin = MEDI, ymax=Reference), 
+              alpha = 0.25, fill = "#0073C2FF",
+              outline.type = "upper", col = "#0073C2FF", size = 0.15) + #solar reference
+  geom_ribbon(aes(ymin = 0, ymax = MEDI), alpha = 0.30, fill = "#EFC000", 
+              outline.type = "upper", col = "#EFC000", size = 0.4) + #ribbon geom
+  scale.correction +
+  #geom_point(aes(col = Reference.Brown.check), size = 0.5)+
+  geom_line(aes(y=Reference.Brown, 
+                # group = consecutive_id(State.Brown)
+                ), 
+            col = "grey40",
+            lty = 2, size = 0.4) + #Brown reference
+  scale_color_manual(values = c("grey50", "#EFC000"))+
+  guides(color = "none") +
+  geom_label(data = Brown.times_2, 
+             aes(x = xmean, y = 0.5, label = label.Brown), 
+             col = "grey40", alpha = 0.75) +
+  annotate("text", x=x, y = 1.7, label = "Brown et al. (2022)", 
+           hjust = 0, col = "grey25") +
+   annotate("rect", fill = "white", xmin = 0, xmax = 7.5*60*60, 
+           ymin = 10000, ymax = 60000)+
+  annotate("text", x=x, y = 20000, label = "Personal light exposure", 
+           hjust = 0, col = "#EFC000")+
+  annotate("text", x=x, y = 40000, label = "Daylight potential", 
+           hjust = 0, col = "#0073C2DD")
+
+  
+thesis_weekendday_205_grid <- dataset.LL.partial %>% 
+  aggregate_Datetime2(unit = "5 mins") %>% filter_Datetime(end = Day.end) %>% 
+  gg_day(facetting = FALSE, geom = "blank", 
+         x.axis.label = "Time of day",
+         title = "Example personal light exposure for a weekend day",  y.axis.label = "Illuminance (mEDI) [lux]", y.axis.breaks = c(-10^(5:0), 0, 10^1, 10^2, 250, 10^3, 10^4, 10^5 )) +
+  theme(plot.title = element_text(hjust = 0.5, face = "plain")) +#base plot
+    geom_ribbon(aes(ymin = MEDI, ymax=Reference), 
+              alpha = 0.25, fill = "#0073C2FF",
+              outline.type = "upper", col = "#0073C2FF", size = 0.15) + #solar reference
+  geom_ribbon(aes(ymin = 0, ymax = MEDI), alpha = 0.30, fill = "#EFC000", 
+              outline.type = "upper", col = "#EFC000", size = 0.4) + #ribbon geom
+  scale.correction +
+  #geom_point(aes(col = Reference.Brown.check), size = 0.5)+
+  geom_line(aes(y=Reference.Brown, 
+                # group = consecutive_id(State.Brown)
+                ), 
+            col = "grey40",
+            lty = 2, size = 0.4) + #Brown reference
+  scale_color_manual(values = c("grey50", "#EFC000"))+
+  guides(color = "none") +
+  geom_label(data = Brown.times, 
+             aes(x = xmean, y = 0.5, label = label.Brown), 
+             col = "grey40", alpha = 0.75) +
+  annotate("text", x=x, y = 1.7, label = "Brown et al. (2022)", 
+           hjust = 0, col = "grey25") +
+   annotate("rect", fill = "white", xmin = 0, xmax = 7.5*60*60, 
+           ymin = 10000, ymax = 60000)+
+  annotate("text", x=x, y = 20000, label = "Personal light exposure", 
+           hjust = 0, col = "#EFC000")+
+  annotate("text", x=x, y = 40000, label = "Daylight potential", 
+           hjust = 0, col = "#0073C2DD")
+
+grid_weekend_weekday <- plot_grid(thesis_weekendday_205_grid, thesis_week_day_205_grid, labels = c("A", "B"),
+          align = "v",
+          ncol =1,
+          scale = 1)
+```
+
+```{r}
+ggsave(plot = grid_weekend_weekday, filename = "grid_weekend_weekday_vertical.png", width = 8, height = 12, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
+
+ggsave(plot = grid_weekend_weekday, filename = "grid_weekend_weekday.pdf", width = 8, height = 5, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
+```
+
+###Plots for presentation (not thesis)
+```{r}
+thesis_weekendday_noBrown <- dataset.LL.partial %>% 
+  aggregate_Datetime2(unit = "5 mins") %>% filter_Datetime(end = Day.end) %>% 
+  gg_day(facetting = FALSE, geom = "blank", 
+         x.axis.label = "Time of day",
+         title = "Example personal light exposure for a weekend day",  y.axis.label = "Illuminance (mEDI) [lux]", y.axis.breaks = c(-10^(5:0), 0, 10^1, 10^2, 250, 10^3, 10^4, 10^5 )) +
+  theme(plot.title = element_text(hjust = 0.5, face = "plain")) +#base plot
+    geom_ribbon(aes(ymin = MEDI, ymax=Reference), 
+              alpha = 0.25, fill = "#0073C2FF",
+              outline.type = "upper", col = "#0073C2FF", size = 0.15) + #solar reference
+  geom_ribbon(aes(ymin = 0, ymax = MEDI), alpha = 0.30, fill = "#EFC000", 
+              outline.type = "upper", col = "#EFC000", size = 0.4) + #ribbon geom
+  scale.correction 
+  
+thesis_weekday_noBrown <- dataset.LL.weekday %>% 
+  aggregate_Datetime2(unit = "5 mins") %>% filter_Datetime(end = Day.end) %>% 
+  gg_day(facetting = FALSE, geom = "blank", 
+         x.axis.label = "Time of day",
+         title = "Example personal  light exposure for a weekday",  y.axis.label = "Illuminance (mEDI) [lux]", y.axis.breaks = c(-10^(5:0), 0, 10^1, 10^2, 250, 10^3, 10^4, 10^5 )) +
+  theme(plot.title = element_text(hjust = 0.5, face = "plain")) +#base plot
+    geom_ribbon(aes(ymin = MEDI, ymax=Reference), 
+              alpha = 0.25, fill = "#0073C2FF",
+              outline.type = "upper", col = "#0073C2FF", size = 0.15) + #solar reference
+  geom_ribbon(aes(ymin = 0, ymax = MEDI), alpha = 0.30, fill = "#EFC000", 
+              outline.type = "upper", col = "#EFC000", size = 0.4) + #ribbon geom
+  scale.correction
+```
+
+```{r}
+ggsave(plot = thesis_weekendday_noBrown, filename = "weekend_nobrown.png", width = 8, height = 5, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
+
+ggsave(plot = thesis_weekday_noBrown, filename = "weekday_nobrown.png", width = 8, height = 5, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
+```
+
