@@ -23,6 +23,8 @@ library(lubridate)
 ## Loading the data
 
 ```{r}
+setwd("D:/cyepi/code/chronotype_analysis")
+
 rawfile <- "mctq_cw45_20231117.csv"
 rawredcap_chronotype <- read.csv(rawfile, sep = ";")
 rawredcap_chronotype <- rawredcap_chronotype %>%

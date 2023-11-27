@@ -46,6 +46,8 @@ file.sleep <- "205_sleepdiary_all_20230904.csv"
 ## Work with personal light exposure data 
 We now create a dataset for the personal light exposure data for participant 212. We also want to filter the Datetime so that we start at the first timestamp and end on Sunday night. The timestamp information is taken from the quality_check37.xlsx file. 
 ```{r}
+setwd("D:/cyepi/code/descriptive_analysis/205")
+
 tz <- "Europe/Berlin"
 dataset.LL <- import$ActLumus(file.LL, auto.id = "^(\\d{3})", tz = tz)
 
@@ -190,84 +192,7 @@ aggregate_Datetime2 <- function(...) {
     }
 ```
 
-## Apply the aggregate function (here 5 minutes)
-```{r}
-Plot <- dataset.LL.partial %>% aggregate_Datetime2(unit = "5 mins")  %>% 
-  gg_day(facetting = FALSE, geom = "ribbon", alpha = 0.25, size = 0.25,
-         fill = "#EFC000", color = "#EFC000", x.axis.label = "Time of day", title = "Example of continuous personal and environmental light exposure over a week", y.axis.label = "Illuminance (mEDI) [lux]") + #base plot
-  solar.reference + brown.reference + scale.correction
-
-```
-
-```{r}
-Plot_nobrown <- dataset.LL.partial %>% aggregate_Datetime2(unit = "5 mins")  %>% 
-  gg_day(facetting = FALSE, geom = "ribbon", alpha = 0.25, size = 0.25,
-         fill = "#EFC000", color = "#EFC000", x.axis.label = "Time of day", title = "Example of continuous personal and environmental light exposure over a week", y.axis.label = "Illuminance (mEDI) [lux]") + #base plot
-  solar.reference ++ scale.correction
-
-```
-
-```{r}
-# Calculate the time difference between consecutive rows
-
-data.LL.weekend <- data.LL.filtered %>%
-  filter(Id == "205") %>%
-  filter_Date(start = "2023-09-02", length = days(1))
-
-data.LL.weekend <- 
-  data.LL.weekend %>% 
-  interval2state(
-    State.interval.dataset = Brown.intervals, State.colname = State.Brown, Interval.colname = Interval)
-
-data.LL.weekend <- data.LL.weekend %>% Brown2reference(Brown.rec.colname = Reference.Brown)
-
-df <- data.LL.weekend %>% aggregate_Datetime2(unit = "5 mins")  %>%
-  mutate(time_diff = c(0, diff(Datetime)))
-
-# Create a new column that accumulates time spent during the 'day' when reference is TRUE
-df <- df %>% group_by(State.Brown) %>%
-  mutate(accumulated_time_day = cumsum(ifelse(State.Brown == 'day' & Reference.Brown.check == TRUE, time_diff, 0)))
-
-df_day <- df %>%
-  filter(State.Brown == "day") %>%
-  group_by(State.Brown) %>%
-  summarise(range = range(MEDI),
-            mean = mean(MEDI),
-            median = median(MEDI),
-            min_datetime = Datetime[which.min(MEDI)],
-            max_datetime = Datetime[which.max(MEDI)]
-  )
-
-
-# Filter rows starting from sunset until "MEDI" is 0
-awake_after_sunset <- df[252:nrow(df), ]
-
-# Find the index where "MEDI" is 0
-medi_0_index <- which(awake_after_sunset$MEDI == 0)[1]
-
-# Calculate the duration of time awake after sunset
-duration_awake_after_sunset <- difftime(awake_after_sunset$Datetime[medi_0_index], awake_after_sunset$Datetime[1], units = "hours")
-
-timing_weekendday = df %>%
-  dplyr::summarise(
-    mlit(MEDI, Datetime, 250))
-
-
-day_length_weekendday <- as.difftime(as.POSIXct("2023-09-02 20:00:00") - as.POSIXct("2023-09-02 09:10:00"))
-	
-day_length_weekendday
-
-```
-
-
-
-## Style it 
-```{r}
-sat_plot_205 <- Plot + 
-  geom_ribbon(aes(ymin = MEDI, ymax=Reference), alpha = 0.25, fill = "#0073C2FF") #solar reference
-```
-
-## Make a second plot 
+##Make weekend plot 
 ```{r}
 Day.end <- as_datetime("2023-09-02 23:59:59", tz = tz)
 
@@ -299,15 +224,16 @@ Brown.times <-
                                   "evening" ~ "pre-bed",
                                   .default = State.Brown))
 
-Brown.times_2 <- Brown.times[15:17,]
+Brown.times<- Brown.times[15:17,]
 x <- 900
 
-thesis_weekendday_205 <- dataset.LL.partial %>% 
-  aggregate_Datetime2(unit = "5 mins") %>% filter_Datetime(end = Day.end) %>% 
+thesis_weekendday_205 <- dataset.LL.partial %>%
+  aggregate_Datetime2(unit = "5 mins")  %>%  
   gg_day(facetting = FALSE, geom = "blank", 
          x.axis.label = "Time of day",
          title = "Example personal light exposure for a weekend day",  y.axis.label = "Illuminance (mEDI) [lux]", y.axis.breaks = c(-10^(5:0), 0, 10^1, 10^2, 250, 10^3, 10^4, 10^5 )) +
-  theme(plot.title = element_text(hjust = 0.5, face = "plain")) +#base plot
+  theme(plot.title = element_text(hjust = 0.5, face = "plain"),
+        axis.title.x = element_blank()) +#base plot
     geom_ribbon(aes(ymin = MEDI, ymax=Reference), 
               alpha = 0.25, fill = "#0073C2FF",
               outline.type = "upper", col = "#0073C2FF", size = 0.15) + #solar reference
@@ -337,6 +263,8 @@ thesis_weekendday_205 <- dataset.LL.partial %>%
 
 ```
 
+
+## Save it
 ```{r}
 ggsave(plot = thesis_weekendday_205, filename = "thesis_weekendday_205.png", width = 8, height = 5, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
 
@@ -344,13 +272,8 @@ ggsave(plot = thesis_weekendday_205, filename = "thesis_weekendday_205.pdf", wid
 ```
 
 
-
-```{r}
-weekendday_205 / weekendday_205_sub
-```
-
-
 ## Make weekday plot
+
 ```{r}
 dataset.LL.weekday <- 
 dataset.LL %>% 
@@ -361,48 +284,8 @@ brown.reference <-   geom_line(aes(y=Reference.Brown), lty = 2, col = "black") #
 
 dataset.LL.weekday %>% 
   gg_day(size = 0.25, facetting = FALSE, geom = "line", color = '#EFC000', x.axis.label = "Time") + #base plot
-  solar.reference + brown.reference
-```
-
-## Calculate some metrics for weekday 
-```{r}
-# Calculate the time difference between consecutive rows
-df_weekd <- dataset.LL.weekday %>% aggregate_Datetime2(unit = "5 mins")  %>%
-  mutate(time_diff = c(0, diff(Datetime)))
-
-# Create a new column that accumulates time spent during the 'day' when reference is TRUE
-df_weekd <- df_weekd %>% group_by(State.Brown) %>%
-  mutate(accumulated_time_day = cumsum(ifelse(State.Brown == 'day' & Reference.Brown.check == TRUE, time_diff, 0)))
-
-df_weekd <- df_weekd %>%
-  filter(State.Brown == "day") %>%
-  group_by(State.Brown) %>%
-  summarise(range = range(MEDI),
-            mean = mean(MEDI),
-            median = median(MEDI),
-            min_datetime = Datetime[which.min(MEDI)],
-            max_datetime = Datetime[which.max(MEDI)]
-  )
-
-
-# Filter rows starting from sunset until "MEDI" is 0
-awake_after_sunset <- df_weekd[252:nrow(df_weekd), ]
-
-# Find the index where "MEDI" is 0
-medi_0_index <- which(awake_after_sunset$MEDI == 0)[1]
-
-# Calculate the duration of time awake after sunset
-duration_awake_after_sunset <- difftime(awake_after_sunset$Datetime[medi_0_index], awake_after_sunset$Datetime[1], units = "hours")
-
-timing_weekday = df_weekd %>%
-  dplyr::summarise(
-    mlit(MEDI, Datetime, 250))
-
-day_length_weekday <- as.difftime(as.POSIXct("2023-08-29 20:40:00") - as.POSIXct("2023-08-29 09:40:00"))
-```
-
-```{r}
-Day.end_2 <- as_datetime("2023-08-29 23:59:59", tz = tz)
+  
+  Day.end_2 <- as_datetime("2023-08-29 23:59:59", tz = tz)
 
 
 Day.start_2 <- as_datetime("2023-08-29 00:00:00", tz = tz)
@@ -467,15 +350,128 @@ thesis_week_day_205 <- dataset.LL.weekday %>%
   annotate("text", x=x, y = 40000, label = "Daylight potential", 
            hjust = 0, col = "#0073C2DD")
 
+
 ```
 
-
+##Save it
 ```{r}
 ggsave(plot = thesis_week_day_205, filename = "thesis_weekday_205.png", width = 8, height = 5, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
 
 ggsave(plot = thesis_weekendday_205, filename = "thesis_weekendday_205.pdf", width = 8, height = 5, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
 ```
 
+
+## Attempts to put sub and obj light exposure over each other
+```{r}
+library(cowplot)
+
+overlay_weekend <- plot_grid(thesis_weekendday_205, weekendday_205_sub, labels = c("A", "B"),
+          align = "v",
+          ncol =1,
+          rel_heights = c(1, 0.7))
+
+overlay_weekend <- thesis_weekendday_205/weekendday_205_sub
+
+overlay_week <- thesis_week_day_205/week_day_205_sub
+
+
+ggsave(overlay_weekend, filename = "overlay.png", width = 15, height = 10, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs" )
+ggsave(overlay_week, filename = "overlay_week.png", width = 15, height = 10, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
+```
+
+
+## Calculate some descriptive metrics for the weekend
+```{r}
+# Calculate the time difference between consecutive rows
+
+data.LL.weekend <- data.LL.filtered %>%
+  filter(Id == "205") %>%
+  filter_Date(start = "2023-09-02", length = days(1))
+
+data.LL.weekend <- 
+  data.LL.weekend %>% 
+  interval2state(
+    State.interval.dataset = Brown.intervals, State.colname = State.Brown, Interval.colname = Interval)
+
+data.LL.weekend <- data.LL.weekend %>% Brown2reference(Brown.rec.colname = Reference.Brown)
+
+df <- data.LL.weekend %>% aggregate_Datetime2(unit = "5 mins")  %>%
+  mutate(time_diff = c(0, diff(Datetime)))
+
+# Create a new column that accumulates time spent during the 'day' when reference is TRUE
+df <- df %>% group_by(State.Brown) %>%
+  mutate(accumulated_time_day = cumsum(ifelse(State.Brown == 'day' & Reference.Brown.check == TRUE, time_diff, 0)))
+
+df_day <- df %>%
+  filter(State.Brown == "day") %>%
+  group_by(State.Brown) %>%
+  summarise(range = range(MEDI),
+            mean = mean(MEDI),
+            median = median(MEDI),
+            min_datetime = Datetime[which.min(MEDI)],
+            max_datetime = Datetime[which.max(MEDI)]
+  )
+
+
+# Filter rows starting from sunset until "MEDI" is 0
+awake_after_sunset <- df[252:nrow(df), ]
+
+# Find the index where "MEDI" is 0
+medi_0_index <- which(awake_after_sunset$MEDI == 0)[1]
+
+# Calculate the duration of time awake after sunset
+duration_awake_after_sunset <- difftime(awake_after_sunset$Datetime[medi_0_index], awake_after_sunset$Datetime[1], units = "hours")
+
+timing_weekendday = df %>%
+  dplyr::summarise(
+    mlit(MEDI, Datetime, 250))
+
+
+day_length_weekendday <- as.difftime(as.POSIXct("2023-09-02 20:00:00") - as.POSIXct("2023-09-02 09:10:00"))
+	
+day_length_weekendday
+
+```
+
+
+## Calculate some metrics for weekday 
+```{r}
+# Calculate the time difference between consecutive rows
+df_weekd <- dataset.LL.weekday %>% aggregate_Datetime2(unit = "5 mins")  %>%
+  mutate(time_diff = c(0, diff(Datetime)))
+
+# Create a new column that accumulates time spent during the 'day' when reference is TRUE
+df_weekd <- df_weekd %>% group_by(State.Brown) %>%
+  mutate(accumulated_time_day = cumsum(ifelse(State.Brown == 'day' & Reference.Brown.check == TRUE, time_diff, 0)))
+
+df_weekd <- df_weekd %>%
+  filter(State.Brown == "day") %>%
+  group_by(State.Brown) %>%
+  summarise(range = range(MEDI),
+            mean = mean(MEDI),
+            median = median(MEDI),
+            min_datetime = Datetime[which.min(MEDI)],
+            max_datetime = Datetime[which.max(MEDI)]
+  )
+
+
+# Filter rows starting from sunset until "MEDI" is 0
+awake_after_sunset <- df_weekd[252:nrow(df_weekd), ]
+
+# Find the index where "MEDI" is 0
+medi_0_index <- which(awake_after_sunset$MEDI == 0)[1]
+
+# Calculate the duration of time awake after sunset
+duration_awake_after_sunset <- difftime(awake_after_sunset$Datetime[medi_0_index], awake_after_sunset$Datetime[1], units = "hours")
+
+timing_weekday = df_weekd %>%
+  dplyr::summarise(
+    mlit(MEDI, Datetime, 250))
+
+day_length_weekday <- as.difftime(as.POSIXct("2023-08-29 20:40:00") - as.POSIXct("2023-08-29 09:40:00"))
+```
+
+##Code for other plots (individuals ones)
 
 ```{r}
 library(cowplot)

@@ -36,15 +36,6 @@ library(svglite)
 library(lightdosimetry)
 ```
 
-Now, we install and load the lightdosimetry package
-
-```{r}
-#remotes::install_github("tscnlab/LightLogR")
-
-remotes::install_github("steffenhartmeyer/spectrace@develop")
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
 
 ## Let's try this out for all participants at once
 We will import the data using the LightLogR package
@@ -68,11 +59,11 @@ files <- list.files(path, pattern = ".txt", full.names = TRUE)
 
 ```{r}
 #Using LightLogR directly - not working
- dataset.LL <- import.ActLumus(files, tz = tz, auto.id = "^(\\d{3})")
+ dataset.LL <- import$ActLumus(files, tz = tz, auto.id = "^(\\d{3})")
 ```
 First, we want to modify the datetime to only contain time information. This is because if we include date information, the MLiT calculation will also take into account the date.
 ```{r}
-dataset.LL.mlit <- data.LL.filtered %>%
+dataset.LL.mlit <- data.LL.binned %>% #use the dataset where non-wear time has been replaced with NAs and binned
   mutate(Time = as.POSIXct(as_hms(Datetime), tz = tz)) %>%
   force_tz(Time, tzone = tz)
 ```
@@ -91,13 +82,12 @@ timing <-
 
 ```{r}
 mlit250 <- timing %>%
-  rename("id" = Id) %>%
-  select(id, mlit.250)
+  select(Id, mlit.250)
 ```
 
 ##Merge mlit and msf_sc dataframes
 ```{r}
-merged_mlit_msf <- merge(mlit250, msf_sc, by = "id")
+merged_mlit_msf <- merge(mlit250, msf_sc, by = "Id")
 ```
 
 
@@ -106,43 +96,47 @@ merged_mlit_msf <- merge(mlit250, msf_sc, by = "id")
 #install.packages("ggpubr")
 library(ggpubr)
 merged_mlit_msf$color_gradient <- scales::rescale(merged_mlit_msf$msf_sc_rounded)
-y_limits <- as.POSIXct(c("1970-01-01 11:30", "1970-01-01 16:00"))
-y_limits <- force_tz(y_limits, tzone = tz)
+y_limits <- as.POSIXct(c("1970-01-01 8:30", "1970-01-01 16:30"), tz = "UTC")
 
-scatter <- ggplot(merged_mlit_msf, aes(x = msf_sc_rounded, y =mlit.250,  color = color_gradient)) + 
+
+chronoscatter <- ggplot(merged_mlit_msf, aes(x = msf_sc_rounded, y =mlit.250,  color =color_gradient))+
   geom_jitter(width = 0.2, height = 0.2) + 
- ggtitle("Correlation between chronotype \nand timing of mEDI above 250 lx") + 
+ ggtitle("Relationship between chronotype and timing of light exposure above 250 lx") + 
   xlab(bquote("Chronotype "(MSF[sc]))) + 
   ylab(bquote("Mean light (mEDI) timing above 250 lx  "(MLiT^250))) +
-  geom_smooth(method='lm', formula= y~x, colour = "black", linewidth = 0.5, alpha = .3) + 
+  geom_smooth(method='lm', formula= y~x, colour = "black", linewidth = 0.5, alpha = .2) + 
   stat_cor(method = "spearman") +
   scale_color_gradient(low = "#FFCC00", high = "#FF6633") +
-  scale_y_datetime(limits = y_limits, breaks = date_breaks("1 hour"), labels = date_format("%H:%M"), timezone = tz) +
+  scale_y_datetime(limits = y_limits, breaks = date_breaks("1 hour"), labels = date_format("%H:%M"), timezone = "UTC") +
   theme_bw() +
   theme(aspect.ratio = 1) +
-  theme(plot.title = element_text(hjust = 0.5, size = 12, face = "bold")) + 
+  theme(plot.title = element_text(hjust = 0.5, size = 12, face = "plain")) + 
+  theme(legend.position = "none") 
+
+scatter4grid <- ggplot(merged_mlit_msf, aes(x = msf_sc_rounded, y =mlit.250,  color =color_gradient)) + 
+  geom_jitter(width = 0.2, height = 0.2) + 
+ ggtitle("Relationship between chronotype and \ntiming of light exposure above 250 lx") + 
+  xlab(bquote("Chronotype "(MSF[sc]))) + 
+  ylab(bquote("Mean light (mEDI) timing above 250 lx  "(MLiT^250))) +
+  geom_smooth(method='lm', formula= y~x, colour = "black", linewidth = 0.5, alpha = .2) + 
+  stat_cor(method = "spearman") +
+  scale_color_gradient(low = "#FFCC00", high = "#FF6633") +
+  scale_y_datetime(limits = y_limits, breaks = date_breaks("1 hour"), labels = date_format("%H:%M"), timezone = "UTC") +
+  theme_bw() +
+  theme(aspect.ratio = 1) +
+  theme(plot.title = element_text(hjust = 0.5, size = 12, face = "plain")) + 
   theme(legend.position = "none") +
   theme(axis.title.x = element_blank()) +
   theme(axis.title.y = element_blank())
-
   
 ```
-## We want to try run a correlation
 
+###Save the individual one
 ```{r}
-# Convert the variables to numeric
-#merged_mlit_msf$mlit.250 <- as.numeric(merged_mlit_msf$mlit.250)
-#merged_mlit_msf$msf_sc_rounded <- as.numeric(merged_mlit_msf$msf_sc_rounded)
-
-# Run the correlation test
-#corr <- cor.test(
- # x = merged_mlit_msf$mlit.250,
- # y = merged_mlit_msf$msf_sc_rounded,
- # method = 'spearman'
-#)
-
+ggsave(plot = chronoscatter, filename = "chronotype_scattersingle.png", width = 7, height = 7, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
 ```
-It seems like, although there is a trend towards a correlation between chronotype and mean light exposure above 250 lux, the coefficient indicates that it is quite weak (~0.4). 
+
+
 
 ## Try a different visualisation 
 We want a boxplot 
@@ -159,33 +153,55 @@ merged_mlit_msf$chronotype_cat <- ifelse(
 ```
 
 ```{r}
-y_limits2 <- as.POSIXct(c("1970-01-01 09:30", "1970-01-01 17:00"))
+y_limits2 <- as.POSIXct(c("1970-01-01 08:00", "1970-01-01 16:30"), tz = "UTC")
 
-violin <- ggplot(merged_mlit_msf, aes(x = chronotype_cat, y = mlit.250)) +
+chrono_violin <- ggplot(merged_mlit_msf, aes(x = chronotype_cat, y = mlit.250)) +
   geom_violin(alpha = 0.3, aes(fill=chronotype_cat), trim = FALSE) +
   geom_boxplot(width = 0.2)+
   geom_dotplot(binaxis = "y",
                stackdir = "center",
-               dotsize = 0.5) +
+               dotsize = 0.3) +
   scale_fill_manual(values = c("#FFCC00", "#FF9900", "#FF6633")) +
-   scale_y_datetime(limits = y_limits2, breaks = date_breaks("1 hour"), labels = date_format("%H:%M"), timezone = tz) +
+   scale_y_datetime(limits = y_limits2, breaks = date_breaks("1 hour"), labels = date_format("%H:%M"), timezone = "UTC") +
   theme(legend.position = "none") +
-#  xlab(bquote("Chronotype "(MSF[sc]))) + 
-#  ylab(bquote("Mean light (mEDI) timing above 250 lx  "(MLiT^250))) +
-  ggtitle("Timing of mEDI above 250 lx \nbased on chronotype") +
+  xlab(bquote("Chronotype "(MSF[sc]))) + 
+  ylab(bquote("Mean light (mEDI) timing above 250 lx  "(MLiT^250))) +
+  ggtitle("Timing of light exposure above 250 lx based on chronotype") +
   theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5, size = 12, face = "bold")) +
+  theme(plot.title = element_text(hjust = 0.5, size = 12, face = "plain")) +
+    theme(aspect.ratio = 1) +
+  theme(legend.position = "none") 
+
+
+violin4grid <- ggplot(merged_mlit_msf, aes(x = chronotype_cat, y = mlit.250)) +
+  geom_violin(alpha = 0.3, aes(fill=chronotype_cat), trim = FALSE) +
+  geom_boxplot(width = 0.2)+
+  geom_dotplot(binaxis = "y",
+               stackdir = "center",
+               dotsize = 0.3) +
+  scale_fill_manual(values = c("#FFCC00", "#FF9900", "#FF6633")) +
+   scale_y_datetime(limits = y_limits2, breaks = date_breaks("1 hour"), labels = date_format("%H:%M"), timezone = "UTC") +
+  theme(legend.position = "none") +
+  xlab(bquote("Chronotype "(MSF[sc]))) + 
+  ylab(bquote("Mean light (mEDI) timing above 250 lx  "(MLiT^250))) +
+  ggtitle("Timing of light exposure above 250 lx \nbased on chronotype") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 12, face = "plain")) +
     theme(aspect.ratio = 1) +
   theme(legend.position = "none") +  
   theme(axis.title.x = element_blank()) +
   theme(axis.title.y = element_blank())
  
-
- 
 ```
+
+```{r}
+ggsave(plot = chrono_violin, filename = "chronotype_violinsingle.png", width = 7, height = 7, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
+```
+
+
 ## Put the two graphs together 
 ```{r}
-grid <- plot_grid(scatter, violin, labels = c("A", "B"),
+grid <- plot_grid(scatter4grid, violin4grid, labels = c("A", "B"),
           align = "v",
           nrow =1,
           scale = 1)
@@ -204,8 +220,8 @@ x.grob <- textGrob(bquote("Chronotype "(MSF[sc])),
 ```
 ## Save the plot 
 ```{r}
-library(svglite)
-ggsave("chronotype_multiplot_number3.png", plot =  chrono_multiplot, width = 8, height = 4)
+
+ggsave(plot = chrono_multiplot, filename = "chronotype_all.png", width = 7, height = 5, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
 ```
 
 
@@ -215,3 +231,21 @@ merged_mlit_msf$msf_sc_rounded <- with_tz(merged_mlit_msf$msf_sc_rounded, tz = "
 merged_mlit_msf$mlit.250 <- with_tz(merged_mlit_msf$mlit.250, tz = "Europe/Berlin")
 ```
 
+## We want to  run a correlation
+
+```{r}
+# Convert the variables to numeric
+merged_mlit_msf$mlit.250 <- as.numeric(merged_mlit_msf$mlit.250)
+merged_mlit_msf$msf_sc_rounded <- as.numeric(merged_mlit_msf$msf_sc_rounded)
+
+# Run the correlation test
+corr <- cor.test(
+  x = merged_mlit_msf$mlit.250,
+  y = merged_mlit_msf$msf_sc_rounded,
+  method = 'spearman'
+)
+
+```
+
+
+It seems like, although there is a trend towards a correlation between chronotype and mean light exposure above 250 lux, the coefficient indicates that it is quite weak (~0.4). 
