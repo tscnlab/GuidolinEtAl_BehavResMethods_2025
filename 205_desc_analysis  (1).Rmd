@@ -194,8 +194,7 @@ aggregate_Datetime2 <- function(...) {
 
 ##Make weekend plot 
 ```{r}
-Day.end <- as_datetime("2023-09-02 23:59:59", tz = tz)
-
+Day.end <- as_datetime("2023-09-03 00:00:00", tz = tz)
 
 Day.start <- as_datetime("2023-09-02 00:00:00", tz = tz)
 
@@ -282,8 +281,6 @@ dataset.LL %>%
 solar.reference <-   geom_line(aes(y=Reference), lty = 1, col = "#0073C2FF") #solar reference
 brown.reference <-   geom_line(aes(y=Reference.Brown), lty = 2, col = "black") #Brown reference
 
-dataset.LL.weekday %>% 
-  gg_day(size = 0.25, facetting = FALSE, geom = "line", color = '#EFC000', x.axis.label = "Time") + #base plot
   
   Day.end_2 <- as_datetime("2023-08-29 23:59:59", tz = tz)
 
@@ -375,7 +372,7 @@ overlay_weekend <- thesis_weekendday_205/weekendday_205_sub
 overlay_week <- thesis_week_day_205/week_day_205_sub
 
 
-ggsave(overlay_weekend, filename = "overlay.png", width = 15, height = 10, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs" )
+ggsave(overlay_weekend, filename = "overlay_weekend.png", width = 15, height = 10, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
 ggsave(overlay_week, filename = "overlay_week.png", width = 15, height = 10, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
 ```
 

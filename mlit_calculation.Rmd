@@ -96,7 +96,7 @@ merged_mlit_msf <- merge(mlit250, msf_sc, by = "Id")
 #install.packages("ggpubr")
 library(ggpubr)
 merged_mlit_msf$color_gradient <- scales::rescale(merged_mlit_msf$msf_sc_rounded)
-y_limits <- as.POSIXct(c("1970-01-01 8:30", "1970-01-01 16:30"), tz = "UTC")
+y_limits <- as.POSIXct(c("1970-01-01 07:30", "1970-01-01 16:30"), tz = "UTC")
 
 
 chronoscatter <- ggplot(merged_mlit_msf, aes(x = msf_sc_rounded, y =mlit.250,  color =color_gradient))+
@@ -133,7 +133,7 @@ scatter4grid <- ggplot(merged_mlit_msf, aes(x = msf_sc_rounded, y =mlit.250,  co
 
 ###Save the individual one
 ```{r}
-ggsave(plot = chronoscatter, filename = "chronotype_scattersingle.png", width = 7, height = 7, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
+ggsave(plot = chronoscatter, filename = "chronotype_scattersingle.pdf", width = 7, height = 7, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
 ```
 
 
@@ -153,14 +153,16 @@ merged_mlit_msf$chronotype_cat <- ifelse(
 ```
 
 ```{r}
-y_limits2 <- as.POSIXct(c("1970-01-01 08:00", "1970-01-01 16:30"), tz = "UTC")
+y_limits2 <- as.POSIXct(c("1970-01-01 07:30", "1970-01-01 16:30"), tz = "UTC")
+
+compar <- list(c("Early", "Intermediate"), c("Intermediate", "Late"), c("Early", "Late"))
 
 chrono_violin <- ggplot(merged_mlit_msf, aes(x = chronotype_cat, y = mlit.250)) +
   geom_violin(alpha = 0.3, aes(fill=chronotype_cat), trim = FALSE) +
   geom_boxplot(width = 0.2)+
   geom_dotplot(binaxis = "y",
                stackdir = "center",
-               dotsize = 0.3) +
+               dotsize = 0.4) +
   scale_fill_manual(values = c("#FFCC00", "#FF9900", "#FF6633")) +
    scale_y_datetime(limits = y_limits2, breaks = date_breaks("1 hour"), labels = date_format("%H:%M"), timezone = "UTC") +
   theme(legend.position = "none") +
@@ -170,7 +172,15 @@ chrono_violin <- ggplot(merged_mlit_msf, aes(x = chronotype_cat, y = mlit.250)) 
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5, size = 12, face = "plain")) +
     theme(aspect.ratio = 1) +
-  theme(legend.position = "none") 
+  theme(legend.position = "none") +
+  stat_compare_means(comparisons = compar, 
+                     method = "wilcox.test",
+                     label.y = as.POSIXct(c("1970-01-01 08:00", "1970-01-01 09:40", "1970-01-01 07:30"), tz = "UTC"),
+                    symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 1), 
+                    symbols = c("****", "***", "**", "*", "ns")),
+                    size = 3,
+                    tip.length = c(0,0,0),
+                    vjust = 1.6) 
 
 
 violin4grid <- ggplot(merged_mlit_msf, aes(x = chronotype_cat, y = mlit.250)) +
@@ -178,7 +188,7 @@ violin4grid <- ggplot(merged_mlit_msf, aes(x = chronotype_cat, y = mlit.250)) +
   geom_boxplot(width = 0.2)+
   geom_dotplot(binaxis = "y",
                stackdir = "center",
-               dotsize = 0.3) +
+               dotsize = 0.4) +
   scale_fill_manual(values = c("#FFCC00", "#FF9900", "#FF6633")) +
    scale_y_datetime(limits = y_limits2, breaks = date_breaks("1 hour"), labels = date_format("%H:%M"), timezone = "UTC") +
   theme(legend.position = "none") +
@@ -190,12 +200,19 @@ violin4grid <- ggplot(merged_mlit_msf, aes(x = chronotype_cat, y = mlit.250)) +
     theme(aspect.ratio = 1) +
   theme(legend.position = "none") +  
   theme(axis.title.x = element_blank()) +
-  theme(axis.title.y = element_blank())
- 
+  theme(axis.title.y = element_blank()) +
+  stat_compare_means(comparisons = compar, 
+                     method = "wilcox.test",
+                     label.y = as.POSIXct(c("1970-01-01 08:00", "1970-01-01 09:40", "1970-01-01 07:30"), tz = "UTC"),
+                    symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 1), 
+                    symbols = c("****", "***", "**", "*", "ns")),
+                    size = 3,
+                    tip.length = c(0,0,0),
+                    vjust = 1.6) 
 ```
 
 ```{r}
-ggsave(plot = chrono_violin, filename = "chronotype_violinsingle.png", width = 7, height = 7, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
+ggsave(plot = chrono_violin, filename = "chronotype_violinsingle.pdf", width = 7, height = 7, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
 ```
 
 
@@ -221,7 +238,7 @@ x.grob <- textGrob(bquote("Chronotype "(MSF[sc])),
 ## Save the plot 
 ```{r}
 
-ggsave(plot = chrono_multiplot, filename = "chronotype_all.png", width = 7, height = 5, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
+ggsave(plot = chrono_multiplot, filename = "chronotype_all.pdf", width = 7, height = 5, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
 ```
 
 
@@ -247,5 +264,18 @@ corr <- cor.test(
 
 ```
 
-
 It seems like, although there is a trend towards a correlation between chronotype and mean light exposure above 250 lux, the coefficient indicates that it is quite weak (~0.4). 
+
+##Compute Kruskal-Wallis test 
+```{r}
+#First, turn chronotype_cat into factor
+merged_mlit_msf$chronotype_cat <- as.factor(merged_mlit_msf$chronotype_cat)
+
+levels(merged_mlit_msf$chronotype_cat) #see the levels in my data
+merged_mlit_msf$mlit.250 <- as.numeric(merged_mlit_msf$mlit.250) #turn mlit250 as numeric
+kruskal.test(mlit.250 ~ chronotype_cat, data = merged_mlit_msf)
+
+pairwise.wilcox.test(merged_mlit_msf$mlit.250, merged_mlit_msf$chronotype_cat,
+                 p.adjust.method = "BH")
+```
+
