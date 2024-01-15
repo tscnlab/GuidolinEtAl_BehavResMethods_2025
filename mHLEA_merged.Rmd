@@ -20,6 +20,7 @@ library(scales)
 library(lubridate)
 library(readxl)
 library(ggrepel)
+library(ggpubr)
 ```
 
 
@@ -102,7 +103,7 @@ navalues <- mhlea_df %>%
 mhlea_df <- mhlea_df %>%
   sc2interval(Datetime.colname = timestamp, Statechange.colname = lightsource, full = FALSE, length.restriction = 60*60*24) 
 
-mhlea_LL_combined <- data.LL.binned %>%
+mhlea_LL_combined <- data.LL.filtered %>%
   interval2state(mhlea_df) %>%
   select(-lightsource)
 
@@ -147,24 +148,29 @@ weekend_day$State <- factor(weekend_day$State, levels = c("X", "I", "O", "L"))
 
 
 weekendday_205_sub <- ggplot(weekend_day) + 
-  geom_tile(aes(x = Datetime, y = 0.05, fill = State)) +
+  geom_tile(aes(x = Datetime, y = 0.05, fill = State), alpha = 0.5) +
   scale_y_continuous(expand = c(0, 0), breaks = NULL) +  # Remove y-axis labels and ticks
-  labs(y = NULL,
-       tag = "Self-reported light exposure", x = "Time of day") + 
+  labs(y = NULL, x = "Time of day") + 
   scale_x_datetime(
     labels = scales::time_format(format = "%H:%M", tz = tz),
     breaks = "3 hours",
     limits = as.POSIXct(c("2023-09-02 00:00:00", "2023-09-03 00:30:00"), tz = tz),
     expand = c(0,0)) +
-  scale_fill_manual(name = "Light sources",
+  scale_fill_manual(name = "Self reported light environment",
                      labels = c("Sleeping", "Daylight indoors", "Daylight outdoors", "Electric light indoors"),
                      values = c("black", "#0099CC", "#0066CC","#FFCC33")) +
   theme_minimal() +
-  theme(axis.text.x = element_text(hjust = 1),
+  theme(axis.text.x = element_text(size = 16, colour = "black"),
         axis.ticks.x = element_line(),
         legend.position = "bottom",
-        plot.tag.position = c(0.5, -0.2),
-        aspect.ratio = 0.1) 
+        aspect.ratio = 0.1,
+        axis.title.x = element_text(size=18),
+        legend.title = element_text(size = 18),
+        legend.text=element_text(size=18),
+        plot.margin = margin(0,10,0,18)) +
+  guides(fill = guide_legend(title.position = "bottom", title.hjust=0.5, size = 18)) +
+  rremove("grid") 
+  
 
 
       
@@ -172,7 +178,11 @@ weekendday_205_sub <- ggplot(weekend_day) +
 ```
 
 ```{r}
-ggplot2::ggsave(plot = weekendday_205_sub, filename = "205weekend_day_sub.png", width = 7, height = 4, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
+ggplot2::ggsave(plot = weekendday_205_sub, filename = "205weekend_day_sub.pdf", width = 7, height = 4, dpi = 600, bg = "white", path = "D:/cyepi/code/outputs")
+
+ggplot2::ggsave(plot = weekendday_205_sub, filename = "205weekend_day_sub.png", width = 7, height = 4, dpi = 600, bg = "white", path = "D:/cyepi/code/outputs")
+
+
 ```
 
 #### Week day
@@ -200,24 +210,34 @@ mhlea_205_weekday <- mhlea_205_weekday %>%
 mhlea_205_weekday$State <- factor(mhlea_205_weekday$State, levels = c("X", "I", "O", "L", "E"))
 
 week_day_205_sub <- ggplot(mhlea_205_weekday) + 
-  geom_tile(aes(x = Datetime, y = 0.05, fill = State)) +
+  geom_tile(aes(x = Datetime, y = 0.05, fill = State), alpha = 0.5) +
   scale_y_continuous(expand = c(0, 0), breaks = NULL) +  # Remove y-axis labels and ticks
-  labs(y = NULL,
-       tag = "Self-reported light exposure") + 
+  labs(y = NULL, x = "Time of day") + 
   scale_x_datetime(
     labels = scales::time_format(format = "%H:%M", tz = tz),
     breaks = "3 hours",
     limits = as.POSIXct(c("2023-08-29 00:00:00", "2023-08-30 00:30:00"), tz = tz),
     expand = c(0,0)) +
-  scale_fill_manual(name = "Light sources",
-                     labels = c("Sleeping", "Daylight indoors", "Daylight outdoors", "Electric light indoors", "Emissive displays"),
+  scale_fill_manual(name = "Self-reported light environment",
+                     labels = c("Sleeping", "Daylight indoors", "Daylight outdoors", "Electric light indoors", "Emissive \ndisplays"),
                      values = c("black", "#0099CC", "#0066CC","#FFCC33", "#99FFFF")) +
   theme_minimal() +
-  theme(axis.text.x = element_text(hjust = 1),
+     theme(axis.text.x = element_text(size = 16, colour = "black"),
         axis.ticks.x = element_line(),
+        axis.title.x = element_text(size=18),
         legend.position = "bottom",
-        plot.tag.position = c(0.5, -0.2),
-        aspect.ratio = 0.1) #make sure the x axis covers 24 hours (+a bit for the labe)
+        aspect.ratio = 0.1,
+        legend.title = element_text(size = 18),
+        legend.text=element_text(size=16),
+        plot.margin = margin(0,14,0,18)) +
+  guides(fill = guide_legend(title.position = "bottom", title.hjust=0.5)) +
+  rremove("grid") 
+```
+
+```{r}
+ggplot2::ggsave(plot = week_day_205_sub, filename = "205weekend_day_sub.pdf", width = 7, height = 4, dpi = 600, bg = "white", path = "D:/cyepi/code/outputs")
+
+ggplot2::ggsave(plot = week_day_205_sub, filename = "205weekend_day_sub.png", width = 7, height = 4, dpi = 600, bg = "white", path = "D:/cyepi/code/outputs")
 ```
 
 
@@ -240,7 +260,7 @@ mHLEA_boxplot <- mHLEA_boxplot %>%
 
 options(scipen = 999)
 
-new_order <- with(mHLEA_boxplot, reorder(as.factor(State) , mean_medi, median , na.rm=T))
+
 mHLEA_boxplot$State <- factor(mHLEA_boxplot$State, levels = c("D", "X", "E", "L", "S", "I", "O"))
 
 
@@ -267,25 +287,50 @@ mhleaplot <- ggplot(mHLEA_boxplot, aes(x = State, y = mean_medi)) +
                "Daylight indoors",
                "Daylight outdoors")) +
   theme_bw() +
-  labs(x = "Self-reported light environment", y = "Illuminance (mEDI) [lux]", title = "Objective light exposure by self-reported light environment") +
-  theme(plot.title = element_text(hjust = 0.5),
-        legend.text = element_text(size = 11)) +
+  labs(x = "Self-reported light environment", y = "Illuminance (mEDI) [lx]", title = "Objective light exposure by self-reported light environment") +
+  theme(plot.title = element_text(hjust = 0.5, size = 22),
+        axis.text.x = element_text(size = 16),
+        axis.title.y = element_text(size = 18),
+        axis.title.x = element_text(size = 18),
+        axis.text.y = element_text(size = 16),
+        legend.text = element_text(size = 18),
+        legend.title = element_text(size = 18)) +
   guides(fill = guide_legend(
     title = "Self-reported light environment",
     title.position = "top",
-    title.theme = element_text(size = 12)
+    title.theme = element_text(size = 18),
+    axis.text.x = element_text(size = 18)
   ))
   
 ```
 
+#get the stats for reporting
+```{r}
+small_nonzero_value <- 0.0001
+
+mHLEA_boxplot$mean_medi[mHLEA_boxplot$mean_medi == 0] <- small_nonzero_value
+
+mHLEA_boxplot$log_mean_medi <- log(mHLEA_boxplot$mean_medi, base = 10)
+
+mHLEA_boxplot$log_mean_medi <- log(mHLEA_boxplot$mean_medi)
+
+# Creating a boxplot with log-transformed values
+boxlotstats <- boxplot(mean_medi ~ State, data = mHLEA_boxplot)
+
+# Displaying boxplot statistics
+boxlotstats
+
+```
 
 ```{r}
-ggsave(plot = mhleaplot, filename = "thesis_mHLEAplot.png", width = 10.5, height = 9, dpi = 600, bg = "white", path = "C:/Users/guido/Desktop/cyepi/code/outputs")
+ggsave(plot = mhleaplot, filename = "thesis_mHLEAplot.png", width = 11, height = 9, dpi = 600, bg = "white", path = "D:/cyepi/code/outputs")
+ggsave(plot = mhleaplot, filename = "thesis_mHLEAplot.pdf", width = 11, height = 9, dpi = 600, bg = "white", path = "D:/cyepi/code/outputs")
 ```
 
 
-```{r}
 
+```{r}
+##Alternative plot showing the 0 values
 
 ggplot(mHLEA_boxplot, aes(x = State, y = mean_medi)) +
   geom_violin(alpha = 0.5, aes(fill = State), trim = FALSE) + 
@@ -316,38 +361,4 @@ labels = function(x) gsub("\\.0+", "", format(x, scientific = FALSE, trim = TRUE
 
 ```
 
-```{r}
-ggsave()
-```
-
-
-```{r}
-Sys.setlocale("LC_TIME", "en_US.UTF-8")
-mHLEA_boxplot2$day <- format(mHLEA_boxplot2$Date, format = "%A", locale="English")
-```
-
-### We need to load in all the data from the participants
-```{r}
-setwd("D:/cyepi/data/raw/group/demographics")
-
-filedem <- "D:/cyepi/data/raw/group/demographics/201_231_demog_20231123.csv"
-
-demographics <- read.csv(file = filedem, sep = ";", fileEncoding = "UTF-8")
-
-demographics_select <- demographics %>%
-  select(record_id, age, sex, employment_status) %>%
-  rename(Id = record_id) %>%
-  mutate(Id = as.character(Id))
-
-mHLEA_ancova <- 
-  left_join(demographics_select, mHLEA_boxplot2, by = "Id")
-
-mHLEA_ancova <- mHLEA_ancova %>%
-  left_join(msf_sc, by = "Id")
-  
-```
-
-```{r}
-State
-```
 

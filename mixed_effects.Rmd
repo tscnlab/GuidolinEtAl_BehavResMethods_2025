@@ -8,11 +8,13 @@ output: html_document
 ```{r}
 library(lme4)
 library(Matrix)
-
+library(tidyverse)
+library(LightLogR)
+library(sjstats)
 ```
 
 ## Code for doing a mixed effect model 
-
+Loading in the subjective light exposure data (mH-LEA) from all participants using LightLogR to incorporate it as State
 ```{r}
 mHLEA_mixedeffects <- data.LL.binned %>%
   interval2state(mhlea_df) %>%
@@ -34,35 +36,56 @@ We need a column containing hourly self-reported light exposure categories (cate
 mHLEA_mixedeffects <- mHLEA_mixedeffects %>%
   mutate(hour= hour(Datetime)) %>% #extract the hour information
            group_by(Date = as.Date(Datetime, tz = tz), hour, State, Id) %>% #for each Id, hour and State, calculate the median medi
-           summarise(median_medi = median(MEDI, na.rm = TRUE)) 
+           summarise(median_medi = median(MEDI, na.rm = TRUE)) %>%
+           filter(!is.na(State), !is.na(median_medi))
 
+#We tranform mEDI data into log scale
 small_nonzero_value <- 0.0001
 
 mHLEA_mixedeffects$median_medi[mHLEA_mixedeffects$median_medi == 0] <- small_nonzero_value
 
 mHLEA_mixedeffects$log_median_medi <- log(mHLEA_mixedeffects$median_medi, base = 10)
 
-mHLEA_mixedeffects$Id <- as.factor(mHLEA_mixedeffects$Id)
-mHLEA_mixedeffects$hour <- as.ordered(mHLEA_mixedeffects$hour)
+mHLEA_mixedeffects$Id <- as.factor(mHLEA_mixedeffects$Id) #Id has to be categorical variable
+#mHLEA_mixedeffects$hour <- as.ordered(mHLEA_mixedeffects$hour)
 ```
 
-
+##Testing different mixed models
 ```{r}
-formula_mixedeffect <- log_median_medi ~ State + (1 + State | Id) 
-
-model <- lmer(formula_mixedeffect, data = mHLEA_mixedeffects)
-
-summary(model)
-
-plot(model)
-
-isSingular(model)
-
-confint(model)
-
+#We start with the most complex model: random intercept + random slope
+model1 <- lmer(log_median_medi ~ State + (1 + State | Id), REML = FALSE, data = mHLEA_mixedeffects)
+summary(model1)
+isSingular(model1)
 
 qqnorm(resid(model))
 qqline(resid(model))
+
+##leads to singularity and converge warning. 
+
+##So we decide to eliminate the random slope
+model_norandomslope <- lmer(log_median_medi ~ State + (1|Id), REML = FALSE, data = mHLEA_mixedeffects, na.action= na.exclude)
+summary(model_norandomslope)
+
+plot(model_norandomslope)
+
+
+isSingular(model_norandomslope) #FALSE - model not singular
+coef(model_norandomslope)
+
+ci_bootstrap <- confint(model_norandomslope, method="boot") #calculate the CI using bootstrap method
+
+
+```
+
+```{r}
+#To evaluate our random intercept model, we need a null model. Here, we choose one with pure random effects
+null_model = lmer(log_median_medi~(1| Id), REML = FALSE, data=mHLEA_mixedeffects,na.action= na.exclude)
+
+summary(null_model)
+anova(null_model, model_norandomslope) #compare our model against null model
+
+
+
 ```
 
 ```{r}

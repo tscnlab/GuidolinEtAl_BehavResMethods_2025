@@ -215,26 +215,27 @@ faceted_plot_wearlog2 <- ggplot(stacked_overview_long, aes(x = count, y = factor
   facet_wrap(~record_id, ncol = 4, scales = "free_x") + 
   scale_y_discrete(breaks = custom_order_stacked, labels = c("Re-entering Tübingen", "Leaving Tübingen", "Off and black bag not used", "Off and black bag used", "Off before sleep ", "Off", "On", "Button press", "All wear log entries")) +
 scale_fill_manual(name = "Time of reporting", values = c("#66CCFF", "#0066CC","#006633", "#CC66FF", "#FF99FF", "#FF9933", "#CC0033", "#009933"), labels = c( "Current", "Retrospective", "z1", "z2", "z3","z4", "z5", "z6" )) +
-   ggtitle(bquote("Number of total self-reported \"Wear log\" entries and\n light logger button press events for n=26 participants")) + 
+   ggtitle(bquote("Number of total self-reported \"Wear log\" entries and \nlight logger button press events for n=26 participants")) + 
   theme(plot.title = element_text(hjust = 0.5, size = 14, face = "plain")) +
   xlab("Count") +
   ylab("Event") +
    theme_bw() +
-  theme(legend.key.size = unit(0.3, "cm"),
+  theme(legend.key.size = unit(0.4, "cm"),
         legend.position = "top",
         legend.direction = "horizontal",
-        axis.title = element_text(size= 14),
-        legend.title = element_text(size = 12),
-        legend.text = element_text(size=12),
-        plot.title = element_text(hjust = 0.5, size = 14))
+        axis.title = element_text(size= 18),
+        axis.text = element_text(size=15),
+        legend.title = element_text(size = 18),
+        legend.text = element_text(size=18),
+        plot.title = element_text(hjust = 0.5, size = 22))
         
 
 ```
 
 Let's save this 
 ```{r}
-ggsave(plot = faceted_plot_wearlog2, filename ="thesis_facetedplot.png", dpi =600, width = 12, height = 14, path ="D:/cyepi/code/outputs")
-ggsave(plot = faceted_plot_wearlog2, filename ="thesis_facetedplot.pdf", dpi =600, width = 12, height = 14, path ="D:/cyepi/code/outputs")
+ggsave(plot = faceted_plot_wearlog2, filename ="thesis_facetedplot.png", dpi =600, width = 14, height = 18, path ="D:/cyepi/code/outputs")
+ggsave(plot = faceted_plot_wearlog2, filename ="thesis_facetedplot.pdf", dpi =600, width = 12, height = 17, path ="D:/cyepi/code/outputs")
 
 ```
 
