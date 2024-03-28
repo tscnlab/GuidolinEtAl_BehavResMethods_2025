@@ -51,7 +51,7 @@ library(LightLogR)
 ### Loading actlumus data 
 First, we need to import the ActLumus file where the button press information is contained. We will need this later.
 ```{r}
-path <- "F:/cyepi/code/pre-processing/nonwear_detection/actlumus"
+path <- "D:/cyepi/code/pre-processing/nonwear_detection/actlumus"
 tz <- "Europe/Berlin"
 
 # Get a list of file paths in the specified directory
@@ -86,7 +86,7 @@ dataset.LL.all <- dataset.LL.all %>%
 
 First, we need to import the data from the wear log
 ```{r}
-filepath <- here("F:/cyepi/code/pre-processing/nonwear_detection/wearlog")
+filepath <- here("D:/cyepi/code/pre-processing/nonwear_detection/wearlog")
 
 # Get the files names from directory
 wearlogfiles = list.files(filepath, pattern="*.csv", full.names = TRUE)
@@ -253,37 +253,71 @@ tryCatch({
 })
 
 ```
+
 ### Plot the non-wear time according to the wear log
 ```{r}
 Sys.setlocale("LC_TIME", "en_US.UTF-8") #needed to run this code to have the days displayed in English and not German
-nonwear_df_daily$day <- format(nonwear_df_daily$date, format = "%A", locale="English")
 
+#Non-wear time can be calculated from the joined_int dataset
 off_states <- joined_int %>%
-  group_by(Id) %>%
-#filter out intervals we do not like
+#filter for intervals on non-wear (State == "off")
   filter(State == "off") %>% 
-  #calculate the nonwear time through the interval column
+  #calculate the non-wear time through the interval column
   mutate(off_time = int_length(Interval) %>% as_hms()) %>% 
-  #group by date and summarize the nonwear time
-  group_by(Date = date(int_end(Interval)), .add = TRUE) %>% 
-  summarize(off_time = sum(off_time))
-
-#plotting the data
-off_states %>% 
-  mutate(day = format(Date, format = "%A", locale="English") %>% 
+  #group by date and summarize daily non-wear time
+  mutate(Date = as.Date(int_end(Interval)), #first, Date and corresponding weekday are calculated
+         day = format(Date, format = "%A", locale="English") %>% 
            forcats::fct_inorder()) %>%
+  group_by(Id, day, .add = TRUE) %>%
+  summarize(off_time = sum(off_time)) %>%
+  ungroup()
+
+#There are participants who have 0 non-wear time for a day, i.e. they have no State == off, who we still want to display as 0 points in our plot. Since we filtered for State == off above, we need to use complete to fill in days of 0 non-wear with 0 values. 
+off_states <- off_states %>%
+  complete(Id, day, fill = list(off_time = as_hms(0)))
+
+off_states$off_time <- as.numeric(off_states$off_time, "hours")
+
+```
+
+
+```{r}
+#plotting the data
+nonwear_duration <- off_states %>% 
 ggplot(aes(x = day, y = off_time)) +
-  geom_violin(alpha = 0.3, aes(fill=day), trim = FALSE) + 
+  geom_violin(alpha = 0.3, aes(fill=day), trim = TRUE) + 
   geom_dotplot(binaxis = "y",
                stackdir = "center",
-               dotsize = 0.5) +
-  #JZ: I only added the axis for correct display of time in my data
-  scale_y_time()+
+               dotsize = 0.3,
+               binwidth = 0.1) +
   theme_bw() +
-  theme(legend.position = "none") +
-  theme(plot.title = element_text(hjust = 0.5, size = 12, face = "bold")) +
+  theme(plot.title = element_text(hjust = 0.5, size = 26, face = "plain"),
+        axis.text = element_text(size=18),
+        axis.title = element_text(size=18),
+        axis.title.y = element_text(size = 20),
+        axis.title.x = element_text(size = 20),
+        legend.position = "none") +
   xlab("Experimental day") + 
   ylab("Non-wear time (hours)") +
-  ggtitle("Participants' non-wear time during the experimental week\n according to self-reported wear log entries") 
+  scale_y_continuous(breaks = c(0, 2, 4, 6, 8, 10, 12, 14, 16), 
+                     label = c(0, 2, 4, 6, 8, 10, 12, 14, 16), 
+                     expand = c(0,0)) +
+  ggtitle("Self-reported non-wear time entries (Wear log)")
+```
+###Saving  
+```{r}
+ggsave(filename = "nonwear_all.png",
+       plot = nonwear_duration,
+       width = 12,
+       height = 16,
+       dpi = 600,
+       path= "D:/cyepi/code/outputs")
+
+ggsave(filename = "nonwear_all.pdf",
+       plot = nonwear_duration,
+       width = 12,
+       height = 16,
+       dpi = 600,
+       path= "D:/cyepi/code/outputs")
 ```
 
