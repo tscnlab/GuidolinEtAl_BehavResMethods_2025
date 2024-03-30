@@ -1,0 +1,323 @@
+---
+title: "nonwear_source_fusion"
+author: "Carolina Guidolin"
+date: "2023-11-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Backgorund
+The aim is to describe and compare strategies for tracking non-wear time of wearable light loggers used in ambulatory light exposure studies. This can help other researchers to plan their experiments and choose a non-wear time strategy which fits their research requirements. 
+
+##Dataset description
+Participants N = 26
+Duration: 7 full days
+Wearable device: ActLumus with 10 seconds sampling period, worn on spectacles ("light glasses")
+
+Non-wear time information is given by three sources:  
+1. Wear log completed by the participant with following information: 
+  - Timestamp of taking the light glasses off (current/retrospective) 
+  - Timestamp of placing the light glasses back on (current/retrospective) 
+  - Timestamp of taking the light glasses off before bed (current/retrospective) 
+  - Use of black bag during non-wear episode (current/retrospective) 
+
+2. Button presses done by the participant (logged by ActLumus); 
+
+3. Light while in black bag (mEDI ≤1 lux during non-wear time) 
+  - Note: this is partly related to the Wear log, as information on whether the black bag was used or not is contained in the Wear log 
+
+Each of these three sources can be used individually to detect a non-wear period. However, the Wear log entries were monitored twice a day by the experimenter, and thus considered as the “ground truth” for non-wear detection. 
+
+## Research question
+The ovearching RQ is: WHat is the concordance between different sources of non-wear?
+
+##Data fusion 
+To answer the RQ, we first need to integrate the data coming from these three sources. We will do this in a LightLogR native format, as in the future we might want to have these functions built in LightLogR.
+
+###Load in the necessary packages
+```{r}
+library(tidyverse)
+library(hms)
+library(here)
+library(scales)
+library(lubridate)
+library(LightLogR)
+```
+
+
+### Loading actlumus data 
+First, we need to import the ActLumus file where the button press information is contained. We will need this later.
+```{r}
+path <- "C:/Users/guido/Desktop/TEMP/actlumus"
+tz <- "Europe/Berlin"
+
+# Get a list of file paths in the specified directory
+actlumusfiles <- list.files(path, pattern = ".txt", full.names = TRUE)
+
+# Create an empty dataframe to store the combined data
+dataset.LL.all <- data.frame()
+
+# Iterate over each file and import data
+# Ensure that the datasets crossing from DST to ST on 29.10.2023 are adjusted for using dst_adjustment function 
+dataset.LL.all <- import$ActLumus(actlumusfiles, tz = tz, auto.id = "^(\\d{3})", dst_adjustment = TRUE)
+
+```
+
+Every participant started at different times. We will have to specify start and end time manually
+```{r}
+filtered_time <- data.frame(
+  Id = c("201", "202", "204", "205", "206", "208", "209", "210", "212", "213", "214", "215", "216", "218", "219", "221", "222", "223", "224", "225", "226", "227", "228", "229", "230", "231"),
+  start = as.POSIXct(c("2023-08-14 12:40:00", "2023-08-14 13:26:00", "2023-08-14 14:43:00", "2023-08-28 15:42:00", "2023-08-28 14:16:00", "2023-09-04 12:36:00", "2023-09-04 14:01:00", "2023-09-04 15:20:00", "2023-09-11 13:03:00", "2023-09-11 15:06:00", "2023-09-25 14:56:00", "2023-10-02 11:30:00", "2023-10-02 14:31:00", "2023-10-16 11:18:00", "2023-10-16 12:40:00", "2023-10-23 11:22:00", "2023-10-23 13:10:00", "2023-10-30 11:34:00", "2023-10-30 13:24:00", "2023-10-30 15:05:00", "2023-10-30 16:34:00", "2023-10-30 17:44:00", "2023-11-06 11:02", "2023-11-06 12:34", "2023-11-06 14:02", "2023-11-06 17:12" )),    # Add start times
+  end = as.POSIXct(c("2023-08-20 23:59:59", "2023-08-20 23:59:59", "2023-08-20 23:59:59", "2023-09-03 23:59:59", "2023-09-03 23:59:59", "2023-09-10 23:59:59", "2023-09-10 23:59:59", "2023-09-10 23:59:59", "2023-09-17 23:59:59", "2023-09-17 23:59:59", "2023-10-01 23:59:59", "2023-10-08 23:59:59", "2023-10-08 23:59:59", "2023-10-22 23:59:59" , "2023-10-22 23:59:59", "2023-10-29 23:59:59", "2023-10-29 23:59:59", "2023-11-05 23:59:59", "2023-11-05 23:59:59", "2023-11-05 23:59:59", "2023-11-05 23:59:59", "2023-11-05 23:59:59", "2023-11-12 23:59:59", "2023-11-12 23:59:59", "2023-11-12 23:59:59", "2023-11-12 23:59:59"))            # Add end times
+)
+
+dataset.LL.all <- dataset.LL.all %>%
+  inner_join(filtered_time, by = "Id") %>%
+  filter(Datetime >= start, Datetime <= end) %>%
+  select(-start, -end)
+
+```
+
+
+### Loading Wear log files 
+
+First, we need to import the data from the wear log
+```{r}
+filepath <- here("C:/Users/guido/Desktop/TEMP/wearlog")
+
+# Get the files names from directory
+wearlogfiles = list.files(filepath, pattern="*.csv", full.names = TRUE)
+
+```
+
+### Non-wear time according to the Wear log (1st source of non-wear)
+Here we create States (using import_Statechanges) that code for the 3 most important information contained in the Wear log: 1. When the light glasses were on, 2. When the light glasses were off, 3. When the light glasses were put off for sleep. Retrspective and real-time information are treated as equal for this step. 
+```{r pressure, echo=FALSE}
+wearlog_intervals <- 
+  #filenames:
+  wearlogfiles %>% 
+  #import_Statechanges from LightLogR to create states based on timestamps
+  LightLogR::import_Statechanges(
+    sep = ";", dec = ",", Datetime.format = "dmyHM", tz = "Europe/Berlin", 
+    Id.colname = record_id,
+    State.colnames = 
+      c("wearlog_on", "wearlog_off", "wearlog_past_on", "wearlog_past_off", "wearlog_bed", "wearlog_past_sleep"),
+    State.encoding = 
+      c("1", "0", "1", "0", "2", "2") #off coded as 0, on coded as 1, sleep coded as 2
+    ) %>%
+    #recoding and filtering according to our criteria
+  mutate(
+      State = case_when(
+      State == 1 & (lag(State) == 0 | lag(State) == 2) ~ "on", #if on and previous one was off or sleep, it's on 
+      State == 0 & (lead(State) == 2 | lag(State) == 1) ~ "off", #if off and next one is sleep, or previous one is on, it's off
+      State == 2 & lead(State) == 1 ~ "sleep", #if sleep and next one is on, then it's sleep,
+      .default = NA_character_)) 
+
+
+
+```
+
+
+### Quality checks
+Because of how we coded the States in the chunk above, the first and last state change for each participant should be NA values. We check this and change the first one to "on" and the last one to "sleep".
+```{r pressure, echo=FALSE}
+#The first timestamp for every participant should be NA currently
+first_tmp <- wearlog_intervals %>%
+  group_by(Id) %>%
+  filter(row_number() == first(row_number())) %>%
+  ungroup()
+
+#That's correct, and we want to change that to an "on" State
+wearlog_int_on <- wearlog_intervals %>%
+  group_by(Id) %>%
+  mutate(State = ifelse(row_number() == first(row_number()), "on", State)) %>%
+  ungroup()
+
+#The last timestamp should also be NA for each participant
+last_tmp <- wearlog_int_on %>%
+  group_by(Id) %>%
+  filter(row_number() == last(row_number())) %>%
+  ungroup()
+
+#Correct, and we want to change that to sleep
+wearlog_int_clean <- wearlog_int_on %>%
+  group_by(Id)%>%
+  mutate(State = ifelse(row_number() == last(row_number()), "sleep", State)) %>%
+  ungroup()
+
+```
+
+
+
+### Incorporate information about the black bag use (2nd source of non-wear)
+We need to re-adjust the original Wear log file, where the black bag information is contained.
+```{r pressure, echo=FALSE}
+#First, turn it into a dataframe
+wearlog_df <- lapply(
+  wearlogfiles, 
+  function(x) read.csv(x, stringsAsFactors = FALSE, sep = ";")
+  ) %>% 
+  list_c()
+
+#Filter the columns of interest
+wearlog_bag <- wearlog_df %>%
+  select("record_id", "wearlog_off", "wearlog_past_off", "wearlog_bag", "wearlog_past_bag")
+
+#This leads to a lot of NA values in the dataframe: when wearlog_bag has value, wearlog_past_bag is NA and viceversa. We want to delete rows where these values are both NA, as they are not useful for us right now. 
+wearlog_bag_clean <- wearlog_bag %>%
+    rowwise()%>%
+    filter(xor(!is.na(wearlog_bag), !is.na(wearlog_past_bag)))
+
+
+#Combine the information from the retrospectively logged events and events logged "in real time"
+wearlog_bag_clean <- wearlog_bag_clean %>%
+                    mutate(timestamp_combined = case_match(wearlog_off,
+                                                           NA ~ wearlog_past_off, #if wearlog_off is NA, wearlog_past_off is taken
+                                                           "" ~ wearlog_past_off, #if wearlog_off is empty, wearlog_past_off is taken
+                                                           .default = wearlog_off),
+                           bag_combined = case_match(wearlog_bag,
+                                                     NA ~ wearlog_past_bag, #if wearlog_bag is NA, wearlog_past_bag is taken
+                                                     .default = wearlog_bag))%>%
+                    select(record_id, timestamp_combined, bag_combined) #select columns of interest
+
+
+```
+
+
+### Now we have a dataframe wearlog_bag_clean that contains timestamps for when the black bag was used or not used. We'd like to join this with the dataframe that contains the Wear log entries, i.e. wearlog_int_clean
+```{r pressure, echo=FALSE}
+
+##First, we need to do some renaming 
+bag_df <- wearlog_bag_clean %>%
+  rename(Id = record_id, Datetime = timestamp_combined, bag = bag_combined) %>%
+  mutate(Id = as.factor(Id),
+         Datetime = dmy_hm(Datetime, tz = "Europe/Berlin"))
+  
+
+#Now, we want to use left_join to merge the two dataframes 
+joined_df <- left_join(wearlog_int_clean, bag_df, by = c("Datetime", "Id")) %>%
+    mutate(bag = ifelse(is.na(bag), 2, bag)) #all the "on" and "sleep" intervals have bag = NA (since no bag was used here), so we give it a value of 2 
+
+#Using the sc2interval function, we can turn the Datetime column of joined_df into an interval of time
+joined_int <- joined_df %>%
+  group_by(Id) %>% #need to do this to prevent that Datetime from 2 different participants get merged into the same interval
+  LightLogR::sc2interval(full = TRUE, length.restriction = 7 * (60*60*24)) %>%
+  ungroup()
+
+#NOTE: By setting full sc2interval(full = TRUE) we ensure that the last interval for each participant end on Sunday at 00:00, which is the last day. But there is also now a new NA interval for the first participation day, up until when participants come in the lab. This will be ignored when using interval2state in the next lines
+
+  
+#Now that the joined_df is ready, we are ready to merge it to the light logger dataset
+dataset.LL.joined <- dataset.LL.all %>% 
+  interval2state(joined_int) %>% 
+  #Bug: the first interval for each participant is always transformed into a NA value, even if the State in joined_int is "on", so as a temporary solution, we change this manually
+  mutate(State = case_match(State, NA ~ "on",
+                            .default = State)) %>%
+  select(-bag) #Issue: bag is incorporated into the dataframe, but it all values are NA. Can interval2State incorporate more than one State corresponding to the same interval? Answer: for now, this is not possible
+
+#Because of the issue above, we apply interval2State again on this dataset to integrate the bag information 
+dataset.LL.clean <- dataset.LL.joined %>%
+  interval2state(joined_int, State.colname = bag) %>%
+  select(-State.y) %>%
+  rename(State = State.x)
+
+```
+
+### Quality checks
+Because of the work-around in the code chunk above, I would like to double check that the coding of State and bag was integrated correctly
+```{r}
+perform_quality_checks <- function(df) {
+  for (i in 1:nrow(df)) {
+    if (df$State[i] == 'on' || df$State[i] == 'sleep') {
+      if (df$bag[i] != 2) {
+        stop(paste("Quality check failed at index", i, ": State is", df$State[i], "but bag is not 2."))
+      }
+    } else if (df$State[i] == 'off') {
+      if (df$bag[i] != 0 && df$bag[i] != 1) {
+        stop(paste("Quality check failed at index", i, ": State is off but bag is neither 0 nor 1."))
+      }
+    } else {
+      stop(paste("Invalid State value '", df$State[i], "' at index", i, ". State should be either 'on', 'off', or 'sleep'."))
+    }
+  }
+}
+
+tryCatch({
+  perform_quality_checks(dataset.LL.clean)
+  print("Quality checks passed successfully.")
+}, error = function(e) {
+  print(e)
+})
+
+```
+
+### Plot the non-wear time according to the wear log
+```{r}
+Sys.setlocale("LC_TIME", "en_US.UTF-8") #needed to run this code to have the days displayed in English and not German
+
+#Non-wear time can be calculated from the joined_int dataset
+off_states <- joined_int %>%
+#filter for intervals on non-wear (State == "off")
+  filter(State == "off") %>% 
+  #calculate the non-wear time through the interval column
+  mutate(off_time = int_length(Interval) %>% as_hms()) %>% 
+  #group by date and summarize daily non-wear time
+  mutate(Date = as.Date(int_end(Interval)), #first, Date and corresponding weekday are calculated
+         day = format(Date, format = "%A", locale="English") %>% 
+           forcats::fct_inorder()) %>%
+  group_by(Id, day, .add = TRUE) %>%
+  summarize(off_time = sum(off_time)) %>%
+  ungroup()
+
+#There are participants who have 0 non-wear time for a day, i.e. they have no State == off, who we still want to display as 0 points in our plot. Since we filtered for State == off above, we need to use complete to fill in days of 0 non-wear with 0 values. 
+off_states <- off_states %>%
+  complete(Id, day, fill = list(off_time = as_hms(0)))
+
+off_states$off_time <- as.numeric(off_states$off_time, "hours")
+
+```
+
+
+```{r}
+#plotting the data
+nonwear_duration <- off_states %>% 
+ggplot(aes(x = day, y = off_time)) +
+  geom_violin(alpha = 0.3, aes(fill=day), trim = TRUE) + 
+  geom_dotplot(binaxis = "y",
+               stackdir = "center",
+               dotsize = 0.5,
+               binwidth = 0.1) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 26, face = "plain"),
+        axis.text = element_text(size=18),
+        axis.title = element_text(size=18),
+        axis.title.y = element_text(size = 20),
+        axis.title.x = element_text(size = 20),
+        legend.position = "none") +
+  xlab("Experimental day") + 
+  ylab("Non-wear time (hours)") +
+  scale_y_continuous(breaks = c(0, 2, 4, 6, 8, 10, 12, 14, 16), 
+                     label = c(0, 2, 4, 6, 8, 10, 12, 14, 16), 
+                     expand = c(0,0)) +
+  ggtitle("Self-reported non-wear time entries (Wear log)")
+```
+###Saving  
+```{r}
+ggsave(filename = "nonwear_all.png",
+       plot = nonwear_duration,
+       width = 13,
+       height = 14,
+       dpi = 600,
+       path= "C:/Users/guido/Desktop/TEMP/outputs")
+
+ggsave(filename = "nonwear_all.pdf",
+       plot = nonwear_duration,
+       width = 13,
+       height = 14,
+       dpi = 600,
+       path= "C:/Users/guido/Desktop/TEMP/outputs")
+```
+
