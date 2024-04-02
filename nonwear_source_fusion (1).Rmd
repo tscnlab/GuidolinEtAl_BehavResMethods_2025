@@ -51,7 +51,7 @@ library(LightLogR)
 ### Loading actlumus data 
 First, we need to import the ActLumus file where the button press information is contained. We will need this later.
 ```{r}
-path <- "C:/Users/guido/Desktop/TEMP/actlumus"
+path <- "F:/cyepi/code/pre-processing/nonwear_detection/actlumus"
 tz <- "Europe/Berlin"
 
 # Get a list of file paths in the specified directory
@@ -86,7 +86,7 @@ dataset.LL.all <- dataset.LL.all %>%
 
 First, we need to import the data from the wear log
 ```{r}
-filepath <- here("C:/Users/guido/Desktop/TEMP/wearlog")
+filepath <- here("F:/cyepi/code/pre-processing/nonwear_detection/wearlog")
 
 # Get the files names from directory
 wearlogfiles = list.files(filepath, pattern="*.csv", full.names = TRUE)
@@ -115,8 +115,6 @@ wearlog_intervals <-
       State == 0 & (lead(State) == 2 | lag(State) == 1) ~ "off", #if off and next one is sleep, or previous one is on, it's off
       State == 2 & lead(State) == 1 ~ "sleep", #if sleep and next one is on, then it's sleep,
       .default = NA_character_)) 
-
-
 
 ```
 
@@ -183,7 +181,6 @@ wearlog_bag_clean <- wearlog_bag_clean %>%
                                                      .default = wearlog_bag))%>%
                     select(record_id, timestamp_combined, bag_combined) #select columns of interest
 
-
 ```
 
 
@@ -247,7 +244,7 @@ perform_quality_checks <- function(df) {
 
 tryCatch({
   perform_quality_checks(dataset.LL.clean)
-  print("Quality checks passed successfully.")
+  print("Quality checks passed successfully")
 }, error = function(e) {
   print(e)
 })
@@ -304,6 +301,7 @@ ggplot(aes(x = day, y = off_time)) +
                      expand = c(0,0)) +
   ggtitle("Self-reported non-wear time entries (Wear log)")
 ```
+
 ###Saving  
 ```{r}
 ggsave(filename = "nonwear_all.png",
@@ -311,13 +309,13 @@ ggsave(filename = "nonwear_all.png",
        width = 13,
        height = 14,
        dpi = 600,
-       path= "C:/Users/guido/Desktop/TEMP/outputs")
+       path= "F:/cyepi/code/outputs")
 
 ggsave(filename = "nonwear_all.pdf",
        plot = nonwear_duration,
        width = 13,
        height = 14,
        dpi = 600,
-       path= "C:/Users/guido/Desktop/TEMP/outputs")
+       path= "F:/cyepi/code/outputs")
 ```
 
