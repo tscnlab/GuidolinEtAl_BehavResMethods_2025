@@ -21,7 +21,7 @@ int_dec <- joined_int %>%
   mutate(start = int_start(Interval),
          end = int_end(Interval))
 
-window <- 300# 2 minutes in seconds
+window <- 480# 2 minutes in seconds
 
 # Function to check if an event falls within the time window of an interval
 event_within_window <- function(event_time, interval_start, interval_end) {
@@ -67,16 +67,18 @@ merged_data$classification <- apply(merged_data[, c("has_event_start", "has_even
   classify_interval(x[1], x[2])
 })
 
-event_counts_5 <- table(merged_data$classification)
-print(event_counts_5)
+event_counts_8 <- table(merged_data$classification)
+print(event_counts_2)
+df_8 <- data.frame(rbind(event_counts_8))
 
+event_counts$window <- c(rep(2, nrow(df_2)), rep(5, nrow(df_5)), rep(8, nrow(df_8)))
+event_counts_long <- pivot_longer(event_counts, cols = c("Closed.interval", "Open.ended.both"), names_to = "int_type", values_to = "value")
 
-ggplot(merged_data, aes(x = factor(has_event_start), y = factor(has_event_end), fill = classification)) +
-  geom_tile(color = "white") +
-  scale_fill_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00")) +
-  labs(x = "has_event_start", y = "has_event_end") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+event_counts_long$window <- as.factor(event_counts_long$window)
+
+ggplot(event_counts_long, aes(fill=window, x= int_type, y = value)) +
+  geom_bar(position="dodge", stat="identity")
+ 
 ```
 
 ```{r}
