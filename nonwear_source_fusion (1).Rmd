@@ -51,7 +51,7 @@ library(LightLogR)
 ### Loading actlumus data 
 First, we need to import the ActLumus file where the button press information is contained. We will need this later.
 ```{r}
-path <- "F:/cyepi/code/pre-processing/nonwear_detection/actlumus"
+path <- "D:/cyepi/code/pre-processing/nonwear_detection/actlumus"
 tz <- "Europe/Berlin"
 
 # Get a list of file paths in the specified directory
@@ -86,7 +86,7 @@ dataset.LL.all <- dataset.LL.all %>%
 
 First, we need to import the data from the wear log
 ```{r}
-filepath <- here("F:/cyepi/code/pre-processing/nonwear_detection/wearlog")
+filepath <- here("D:/cyepi/code/pre-processing/nonwear_detection/wearlog")
 
 # Get the files names from directory
 wearlogfiles = list.files(filepath, pattern="*.csv", full.names = TRUE)
