@@ -155,24 +155,46 @@ event_per_agg <- event_per %>%
   ungroup()
 
 library(ggforce)
-library(viridis)
+library(ggrepel)
 
 val <- c("1" = "forestgreen", "2" = "darkmagenta", "3" = "tomato1", "4" = "tomato2", "5" = "tomato3", "6" = "royalblue1", "7" = "royalblue2", "8" = "royalblue3")
-ggplot(event_per_agg, aes(x = n_per_closed, y =n_per_open, colour = as.factor(window_size/60))) +
-  geom_point(labelposition = position_dodge(w=0.2),
+
+int_type_per <- ggplot(event_per_agg, aes(x = n_per_closed, y =n_per_open, colour = as.factor(window_size/60))) +
+  geom_point(position = position_dodge(w=0.3),
              alpha =0.3, size=4) +
-  geom_text_repel(aes(label = (window_size/60)), position = position_dodge(width = 0.3)) +
   xlim(0, 100) +
   ylim(0, 100) +
-  labs(title = "Interval type according to presence of button press", x = "Closed intervals (%)", y = "Open Intervals (%)", color = "Window size (min)") +
+  labs(title = "Non-wear interval type according to button press events", x = "Closed intervals (%)", y = "Open intervals (%)", color = "Window size\n(minutes)") +
   facet_zoom(ylim = c(8,14),
              xlim = c(86.5,91)) +
   scale_color_manual(values = val,
                      breaks = c("1", "2", "3", "4", "5", "6", "7", "8")) +
-  theme_bw() +
-  theme()
-  
+  annotate("text", size = 4, x = 86.8, y = 13.35, label = "1") +
+  annotate("text", size = 4, x = 88.83, y = 11.31, label = "2") +
+  annotate("text", size = 4, x = 89.72, y = 10.30, label = "3") +
+  annotate("text", size = 4, x = 89.84, y = 10.30, label = "4") +
+  annotate("text", size = 4, x = 89.96, y = 10.30, label = "5") +
+  annotate("text", size = 4, x = 90.24, y = 9.79, label = "6") +
+  annotate("text", size = 4, x = 90.36, y = 9.79, label = "7") +
+  annotate("text", size = 4, x = 90.48, y = 9.79, label = "8") +
+  theme_bw()  +
+  theme(plot.title = element_text(hjust = 0.5, size = 24),
+        axis.text.x = element_text(size = 16),
+        axis.title = element_text(size = 18),
+        legend.title = element_text(size = 16),
+        legend.text = element_text(size = 14))
 
+  
+```
+
+
+```{r}
+ggsave(filename = "int_bp.png",
+       plot = int_type_per,
+       width = 10,
+       height = 8,
+       dpi = 600,
+       path= "F:/cyepi/code/outputs")
 ```
 
 
