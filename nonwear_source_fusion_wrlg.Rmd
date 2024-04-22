@@ -232,14 +232,14 @@ perform_quality_checks <- function(df) {
   for (i in 1:nrow(df)) {
     if (df$State[i] == 'on' || df$State[i] == 'sleep') {
       if (df$bag[i] != 2) {
-        stop(paste("Quality check failed at index", i, ": State is", df$State[i], "but bag is not 2."))
+        stop(paste("Quality check failed at index", i, ": State is", df$State[i], "but bag is not 2"))
       }
     } else if (df$State[i] == 'off') {
       if (df$bag[i] != 0 && df$bag[i] != 1) {
-        stop(paste("Quality check failed at index", i, ": State is off but bag is neither 0 nor 1."))
+        stop(paste("Quality check failed at index", i, ": State is off but bag is neither 0 nor 1"))
       }
     } else {
-      stop(paste("Invalid State value '", df$State[i], "' at index", i, ". State should be either 'on', 'off', or 'sleep'."))
+      stop(paste("Invalid State value '", df$State[i], "' at index", i, ". State should be either 'on', 'off', or 'sleep'"))
     }
   }
 }
@@ -336,6 +336,7 @@ particip_int <- filtered_time %>%
 ###Visualise how much time participants spend in which State (on/off/sleep)
 ```{r}
 library(ggdist)
+
 #Time in each interval can be calculated from joined_int 
 int_types <- joined_int %>%
   #calculate length of each interval
@@ -359,12 +360,53 @@ as.factor(int_types$State)
 #Plot
 int_types$State <- factor(int_types$State, levels = unique(int_types$State)[order(int_types$per_length, decreasing = TRUE)])
 
-states_distribution <- ggplot(data = int_types, aes(x=per_length, y = State, fill = State)) +
+states_dist_jitter <- ggplot(data = int_types, aes(x=per_length, y = State, fill = State)) +
   xlim(NA,100) +
   ggdist::stat_halfeye(
     aes(colour = State,
         fill = State),
     adjust = .5,
+    justification = -.25,
+    point_color = NA,
+    interval_color = NA
+    ) +
+  geom_boxplot(
+    aes(color = State),
+    width = .2,
+    alpha = .2,
+    outlier.shape = NA
+  ) +
+  geom_jitter(
+    aes(colour = State),
+    fill = "white",
+    height = .1,
+    alpha = .3
+  ) +
+  scale_fill_manual(
+    values = c("off" = "#16439C", "on" = "palegreen4", "sleep" = "darkgoldenrod2")) +
+  scale_color_manual(
+    values = c("off" = "#16439C", "on" = "palegreen4", "sleep" = "darkgoldenrod2")) +
+  scale_y_discrete(labels = c("on" = "On", "off" = "Off", "sleep" = "Off while\nsleeping")) +
+  theme_classic() +
+  ggpubr::rremove("ylab") +
+  ggpubr::rremove("y.ticks") +
+  labs(title = "(Non-)wear time distribution across the week", x = "Time (%)") +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size = 24),
+        axis.text.x = element_text(size = 16),
+        axis.title = element_text(size = 18),
+        axis.text.y = element_text(size = 16))
+
+#Same plot without jitter and boxplot, just with distribution
+  states_dist_histo <- ggplot(data = int_types, aes(x=per_length, y = State, fill = State)) +
+  xlim(NA,100) +
+  ggdist::stat_halfeye(
+    aes(colour = State,
+        fill = State),
+    adjust = .5,
+    point_color = NA,
+    interval_color = NA
+ #   .width = .7
     ) +
   ggdist::stat_dotsinterval(
     side = "bottom",
@@ -387,18 +429,39 @@ states_distribution <- ggplot(data = int_types, aes(x=per_length, y = State, fil
 
 ```
 
-
+###Save plot above
 ```{r}
-ggsave(filename = "state_dist.png",
-       plot = states_distribution ,
+ggsave(filename = "state_dist_jitter.png",
+       plot = states_dist_jitter ,
        width = 8,
        height = 5,
        dpi = 600,
        path= "F:/cyepi/code/outputs")
 ```
 
-##Visualisin
+##Visualising weekend and weekdays of non-wear
 ```{r}
+#tot day1
+day_one <- filtered_time %>%
+  mutate(mon_day = as.Date(start, tz = tz),
+         day_one = format(mon_day, "%Y-%m-%d 23:59:59"))
+
+off_dist <- joined_int %>%
+  #calculate length of each interval
+  mutate(int_length = int_length(Interval) %>% as_hms()) %>% 
+  #group by date and summarize 
+  mutate(Date = as.Date(int_end(Interval)), #first, Date and corresponding weekday are calculated
+         day = format(Date, format = "%A", locale="English") %>% 
+           forcats::fct_inorder()) %>%
+  filter(!is.na(State) & State == "off") %>%
+  group_by(Id, day, .add = TRUE) %>%
+  summarize(int_length = sum(int_length)) %>%
+  ungroup()
+
+
+off_dist <- off_dist %>%
+  left_join(day_one, by = "Id")
+
 
 weekly_nonwear <- off_states %>%
   mutate(day_type = ifelse(day %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"), "weekday", "weekend_day"))
@@ -439,9 +502,10 @@ ggsave(filename = "nonwear_dist_daytype.png",
        height = 5,
        dpi = 600,
        path= "F:/cyepi/code/outputs")
+```
 
 #Do the same but no distinction between weekday and weekend
-
+```{r}
 tot_nonwear <- int_types%>%
   filter(State == "off")
 
@@ -482,6 +546,11 @@ ggsave(filename = "nonwear_dist_overview_100.png",
        dpi = 600,
        path= "F:/cyepi/code/outputs")
 ```
+
+###Ideas and feedback
+- Add a beeswarm plot under the desnity plot (instead of a histogram)
+- Or add the real data points (geom_jitter)
+- Plot for each participant the raw data: light, on/off, button press and activity
 
 
 

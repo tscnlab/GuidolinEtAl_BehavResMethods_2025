@@ -211,7 +211,7 @@ ggsave(filename = filename,
        height = 14,
        dpi = 600,
        bg = "white",
-       path= "F:/cyepi/code/outputs/visualinspection")
+       path= "F:/cyepi/code/outputs/visualinspection/")
 }
 
 ```
