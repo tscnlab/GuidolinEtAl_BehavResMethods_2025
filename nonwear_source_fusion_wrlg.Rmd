@@ -324,11 +324,11 @@ ggsave(filename = "nonwear_all.pdf",
 ###While the plot above gives us an overview of the non-wear time for all participants, we would like to plot this as an histogram of non-wear time distribution, ranging from 0 non wear time to 100% non wear time
 
 ```{r}
-#First, while all participants took part in the experiment for 7 days, they started at different times, and so it is important not just to approximate to 7 days (168 hours), but to calculate the specific 100% of "participation time" for each participant
+#First, while all participants took part in the experiment for 7 days, they started at different times, and so it is important not just to approximate to 7 days (168 hours), but to calculate the specific 100% of "participation time" for each participant. For this, we first need to calculate the n of hours that each participant spends in the experiment.
 
 particip_int <- filtered_time %>%
   mutate(par_int = lubridate::interval(start, end),
-         length_par = lubridate::int_length(par_int) %>% as_hms()) %>% #hours of participation for each participant
+         length_par = lubridate::int_length(par_int) %>% as_hms()) %>% #tot hours of participation for each participant
   select(Id, length_par)
 
 ```
@@ -390,7 +390,7 @@ states_dist_jitter <- ggplot(data = int_types, aes(x=per_length, y = State, fill
   theme_classic() +
   ggpubr::rremove("ylab") +
   ggpubr::rremove("y.ticks") +
-  labs(title = "(Non-)wear time distribution across the week", x = "Time (%)") +
+  labs(title = "(Non-)wear time distribution across the week", x = "Percentage of time (%)") +
   theme(legend.position = "none",
         plot.title = element_text(hjust = 0.5, size = 24),
         axis.text.x = element_text(size = 16),
@@ -419,7 +419,7 @@ states_dist_jitter <- ggplot(data = int_types, aes(x=per_length, y = State, fill
   theme_classic() +
   ggpubr::rremove("ylab") +
   ggpubr::rremove("y.ticks") +
-  labs(title = "(Non-)wear time distribution across the week", x = "Time (%)") +
+  labs(title = "(Non-)wear time distribution across the week", x = "Percentage of time (%)") +
   theme(legend.position = "none",
         plot.title = element_text(hjust = 0.5, size = 24),
         axis.text.x = element_text(size = 16),
@@ -439,66 +439,99 @@ ggsave(filename = "state_dist_jitter.png",
        path= "F:/cyepi/code/outputs")
 ```
 
-##Visualising weekend and weekdays of non-wear
+##Perform a sanity check that plot sleep and wake time from sleep diary 
+In the plot above, we visualised time spent in each of the non-wear states: off (device not worn), on (device worn) and off for sleep (device not worn during sleep). As a sanity check, the time that the device is not worn during sleep should be similar to the time that the participants reported actually sleeping, as indicated by the sleep diary. For this reason, we follow a similar approach to the code above to visualise the amount of time participants spend asleep or awake according to the sleep diary. 
 ```{r}
-#tot day1
-day_one <- filtered_time %>%
-  mutate(mon_day = as.Date(start, tz = tz),
-         day_one = format(mon_day, "%Y-%m-%d 23:59:59"))
+#Locate the sleep diary files
+path_sleep <- here("F:/cyepi/data/raw/group/sleepdiary")
 
-off_dist <- joined_int %>%
-  #calculate length of each interval
+# Get the files names from directory
+sleepdiary = list.files(path_sleep, pattern="*.csv", full.names = TRUE)
+
+#Using LightLogR, we import the files and label each timestamp as wake or sleep
+sleepdiary_df <- LightLogR::import_Statechanges(sleepdiary,
+                                     Datetime.format = "dmyHM",
+                                     State.colnames = c("sleep", "offset"),
+                                     State.encoding = c("sleep", "wake"),
+                                     Id.colname = record_id,
+                                     sep = ";",
+                                     dec = ",",
+                                     tz = tz)
+
+#Similar to what was done for the wearlog intervals, we now turn the state changes of the sleep diary to an interval
+sleep_int <- sleepdiary_df %>%
+  sc2interval() %>%
+  filter(!is.na(State))
+
+#Calculate the amount of time spent in each state (either awake or alseep), for each participant across the whole experiment duration
+sleep_int <- sleep_int %>%
+#calculate length of each interval
   mutate(int_length = int_length(Interval) %>% as_hms()) %>% 
   #group by date and summarize 
   mutate(Date = as.Date(int_end(Interval)), #first, Date and corresponding weekday are calculated
          day = format(Date, format = "%A", locale="English") %>% 
            forcats::fct_inorder()) %>%
-  filter(!is.na(State) & State == "off") %>%
-  group_by(Id, day, .add = TRUE) %>%
-  summarize(int_length = sum(int_length)) %>%
-  ungroup()
+  group_by(Id, State, .add = TRUE) %>%
+  summarize(tot_intlength = sum(int_length) %>% as_hms()) %>%
+  ungroup() %>%
+  filter(!is.na(State))
 
 
-off_dist <- off_dist %>%
-  left_join(day_one, by = "Id")
+# Normalise it to the total time they participated in the experiment
+sleep_int <- sleep_int %>%
+  left_join(particip_int, by ="Id") %>% #append the column containing total participation hours from the particip_int df
+  #note that particip_int has been calculate earlier and can be reused here 
+  mutate(per_length = (as.numeric(tot_intlength)/as.numeric(length_par))*100) #convert to numeric as division betwen difftime objects is not supported
 
+#Turn state into factor
+as.factor(sleep_int$State)
 
-weekly_nonwear <- off_states %>%
-  mutate(day_type = ifelse(day %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"), "weekday", "weekend_day"))
+#Organise the order of the factor levels to determine what comes first in the plot
+sleep_int$State <- factor(sleep_int$State, levels = unique(sleep_int$State)[order(sleep_int$per_length, decreasing = TRUE)])
 
-weekly_nonwear <- weekly_nonwear %>%
-  group_by(Id, day_type) %>%
-  summarise(non_wear = sum(off_time))
-
-weekly_per_nonwear <- weekly_nonwear %>%
-  group_by(Id) %>%
-  mutate(per_nonwear = non_wear/if_else(day_type == "weekday", 5, 2)/24 * 100)
-
-dis_daytype <- ggplot(data = weekly_per_nonwear, aes(x = per_nonwear, y= day_type, fill = day_type))  +
- # xlim(NA, 100) +
-  ggdist::stat_slab(aes(thickness = after_stat(pdf*n)), scale = 0.5, adjust = .5) +
-  ggdist::stat_dotsinterval(side = "bottom", scale = 0.3, slab_colour = NA, slab_linewidth = NA) +
+#Plot
+sleep_wake_dist <-
+  ggplot(data = sleep_int, aes(x=per_length, y = State, fill = State)) +
+  xlim(NA,100) +
+  ggdist::stat_halfeye(
+    aes(colour = State,
+        fill = State),
+    adjust = .5,
+    justification = -.15,
+    point_color = NA,
+    interval_color = NA
+    ) +
+  geom_boxplot(
+    aes(color = State),
+    width = .2,
+    alpha = .2,
+    outlier.shape = NA
+  ) +
+  geom_jitter(
+    aes(colour = State),
+    fill = "white",
+    height = .1,
+    alpha = .3
+  ) +
   scale_fill_manual(
-    name = "Day type",
-    values = c("weekday" = "#4479E4", "weekend_day" = "#9DB9F1"), 
-    labels = c("Weekday", "Weekend day"),
-    guide = guide_legend(reverse=TRUE)) +
+    values = c("sleep" = "darkgoldenrod2", "wake" = "darkcyan")) +
+  scale_color_manual(
+    values = c("sleep" = "darkgoldenrod2", "wake" = "darkcyan")) +
+  scale_y_discrete(labels = c("sleep" = "Sleep", "wake" = "Wake")) +
   theme_classic() +
-  labs(title = "Non-wear time distribution") +
-  xlab("Non-wear time (%)") +
   ggpubr::rremove("ylab") +
   ggpubr::rremove("y.ticks") +
-  ggpubr::rremove("y.text") +
-  theme(plot.title = element_text(hjust = 0.5, size = 24),
+  labs(title = "Sleep and wake distribution across the week", x = "Percentage of time (%)") +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size = 24),
         axis.text.x = element_text(size = 16),
         axis.title = element_text(size = 18),
-        legend.title = element_text(size = 16),
-        legend.text = element_text(size = 14))
- 
+        axis.text.y = element_text(size = 16))
 
-ggsave(filename = "nonwear_dist_daytype.png",
-       plot = dis_daytype,
-       width = 10,
+##Save plot above
+ggsave(filename = "sleep_wake_dist.png",
+       plot = sleep_wake_dist ,
+       width = 8,
        height = 5,
        dpi = 600,
        path= "F:/cyepi/code/outputs")
@@ -541,16 +574,12 @@ nonwear_dist_overview <- ggplot(data = tot_nonwear, aes(x = per_length, fill = S
 
 ggsave(filename = "nonwear_dist_overview_100.png",
        plot = nonwear_dist_overview ,
-       width = 10,
+       width = 8,
        height = 5,
        dpi = 600,
        path= "F:/cyepi/code/outputs")
 ```
 
-###Ideas and feedback
-- Add a beeswarm plot under the desnity plot (instead of a histogram)
-- Or add the real data points (geom_jitter)
-- Plot for each participant the raw data: light, on/off, button press and activity
 
 
 
