@@ -162,7 +162,7 @@ wearlog_intervals <-
       c("wearlog_on", "wearlog_off", "wearlog_past_on", "wearlog_past_off", "wearlog_bed", "wearlog_past_sleep"),
     State.encoding = 
       c("1", "0", "1", "0", "2", "2") #off coded as 0, on coded as 1, sleep coded as 2
-    ) %>%
+    ) %>% #find way here to already detect the files where the last timestamp is not an on one 
     #recoding and filtering according to our criteria
   mutate(
       State = case_when(
@@ -171,11 +171,27 @@ wearlog_intervals <-
       State == 2 & lead(State) == 1 ~ "sleep", #if sleep and next one is on, then it's sleep,
       .default = NA_character_)) 
 
+
 ```
 
 
 ### Quality checks
-Because of how we coded the States in the chunk above, the first and last state change for each participant should be NA values. We check this and change the first one to "on" and the last one to "sleep".
+We get an error message when using the import_Statechanges() function: "Warnung: There are consecutive states that are the same. This may or may not be an error in the data." Consecutive timestamps would have defaulted in NAs, as specified by the case_when() function above. Also, the first and last timestamp will be NA values, because of how we coded the states with case_when()
+Let's check if this is the case by checking whcih Datetime ended up as NA. We would expect 26x2 = 52 entries.
+
+```{r}
+#We get all of the NA values
+na_values <- wearlog_intervals %>%
+  filter(is.na(State))
+
+#We check whether the NA values are just the first and last timestamps
+na_classification <- na_values %>%
+  group_by(Id) %>%
+  mutate(first = ifelse(row_number() == first(row_number()), "first", State),
+         last = ifelse(row_number() == last(row_number()), "last", State))
+```
+
+
 ```{r pressure, echo=FALSE}
 #The first timestamp for every participant should be NA currently
 first_tmp <- wearlog_intervals %>%
@@ -195,7 +211,7 @@ last_tmp <- wearlog_int_on %>%
   filter(row_number() == last(row_number())) %>%
   ungroup()
 
-#Correct, and we want to change that to sleep
+#Correct, and we want to change that to on
 wearlog_int_clean <- wearlog_int_on %>%
   group_by(Id)%>%
   mutate(State = ifelse(row_number() == last(row_number()), "sleep", State)) %>%
