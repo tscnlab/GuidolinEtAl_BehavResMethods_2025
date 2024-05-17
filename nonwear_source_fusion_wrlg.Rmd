@@ -32,7 +32,7 @@ Non-wear time information is given by three sources:
 Each of these three sources can be used individually to detect a non-wear period. However, the Wear log entries were monitored twice a day by the experimenter, and thus considered as the “ground truth” for non-wear detection. 
 
 ## Research question
-The ovearching RQ is: WHat is the concordance between different sources of non-wear?
+The ovearching RQ is: What is the concordance between different sources of non-wear?
 
 ##Data fusion 
 To answer the RQ, we first need to integrate the data coming from these three sources. We will do this in a LightLogR native format, as in the future we might want to have these functions built in LightLogR.
@@ -53,6 +53,8 @@ library(ggbreak)
 ### Loading actlumus data 
 First, we need to import the ActLumus file where the button press information is contained. We will need this later.
 ```{r}
+Sys.setlocale("LC_TIME", "en_US.UTF-8") #needed to run this code to have the days displayed in English and not German
+
 path <- "G:/cyepi/code/pre-processing/nonwear_detection/actlumus"
 tz <- "Europe/Berlin"
 
@@ -71,6 +73,16 @@ dataset.LL.all <- import$ActLumus(actlumusfiles, tz = tz, auto.id = "^(\\d{3})",
 Every participant started at different times. We will have to specify start and end time manually. 
 Start times are taken as the first timestamp when the participant started the study. This is reported in the Wear log.
 End times are taken as the timestamp of "putting the light glasses back on" on the morning of the last day of the experiment, i.e. when participants had to return to the laboratory. In case this was missing, "data"out of bed" data from the sleep diary was used (this was the case for 4 participants), as this would be the closest approximation. For one participant (213), the data from the sleep diary was missing as well. Thus, the end time was determined as midnight of the last experimental day (Sunday).
+
+```{r}
+filtered_time <- data.frame(
+  Id = c("201", "202", "204", "205", "206", "208", "209", "210", "212", "213", "214", "215", "216", "218", "219", "221", "222", "223", "224", "225", "226", "227", "228", "229", "230", "231"),
+  start = as.POSIXct(c("2023-08-14 12:40:00", "2023-08-14 13:26:00", "2023-08-14 14:43:00", "2023-08-28 15:42:00", "2023-08-28 14:16:00", "2023-09-04 12:36:00", "2023-09-04 14:01:00", "2023-09-04 15:20:00", "2023-09-11 13:03:00", "2023-09-11 15:06:00", "2023-09-25 14:56:00", "2023-10-02 11:30:00", "2023-10-02 14:31:00", "2023-10-16 11:18:00", "2023-10-16 12:40:00", "2023-10-23 11:22:00", "2023-10-23 13:10:00", "2023-10-30 11:34:00", "2023-10-30 13:24:00", "2023-10-30 15:05:00", "2023-10-30 16:34:00", "2023-10-30 17:44:00", "2023-11-06 11:02", "2023-11-06 12:34", "2023-11-06 14:02", "2023-11-06 17:12" )),    # Add start times
+  end = as.POSIXct(c("2023-08-20 23:59:59", "2023-08-20 23:59:59", "2023-08-20 23:59:59", "2023-09-03 23:59:59", "2023-09-03 23:59:59", "2023-09-10 23:59:59", "2023-09-10 23:59:59", "2023-09-10 23:59:59", "2023-09-17 23:59:59", "2023-09-17 23:59:59", "2023-10-01 23:59:59", "2023-10-08 23:59:59", "2023-10-08 23:59:59", "2023-10-22 23:59:59" , "2023-10-22 23:59:59", "2023-10-29 23:59:59", "2023-10-29 23:59:59", "2023-11-05 23:59:59", "2023-11-05 23:59:59", "2023-11-05 23:59:59", "2023-11-05 23:59:59", "2023-11-05 23:59:59", "2023-11-12 23:59:59", "2023-11-12 23:59:59", "2023-11-12 23:59:59", "2023-11-12 23:59:59"))            # Add end times
+)
+```
+
+
 ```{r}
 filtered_time <- data.frame(
   Id = c("201", "202", "204", "205", "206", "208", "209", "210", "212", "213", "214", "215", "216", "218", "219", "221", "222", "223", "224", "225", "226", "227", "228", "229", "230", "231"),
@@ -162,18 +174,137 @@ wearlog_intervals <-
       c("wearlog_on", "wearlog_off", "wearlog_past_on", "wearlog_past_off", "wearlog_bed", "wearlog_past_sleep"),
     State.encoding = 
       c("1", "0", "1", "0", "2", "2") #off coded as 0, on coded as 1, sleep coded as 2
-    ) %>% #find way here to already detect the files where the last timestamp is not an on one 
-    #recoding and filtering according to our criteria
-  mutate(
+    ) 
+
+#Quality check: find identical consecutive events
+
+error_messages <- character(0) # We create an empty vector where we can store the errors
+
+for (i in 2:(nrow(wearlog_intervals) - 1)) {
+  if (wearlog_intervals$State[i] == wearlog_intervals$State[i - 1]) { # we check if the current row has the same value as the previous row
+    # If that's the case, add an error message
+    error_messages <- c(
+      error_messages,
+      paste("Consecutive values at record_id:", wearlog_intervals$Id[i],
+            "datetime:", wearlog_intervals$Datetime[i])
+    )
+  }
+}
+
+# Check if there are error messages
+if (length(error_messages) > 0) {
+  # There are errors; print the error messages
+  for (error_message in error_messages) {
+    cat("Error:", error_message, "\n")
+  }
+} else {
+  cat("No consecutive value errors found.")
+}
+
+#32 instances of error messages found
+#201 - change 
+
+%>%
+   mutate(
       State = case_when(
       State == 1 & (lag(State) == 0 | lag(State) == 2) ~ "on", #if on and previous one was off or sleep, it's on 
       State == 0 & (lead(State) == 2 | lag(State) == 1) ~ "off", #if off and next one is sleep, or previous one is on, it's off
       State == 2 & lead(State) == 1 ~ "sleep", #if sleep and next one is on, then it's sleep,
-      .default = NA_character_)) 
+      .default = NA_character_)) #find way here to already detect the files where the last timestamp is not an on one 
+    #recoding and filtering according to our criteria
+
+
+to_remove <- as.POSIXct(c("2023-08-21 07:31:00", 
+                          "2023-08-21 07:23:00", 
+                          "2023-08-21 08:59:00",
+                          "2023-09-04 07:28:00",
+                          "2023-09-04 07:38:00",
+                          "2023-09-04 08:10:00",
+                          "2023-09-04 08:08:00",
+                          "2023-09-11 07:30:00",
+                          "2023-09-11 08:03:00",
+                          "2023-09-11 07:45:00",
+                          "2023-09-18 06:01:00",
+                          "2023-09-18 08:03:00",
+                          "2023-10-02 09:02:00",
+                          "2023-10-09 08:27:00",
+                          "2023-10-09 11:01:00",
+                          "2023-10-23 08:13:00",
+                          "2023-10-23 08:22:00",
+                          "2023-10-30 07:58:00",
+                          "2023-10-30 08:18:00",
+                          "2023-11-06 08:00:00",
+                          "2023-11-06 08:23:00",
+                          "2023-11-06 06:49:00",
+                          "2023-11-06 06:59:00",
+                          "2023-11-06 07:07:00",
+                          "2023-11-13 07:49:00",
+                          "2023-11-13 07:09:00",
+                          "2023-11-13 07:20:00",
+                          "2023-11-13 07:55:00",
+                          "2023-11-13 09:02:00",
+                          "2023-11-13 08:15:00",
+                          "2023-11-13 09:49:00"), tz = tz)
+
+
+rows_to_remove <- wearlog_intervals$Datetime %in% to_remove
+
+wearlog_intervals <- wearlog_intervals[!rows_to_remove, ]
+
+
+wearlog_intervals <- wearlog_intervals %>%
+  group_by(Id) %>%
+  mutate(start_day = as.Date(first(Datetime)),
+         exp_day = as.integer(difftime(Datetime, start_day, units = "days")) + 1) %>%
+  ungroup()
+
+last_day <- wearlog_intervals %>%
+  group_by(Id) %>%
+  filter(exp_day == 8) %>%
+  mutate(on_check = (ifelse(State == "1" | State == "0", "on", "other"))) 
+  
+wearlog_intervals_f <- wearlog_intervals %>%
+  right_join(last_day, by = c("Id", "exp_day"))
+  
+  
+  
+  
 
 
 ```
-
+These are the 32 errors we get:
+Error: Consecutive values at record_id: 201 datetime: 2023-08-18 19:54:00 
+Error: Consecutive values at record_id: 201 datetime: 2023-08-18 20:14:00 
+Error: Consecutive values at record_id: 202 datetime: 2023-08-14 13:26:00 
+Error: Consecutive values at record_id: 202 datetime: 2023-08-15 07:24:00 
+Error: Consecutive values at record_id: 202 datetime: 2023-08-18 22:29:00 
+Error: Consecutive values at record_id: 205 datetime: 2023-08-28 15:42:00 
+Error: Consecutive values at record_id: 205 datetime: 2023-08-28 15:42:00 
+Error: Consecutive values at record_id: 205 datetime: 2023-09-02 16:47:00 
+Error: Consecutive values at record_id: 205 datetime: 2023-09-02 17:10:00 
+Error: Consecutive values at record_id: 205 datetime: 2023-09-03 09:40:00 
+Error: Consecutive values at record_id: 206 datetime: 2023-08-28 14:16:00 
+Error: Consecutive values at record_id: 208 datetime: 2023-09-04 12:36:00 
+Error: Consecutive values at record_id: 208 datetime: 2023-09-08 07:33:00 
+Error: Consecutive values at record_id: 209 datetime: 2023-09-08 00:58:00 
+Error: Consecutive values at record_id: 210 datetime: 2023-09-04 15:20:00 
+Error: Consecutive values at record_id: 215 datetime: 2023-10-02 11:30:00 
+Error: Consecutive values at record_id: 215 datetime: 2023-10-03 08:33:00 
+Error: Consecutive values at record_id: 215 datetime: 2023-10-07 01:15:00 
+Error: Consecutive values at record_id: 215 datetime: 2023-10-07 16:50:00 
+Error: Consecutive values at record_id: 216 datetime: 2023-10-02 14:31:00 
+Error: Consecutive values at record_id: 218 datetime: 2023-10-16 11:18:00 
+Error: Consecutive values at record_id: 218 datetime: 2023-10-21 02:15:00 
+Error: Consecutive values at record_id: 218 datetime: 2023-10-22 11:00:00 
+Error: Consecutive values at record_id: 218 datetime: 2023-10-23 08:22:00 
+Error: Consecutive values at record_id: 219 datetime: 2023-10-16 12:40:00 
+Error: Consecutive values at record_id: 222 datetime: 2023-10-23 13:10:00 
+Error: Consecutive values at record_id: 223 datetime: 2023-10-30 11:34:00 
+Error: Consecutive values at record_id: 224 datetime: 2023-10-30 13:24:00 
+Error: Consecutive values at record_id: 225 datetime: 2023-10-30 15:05:00 
+Error: Consecutive values at record_id: 226 datetime: 2023-10-30 16:34:00 
+Error: Consecutive values at record_id: 228 datetime: 2023-11-06 11:02:00 
+Error: Consecutive values at record_id: 229 datetime: 2023-11-06 12:34:00 
 
 ### Quality checks
 We get an error message when using the import_Statechanges() function: "Warnung: There are consecutive states that are the same. This may or may not be an error in the data." Consecutive timestamps would have defaulted in NAs, as specified by the case_when() function above. Also, the first and last timestamp will be NA values, because of how we coded the states with case_when()
@@ -281,17 +412,13 @@ joined_int <- joined_df %>%
   
 #Now that the joined_df is ready, we are ready to merge it to the light logger dataset
 dataset.LL.joined <- dataset.LL.all %>% 
-  interval2state(joined_int) %>% 
-  #Bug: the first interval for each participant is always transformed into a NA value, even if the State in joined_int is "on", so as a temporary solution, we change this manually
-  mutate(State = case_match(State, NA ~ "on",
-                            .default = State)) %>%
-  select(-bag) #Issue: bag is incorporated into the dataframe, but it all values are NA. Can interval2State incorporate more than one State corresponding to the same interval? Answer: for now, this is not possible
+  interval2state(joined_int) #note that only the State (not bag) will be carried over from the original dataset
 
-#Because of the issue above, we apply interval2State again on this dataset to integrate the bag information 
+#Now we can apply interval2state a second time to integrate the bag information 
 dataset.LL.clean <- dataset.LL.joined %>%
-  interval2state(joined_int, State.colname = bag) %>%
-  select(-State.y) %>%
-  rename(State = State.x)
+  interval2state(joined_int, State.colname = bag)
+
+
 
 ```
 
@@ -424,6 +551,19 @@ int_types <- joined_int %>%
 int_types <- int_types %>%
   left_join(particip_int, by ="Id") %>% #append the column containing total participation hours from the particip_int df
   mutate(per_length = (as.numeric(tot_intlength)/as.numeric(length_par))*100) #convert to numeric as division betwen difftime objects is not supported
+
+
+#Calculating median time in each state
+
+summary <- int_types %>%
+  group_by(State) %>%
+  summarise(mean = mean(per_length),
+            sd = sd(per_length),
+            min = min(per_length),
+            max = max(per_length),
+            median = median(per_length),
+            range = max-min) %>%
+  ungroup()
 
 as.factor(int_types$State)
 
