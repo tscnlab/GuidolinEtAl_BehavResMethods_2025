@@ -156,7 +156,7 @@ wearlogfiles = list.files(filepath, pattern="*.csv", full.names = TRUE)
 ### Non-wear time according to the Wear log (1st source of non-wear)
 Here we create States (using import_Statechanges) that code for the 3 most important information contained in the Wear log: 1. When the light glasses were on, 2. When the light glasses were off, 3. When the light glasses were put off for sleep. Retrospective and real-time information are treated as equal for this step. 
 ```{r pressure, echo=FALSE}
-wearlog_intervals_raw <- 
+wearlog_entries_raw <- 
   #filenames:
   wearlogfiles %>% 
   #import_Statechanges from LightLogR to create states based on timestamps
@@ -172,11 +172,11 @@ wearlog_intervals_raw <-
 ```
 
 ###Quality check 1a: Identifying consecutive datetimes
-The first thing that we want to check is for identical consecutive timestamps. These should not occur, but it is possible that something went "wrong" from the participants' side. If this is the case, it should be corrected. 
+The first thing that we want to check is for identical consecutive timestamps, i.e. identical and consecutive Datetime values. These should not occur, but it is possible that something went "wrong" from the participants' side. If this is the case, it should be corrected. 
 ```{r}
 error_messages_datetime <- character(0) # We create an empty vector where we can store the errors
 
-wearlog_intervals_raw %>%
+wearlog_entries_raw %>%
   group_by(Id) %>%
   arrange(Datetime) %>%  # Ensure data is sorted by Datetime
   mutate(PrevDatetime = lag(Datetime)) %>%
@@ -198,30 +198,31 @@ if (length(error_messages_datetime) > 0) {
 ```
 
 ###Quality check1b: Correcting the identified problematic entries 
+For each of the identified entries, the raw file was checked and the erraneous entry was corrected according to the specifications reported below. 
 ```{r}
-#1Error: Consecutive timestamps at record_id: 202 datetime: 2023-08-14 16:42:00, wearlog_on (1) - participant accidentally entered previous datetime. Correct value can be taken from start_date column: 14-08-2023 17:11:00
+#1Error: Consecutive timestamps at record_id: 202 datetime: 2023-08-14 16:42:00, wearlog_on (1) - participant accidentally entered previous datetime, rather than current one (the app defaults to the previous datetime, so the participant has to detect this and correct it). Correct value can be taken from start_date column: 14-08-2023 17:11:00
 
 corrected_202datetime_on <- as.POSIXct("2023-08-14 17:11:00", format = "%Y-%m-%d %H:%M:%S", tz = tz)
 
-wearlog_intervals <- wearlog_intervals_raw %>%
+wrlg_entries <- wearlog_entries_raw %>%
   mutate(
     Datetime = if_else(Id == "202" & Datetime == "2023-08-14 16:42:00" & State == 1, corrected_202datetime_on, Datetime))
 
-#2Error: Consecutive timestamps at record_id: 202 datetime: 2023-08-14 22:22:00 wearlog_on (1) - participant accidentally entered previous datetime. Correct value can be taken from start_date column: 15-08-2023 07:47:00
+#2Error: Consecutive timestamps at record_id: 202 datetime: 2023-08-14 22:22:00 wearlog_on (1) - participant accidentally entered previous datetime, rather than current one (the app defaults to the previous datetime, so the participant has to detect this and correct it). Correct value can be taken from start_date column: 15-08-2023 07:47:00
 
 corrected_202datetime_on1 <- as.POSIXct("2023-08-15 07:47:00", format = "%Y-%m-%d %H:%M:%S", tz = tz)
 
-wearlog_intervals <- wearlog_intervals %>%
+wrlg_entries <- wrlg_entries %>%
   mutate(
     Datetime = if_else(Id == "202" & Datetime == "2023-08-14 22:22:00" & State == 1, corrected_202datetime_on1, Datetime)) %>%
-  filter(!(Id == "202" & Datetime == "2023-08-14 22:21:00" & State == 0)) # We noticed that the participant forgot that the "sleep" option existed, so they logged wearlog_off when going to bed. One minute after they remember and then logged it as wearlog_bed. So we will eliminate this wearlog_off entry, since it is redudant with the following wearlog_bed entry. 
+  filter(!(Id == "202" & Datetime == "2023-08-14 22:21:00" & State == 0)) # We noticed that the participant forgot that the "sleep" option existed, so they logged wearlog_off when going to bed. One minute after they remember and then logged it as wearlog_sleep. So we will eliminate this wearlog_off entry, since it is redundant with the following wearlog_sleep entry. 
 
 
 #3Error: Consecutive timestamps at record_id: 201 datetime: 2023-08-17 06:51:00 wearlog_off (0) - participant wore the light logger for less than 1 minute, and then placed it in the black bag. To adjust for this, we will add 1 minute to the wear log entry: 2023-08-17 06:52:00
 
 corrected_201datetime_off <- as.POSIXct("2023-08-17 06:52:00", format = "%Y-%m-%d %H:%M:%S", tz = tz)
 
-wearlog_intervals <- wearlog_intervals %>%
+wrlg_entries <- wrlg_entries %>%
   mutate(
     Datetime = if_else(Id == "201" & Datetime == "2023-08-17 06:51:00" & State == 0, corrected_201datetime_off, Datetime))
 
@@ -230,7 +231,7 @@ wearlog_intervals <- wearlog_intervals %>%
 
 corrected_201datetime_off1 <- as.POSIXct("2023-08-17 11:40:00", format = "%Y-%m-%d %H:%M:%S", tz = tz)
 
-wearlog_intervals <- wearlog_intervals %>%
+wrlg_entries <- wrlg_entries %>%
   mutate(
     Datetime = if_else(Id == "201" & Datetime == "2023-08-17 17:40:00" & State == 1, corrected_201datetime_off1, Datetime))
 
@@ -238,13 +239,13 @@ wearlog_intervals <- wearlog_intervals %>%
 
 corrected_201datetime_bed <- as.POSIXct("2023-08-20 01:11:00", format = "%Y-%m-%d %H:%M:%S", tz = tz)
 
-wearlog_intervals <- wearlog_intervals %>%
+wrlg_entries <- wrlg_entries %>%
   mutate(
     Datetime = if_else(Id == "201" & Datetime == "2023-08-20 11:19:00" & State == 2, corrected_201datetime_bed, Datetime))
 
 
 #6Error: Consecutive timestamps at record_id: 205 datetime: 2023-08-28 15:42:00 wearlog_on (1) - first entry for participant was accidentally entered twice. One of them should be removed. 
-wearlog_intervals <- wearlog_intervals %>%
+wrlg_entries <- wrlg_entries %>%
   group_by(Id) %>%
   filter(!(Id == "205" & row_number() == 1)) %>%
   ungroup()
@@ -256,7 +257,7 @@ participant_id <- "208"
 duplicate_datetime <- as.POSIXct("2023-09-08 07:33:00", format = "%Y-%m-%d %H:%M:%S", tz = tz)
 duplicate_state <- 1
 
-wearlog_intervals <- wearlog_intervals %>%
+wrlg_entries <- wrlg_entries %>%
   group_by(Id) %>%
   mutate(duplicate_flag = cumsum(Id == participant_id & Datetime == duplicate_datetime & State == duplicate_state)) %>% #creating a second column which will have value of 2 if a duplicate occurs
   filter(!(Id == participant_id & Datetime == duplicate_datetime & State == duplicate_state & duplicate_flag == 2)) %>% #filters out second occurrence of the entry
@@ -266,20 +267,20 @@ wearlog_intervals <- wearlog_intervals %>%
 
 #8Error: Consecutive timestamps at record_id: 214 datetime: 2023-09-26 23:15:00 wearlog off (0) - entry for participant was accidentally entered twice. The second one is a wearlog_bed entry, which participant specified being the correct one in email exchange. This, the wearlog_off entry should be removed. 
 
-wearlog_intervals <- wearlog_intervals%>%
+wrlg_entries <- wrlg_entries%>%
   filter(!(Id == "214" & Datetime == "2023-09-26 23:15:00" & State == 0))
 ```
 
 ###Summary of the rules used to adjust for identical consecutive datetimes
-1) If consecutive identical datetime, but different States, and start_date different = take info from start_date [this is an automated timestamp from the app]
-2) If consecutive identical datetime, and same States, and same start_date timestamp = keep the first one [second entry considered accidental]
-3) If consecutive identical datetime, and different States, and same start_date timestamp, and consecutive value suggests it is a wrong entry = adjust accordingly (see solution 3 and 8), with the help of visual inspection 
+1) If consecutive identical datetime, but different States, and start_date different than datetime, then take info from start_date [this is an automated timestamp from the app]
+2) If consecutive identical datetime, and same States, and timestamp from start_date is equal to the timestamp from datetime, then keep the first one [second entry considered accidental]
+3) If consecutive identical datetime, but different States, and timestamp from start_date is equal to timestamp from datetime, and consecutive value suggests it is a wrong entry = adjust accordingly (see solution 3 and 8), with the help of visual inspection 
 
 ###Quality check 1c: verifying that the quality check worked. We apply the same code, with the refined dataset. Expected result is that we do not see any consecutive datetime values.
 ```{r}
 error_messages_datetime <- character(0) # We create an empty vector where we can store the errors
 
-wearlog_intervals %>%
+wrlg_entries %>%
   group_by(Id) %>%
   arrange(Datetime) %>%  # Ensure data is sorted by Datetime
   mutate(PrevDatetime = lag(Datetime)) %>%
@@ -302,12 +303,12 @@ if (length(error_messages_datetime) > 0) {
 #No consecutive values found. Great!
 ```
 ###Quality check 2a: Identifying consecutive States
-The second thing that we want to check is for identical consecutive States - just like for datetimes, it would not make sense to have two consecutive states. So let's check if we find any. 
+The second thing that we want to check is for identical consecutive States, i.e. identical and consecutive entries in the State column. This would not make sense.
 ```{r}
 error_messages_states <- character(0) # We create an empty vector where we can store the errors
 
 # Group by ID and then apply the quality check within each group
-wearlog_intervals %>%
+wrlg_entries %>%
   group_by(Id) %>%
   arrange(Datetime) %>%  # Ensure data is sorted by Datetime
   mutate(PrevState = lag(State)) %>%
@@ -330,16 +331,16 @@ if (length(error_messages_states) > 0) {
 ###Quality check 2b: fixing the consecuitve State entries found above
 ```{r}
 #1Error: Consecutive values at record_id: 202 datetime: 2023-08-15 07:47:00 state: 1 
-#1solution: This is the same entry that caused issues in the Datetime. We had changed it above to a "wearlog_on" entry, which seems the first entry after the participant has woken up. Since I had not noticed the consecutive datetime error above, I had asked the participant to make a retrospective entry, as I thought that this wearlog_on entry was missing. Now, we eliminate the retrospective entry since we have found the original "current" entry, on the basis that the restropsective entry would be less accurate. 
+#1Solution: This is the same entry that caused issues in the Datetime. We had changed it above to a "wearlog_on" entry, which appears to be the first entry after wake up. Since I had not noticed the consecutive datetime error above, I had asked the participant to make a retrospective entry, as I thought that this wearlog_on entry was missing. Now, we eliminate the retrospective entry since we have found the original "current" entry, on the basis that the restropsective entry would be less accurate. 
 
-wearlog_intervals <- wearlog_intervals %>%
+wrlg_entries <- wrlg_entries %>%
   filter(!(Id == "202" & Datetime == "2023-08-15 07:47:00" & State == 1))
 
 #2Error: Consecutive values at record_id: 201 datetime: 2023-08-18 19:54:00 state: 0. 
 #2Solution: This should be a wearlog_on entry. We assume this because of two reasons: 1) visual inspection of light and activity suggests a wear interval between 19:54 and 20:14, and 2) this wearlog_off entry is located between two wearlog_off entries, which suggests that the participant accidentally logged this one as an "off" as well. 
 
 correct_state201 <- "1"
-wearlog_intervals <- wearlog_intervals %>%
+wrlg_entries <- wrlg_entries %>%
   mutate(
     State = if_else(Id == "201" & Datetime == "2023-08-18 19:54:00" & State == 0, correct_state201, State))
 
@@ -348,7 +349,7 @@ wearlog_intervals <- wearlog_intervals %>%
 #3solution: this has been fixed with the solution above (#2solution)
 
 #4Error: Consecutive values at record_id: 202 datetime: 2023-08-18 22:29:00 state: 2 
-#4solution: This is missing data: the participant did not report any other entry on that day, so the previous entry is the "wearlog_bed" from the night before. To obtain a "wearlog_entry" for this participant, we insert the timestamp from the sleep diary, namely from the column "outof_bed"
+#4Solution: This is missing data: the participant did not report any other entry on that day, so the previous entry is the "wearlog_bed" from the night before. To obtain a "wearlog_entry" for this participant, we insert the timestamp from the sleep diary, namely from the column "out_ofbed"
 
 newrow_202 <- data.frame(
   Id = as.factor(202),
@@ -356,84 +357,84 @@ newrow_202 <- data.frame(
   Datetime = as.POSIXct("2023-08-18 06:37:00", tz = tz)
 )
 
-wearlog_intervals <- bind_rows(wearlog_intervals, newrow_202) %>%
+wrlg_entries <- bind_rows(wrlg_entries, newrow_202) %>%
   arrange(Id, Datetime)
 
 
 #5Error: Consecutive values at record_id: 205 datetime: 2023-09-02 16:47:00 state: 1
-#5solution: This should be a wearlog_off entry. We assume this because of two reasons: 1) visual inspection of light and activity suggests a non-wear interval between 16:47 and  17:10, and 2) this wearlog_onentry is located between two wearlog_on entries, which suggests that the participant accidentally logged this one as an "on" as well. 
+#5Solution: This should be a wearlog_off entry. We assume this because of two reasons: 1) visual inspection of light and activity suggests a non-wear interval between 16:47 and  17:10, and 2) this wearlog_onentry is located between two wearlog_on entries, which suggests that the participant accidentally logged this one as an "on" as well. 
 
 correct_state205 <- "0"
-wearlog_intervals <- wearlog_intervals %>%
+wrlg_entries <- wrlg_entries %>%
   mutate(
     State = if_else(Id == "205" & Datetime == "2023-09-02 16:47:00" & State == 1, correct_state205, State))  
 
 #6Error: Consecutive values at record_id: 205 datetime: 2023-09-02 17:10:00 state: 1 
-#6solution: this has been fixed with the solution above (#5solution)
+#6Solution: this has been fixed with the solution above (#5solution)
 
 #7Error: Consecutive values at record_id: 205 datetime: 2023-09-03 09:40:00 state: 1 
-#7solution. After visually inspecting the raw light and activity data, as well as looking at the wear log entries, we conclude that this entry is correct. However, there is a problem with the previous entry: record_id: 205 datetime: 2023-09-03 08:40:00 state: 1. It looks like two entries were logged at the same time, which should not be possible in the app. We don't know how this happened, but we will adjust the entries as follows:
+#7Solution. After visually inspecting the raw light and activity data, as well as looking at the wear log entries, we conclude that this entry is correct. However, there is a problem with the previous entry: record_id: 205 datetime: 2023-09-03 08:40:00 state: 1. It looks like two entries were logged at the same time, which should not be possible in the app. We don't know how this happened, but we will adjust the entries as follows:
 #1) 2023-09-03 08:47:00 wearlog_on should be turned into 2023-09-03 08:40:00 wearlog_on 
 #2) 2023-09-03 08:40:00 wearlog_on should be turned into 2023-09-03 08:47:00 wearlog_off
-#3) 2023-09-03 09:40:00 wearlog_off  shoud be left as is
+#3) 2023-09-03 09:40:00 wearlog_off  should be left as is
 
 #1)
 correct_state205_1 <- "1"
-wearlog_intervals <- wearlog_intervals %>%
+wrlg_entries <- wrlg_entries %>%
   mutate(
     State = if_else(Id == "205" & Datetime == "2023-09-03 08:40:00" & State == 0, correct_state205_1, State))  
 
 #2)
 correct_state205_2 <- "0"
 
-wearlog_intervals <- wearlog_intervals %>%
+wrlg_entries <- wrlg_entries %>%
   mutate(
     State = if_else(Id == "205" & Datetime == "2023-09-03 08:47:00" & State == 1, correct_state205_2, State)
   )
 
 #8Error: Consecutive values at record_id: 209 datetime: 2023-09-08 00:58:00 state: 2 
-#8solution: strangely, the participant thought that they had not logged this, and so they logged it retrsopectively again on the following day. We keep the original entry and eliminate this one. 
-wearlog_intervals <- wearlog_intervals %>%
+#8Solution: strangely, the participant thought that they had not logged this, and so they logged it retrospectively again on the following day. We keep the original entry and eliminate this one. 
+wrlg_entries <- wrlg_entries %>%
   filter(!(Id == "209" & Datetime == "2023-09-08 00:30:00" & State == 2))
 
 #9Error: Consecutive values at record_id: 215 datetime: 2023-10-03 08:33:00 state: 1 
-#9solution: the participant accidentally entered the previous date (2023-10-03) instead of the current date (2023-10-04). We can change this manually
+#9Solution: the participant accidentally entered the previous date (2023-10-03) instead of the current date (2023-10-04). We can change this manually
 correct_date_215 <- as.POSIXct("2023-10-04 08:33:00", format = "%Y-%m-%d %H:%M:%S", tz = tz)
 
-wearlog_intervals <- wearlog_intervals %>%
+wrlg_entries <- wrlg_entries %>%
   mutate(
     Datetime = if_else(Id == "215" & Datetime == "2023-10-03 08:33:00" & State == 1, correct_date_215, Datetime )
   )
 
 #10Error: Consecutive values at record_id: 215 datetime: 2023-10-07 01:15:00 state: 2 
-#10solution: the participant forgot to update the date to the next day, since the timestamp is after midnight
+#10Solution: the participant forgot to update the date to the next day, since the timestamp is after midnight.
 correct_date_215_2 <- as.POSIXct("2023-10-08 01:15:00", format = "%Y-%m-%d %H:%M:%S", tz = tz)
-wearlog_intervals <- wearlog_intervals %>%
+wrlg_entries <- wrlg_entries %>%
   mutate(
     Datetime = if_else(Id == "215" & Datetime == "2023-10-07 01:15:00" & State == 2, correct_date_215_2, Datetime )
   )
 
 #11Error: Consecutive values at record_id: 215 datetime: 2023-10-07 16:50:00 state: 1 
-#11solution: We do not know why this participant entered this wearlog_on retrospectively. Since there is no strong evidence from visual inspection of light and activity data that they are not wearing the device, we eliminate this entry and keep the previous wearlog_on entry at 12:22
+#11Solution: We do not know why this participant entered this wearlog_on retrospectively. Since there is no strong evidence from visual inspection of light and activity data that they are not wearing the device, we eliminate this entry and keep the previous wearlog_on entry at 12:22
 
-wearlog_intervals <- wearlog_intervals %>%
+wrlg_entries <- wrlg_entries %>%
   filter(!(Id == "215" & Datetime == " 2023-10-07 16:50:00" & State == 1))
 
 #12Error: Consecutive values at record_id: 218 datetime: 2023-10-21 02:15:00 state: 2 
-#12solution: the participant forgot to update the date to the next day, since the timestamp is after midnight
+#12Solution: the participant forgot to update the date to the next day, since the timestamp is after midnight
 correct_date_218 <- as.POSIXct("2023-10-22 02:15:00", format = "%Y-%m-%d %H:%M:%S", tz = tz)
-wearlog_intervals <- wearlog_intervals %>%
+wrlg_entries <- wrlg_entries %>%
   mutate(
     Datetime = if_else(Id == "218" & Datetime == "2023-10-21 02:15:00" & State == 2, correct_date_218, Datetime )
   )
 
 #13Error: Consecutive values at record_id: 218 datetime: 2023-10-22 11:00:00 state: 1 
-#13solution: this has now been solved with the solution above (#12solution)
+#13Solution: this has now been solved with the solution above (#12solution)
 
 #14Error: Consecutive values at record_id: 218 datetime: 2023-10-23 08:22:00 state: 1 
-#14solution: this is the last day of participation for this individual. We will only keep the first entry anyways, so we can eliminate thi second entry which we would not use anyways (and is rdudant) - without caring about what the participant actually wanted to log
+#14Solution: this is the last day of participation for this individual. We will only keep the first entry anyways, so we can eliminate this second entry which we would not use anyways (and is redudant) - without caring about what the participant actually wanted to log
 
-wearlog_intervals <- wearlog_intervals %>%
+wrlg_entries <- wrlg_entries %>%
   filter(!(Id == "218" & Datetime == "2023-10-23 08:22:00" & State == 1))
 
 ```
@@ -443,7 +444,7 @@ wearlog_intervals <- wearlog_intervals %>%
 error_messages_states <- character(0) # We create an empty vector where we can store the errors
 
 # Group by ID and then apply the quality check within each group
-wearlog_intervals %>%
+wrlg_entries %>%
   group_by(Id) %>%
   arrange(Datetime) %>%  # Ensure data is sorted by Datetime
   mutate(PrevState = lag(State)) %>%
@@ -466,38 +467,38 @@ if (length(error_messages_states) > 0) {
 #Looks like it did!
 ```
 ###Summary of the rules used to adjust consecutive State values
-1) If two entries for the same State: one retrospective and one current, then we only keep the current [on basis that this is more accurate than retrospective]
+1) If two consecutive entries for the same State are one retrospective and one current, then we only keep the current (on basis that this is more accurate than retrospective)
 2) If 3 consecutive entries with same State, and visual inspection suggests differences in these entries, then the "middle" entry is an accidental entry that should be changed (see #2solution or #5solution)
-3) If missing data for wearlog_on in the morning: take timestamp from outof_bed from sleep diary
+3) If missing data for wearlog_on in the morning: take timestamp from out_ofbed from sleep diary
 4) If participant logged a wearlog_sleep or wearlog_past_bed entry after midnight, but forgot to update the date to the "new" day, we change this manually
-5) If retrospective entries conflict with previously reported current entries (see #7error), we adjust this manually according to visual inspection of raw light data 
-6) Retrospective entries which are not explainable by any visual inspection of the data: elimnate (see #11error)
+5) If retrospective entries conflict with previously reported current entries (see #7error), we adjust this manually according to visual inspection of raw light and activity data 
+6) Retrospective entries which are not explainable by any visual inspection of the data: eliminate (see #11error)
 
-###The wear log data is now clean from erraneous entries. However, it still contains unorganised entries for the last day of the experiment (Monday). On this day, the participants came back to the lab and returned the light glasses. We want to keep only the first "wearlog_on" entry of this day for each participant (State == 1). For participants where this is not possible because of missing data, we use the outof_bed entry from the wear log. 
+###The wear log data is now clean from erraneous entries. However, it still contains all entries for the last day of the experiment (Monday). On this day, the participants came back to the lab and returned the light glasses. We want to keep only the first "wearlog_on" entry of this day for each participant (State = 1). For participants where this is not possible because of missing data, we use the out_ofbed entry from the wear log. 
 ```{r}
-#Ensure the columns are formatted as the original wearlog_intervals_raw dataframe
-wearlog_intervals_clean <- wearlog_intervals %>%
+#Ensure the columns are formatted as the original wrlg_entries_raw dataframe
+wrlg_entries_clean <- wrlg_entries %>%
   mutate(State = as.character(State),
          Datetime = as.POSIXct(Datetime, tz = tz),
          Id = as.factor(Id))
 
 #We calculate the experimental day for each wear log entry the participant had
-wearlog_intervals_day <- wearlog_intervals_clean %>%
+wrlg_entries_day <- wrlg_entries_clean %>%
   group_by(Id) %>%
   mutate(start_day = as.Date(format(as.POSIXct(first(Datetime)), "%Y-%m-%d")), #necessary to specify format for as.Date to work correctly
          current_day = as.Date(format(as.POSIXct(Datetime), "%Y-%m-%d")),
          exp_day = as.integer(difftime(current_day, start_day, units = "days")) + 1) %>%
-  filter(exp_day == 8) %>%
+  filter(exp_day == 8) %>% #calculate difference between start date and current date and adding 1 as a way of calculating the experimental daty, which is between 1 and 8
   ungroup()
 
 #Create a function that returns warning or actions on the entries participants had on their last exp day
-quality_check <- function(wearlog_intervals_day) {
-  wearlog_intervals_day %>%
+quality_check <- function(df) {
+  df %>%
     group_by(Id) %>%
     arrange(Datetime) %>%
     summarise(
       result = case_when(
-        n() == 1 & State[1] == "1" ~ "The first entry is on",
+        n() == 1 & State[1] == "1" ~ "The first and only entry is on",
         n() > 1 & State[1] == "1" ~ "The first entry is on, but there are multiple entries",
         TRUE ~ "Check this participant"
       )
@@ -506,32 +507,30 @@ quality_check <- function(wearlog_intervals_day) {
 }
 
 #Apply the function to the dataset 
-quality_check(wearlog_intervals_day)
+quality_check(wrlg_entries_day)
 
 
 ```
-
-
+#From the code above, we want to check and, when needed, fix the participants corresponding to "Check this participant" and "The first entry is on, but there are multiple entries". 
 ```{r}
-#From the code above, we want to fix the participants where we get the result "Check this participant" and "The first entry is on, but there are multiple entries". 
 
-#Participant 202. The first entry is a sleep entry, as the participant went to bed after midnight. However, the following entry is a State = 0, meaning an "off" entry, which should not be the case. In the participant documentation, I logged that they retrospectively logged the wearlog_on of the last day while they were at the lab already. This indicates that the participant accidentally logged wearlog_off instead of wearlog_on. This deduction also fits with the data from the sleep diary, where they indicated that they got out of bed at 7:20:00 (3 minutes before they started waering the glasses, according to the wearlog_on entry at 7:23:00). So we manually change this. 
+#Participant 202. The first entry is a sleep entry, as the participant went to bed after midnight. However, the following entry is a State = 0, meaning an "off" entry, which should not be the case (State = 1 would be expected). In the participant documentation, I logged that they retrospectively logged the wearlog_on of the last day while they were at the lab already. This indicates that the participant accidentally logged wearlog_off instead of wearlog_on. This deduction also fits with the data from the sleep diary, where they indicated that they got out of bed at 7:20:00 (3 minutes before they started wearing the glasses, according to the wearlog_on entry at 7:23:00). So we manually change this. 
 correct_state202_on <- "1"
-wearlog_intervals_clean <- wearlog_intervals_clean %>%
+wrlg_entries_clean <- wrlg_entries_clean %>%
   mutate(
     State = if_else(Id == "202" & Datetime == "2023-08-21 07:23:00" & State == 0, correct_state202_on, State))  
 
 #Participant 204. The first entry is a sleep entry (went to bed after midnight) and the second one, and last one, is an on entry. This makes sense and we want to keep both of them.
 
-#Participant 205: The participant has a second entry which is an "off" entry, as well as a third on entry. We do not care about these two last entries - so we flag them (see rows_todelete below) and will delete them in the original dataset
+#Participant 205: The participant has a second entry which is an "off" entry, as well as a third on entry. We do not care about these two last entries - so we flag them by storing them in the rows_todelete df (see below) and will delete them in the original dataset.
 
-#Participant 206: The participant as 3 entries on the last day: one on entry after midnight when they started wearing the light glasses again, one sleep entry for when they removed them and one final on entry for when they started wearing them again in the morning. We need to keep all three of them. 
+#Participant 206: The participant as 3 entries on the last day: one on entry after midnight (State = 1), one sleep entry for when they removed them (State = 2), and one final on entry for when they started wearing them again in the morning (State = 1). We need to keep all three of them. 
 
 #Participant 208. The first entry is a sleep entry (went to bed after midnight) and the second one, is an on entry. This makes sense and we want to keep both of them. The third entry is a State = 0 (off) entry, which should be deleted. We flag this in the rows_todelete df.
 
 #Participant 210. The first and only entry is a sleep entry (went to bed after midnight), but there is no subsequent entry for when they started to wear the light glasses in the morning. This is missing data, and we will need to get this timestamp from the sleep diary column out_ofbed. We flag this in a new dataframe newrows_on
 
-#Participant 212: The participant has a second entry which is an "off" entry. We do not care about this - so we flag it (see rows_todelete below) and will delete it in the original dataset
+#Participant 212: The participant has a second entry which is an "off" entry. We do not care about this - so we flag it (see rows_todelete below) and will delete it in the original dataset.
 
 #Participant 216: The first entry is a sleep entry (went to bed after midnight) and the second one, and last one, is an on entry. This makes sense and we want to keep both of them.
 
@@ -539,11 +538,11 @@ wearlog_intervals_clean <- wearlog_intervals_clean %>%
 
 #Participant 219. The first and only entry is a sleep entry on the final day of participation at 23:30. This cannot be, since participants came back to the lab in the morning. Checking the original file, we notice that wearlog_past_bed entry has the wrong date: they reported it retrospectively on the following day and accidentally inserted the date of current day, rather than the one of the previous day date. We need to change that. 
 correct_date_219 <- as.POSIXct("2023-10-22 23:30:00", format = "%Y-%m-%d %H:%M:%S", tz = tz)
-wearlog_intervals_clean <- wearlog_intervals_clean %>%
+wrlg_entries_clean <- wrlg_entries_clean %>%
   mutate(
     Datetime = if_else(Id == "219" & Datetime == "2023-10-23 23:30:00" & State == 2, correct_date_219, Datetime))  
 
-#However, this poses the problem that now we have no entry for participant 219 on the last day of the experiment. This is missing data, and we will need to get this timestamp from the sleep diary column out_ofbed. We flag this in a new dataframe newrows_on
+#However, this poses the problem that now we have no entry for participant 219 on the last day of the experiment. This is missing data, and we will need to get this timestamp from the sleep diary column out_ofbed. We flag this by storing it in a new dataframe newrows_on
 
 #Participant 221. The first entry is a sleep entry (went to bed after midnight) and the second one, and last one, is an on entry. This makes sense and we want to keep both of them.
 
@@ -551,7 +550,7 @@ wearlog_intervals_clean <- wearlog_intervals_clean %>%
 
 #Participant 224. The first entry is a sleep entry (went to bed after midnight) and the second one, and last one, is an on entry. This makes sense and we want to keep both of them.
 
-#Participant 226. The first entry is a sleep entry (went to bed after midnight) and the second one, and last one, is an on entry. This makes sense and we want to keep both of them. There is also a third "off" entry which we would like to delete, and do so in the rows_todelete df
+#Participant 226. The first entry is a sleep entry (went to bed after midnight) and the second one, and last one, is an on entry. This makes sense and we want to keep both of them. There is also a third "off" entry which we would like to delete, and flag it in the rows_todelete df
 
 #Participant 227. The first entry is a sleep entry (went to bed after midnight) and the second one, and last one, is an on entry. This makes sense and we want to keep both of them.
 
@@ -592,8 +591,8 @@ rows_todelete<- data.frame(
   )
 
 #Deleting selected rows from original dataframe using anti_join. Anti_join returns all rows of x (wearlog_intervals_clean) without a match in y (rows_todelete)
-wearlog_intervals_clean <- anti_join(wearlog_intervals_clean, rows_todelete) 
-#From 790 obs, we now have 781 obs, which shows that we have successfully delete the 9 entries we wanted. 
+wrlg_entries_clean <- anti_join(wrlg_entries_clean, rows_todelete) 
+#wearlog_intervals_clean changes rom 790 obs to 781 obs, meaning that we have successfully delete the 9 entries we wanted. 
 
 
 #As we mentioned above for participant 210 and 219, where we have missing data (i.e. no wearlog_on entry on the final experimental day), we take this timestamp from the sleep diary entry out_ofbed. Entries are also missing for participants 213, 225 and 230, and we also take this info from the sleep diary column out_ofbed.
@@ -608,18 +607,19 @@ newrows_on <- data.frame(
                         format = "%Y-%m-%d %H:%M:%S",
                         tz = tz))
 
-wearlog_intervals_clean <- bind_rows(wearlog_intervals_clean, newrows_on) %>%
+wrlg_entries_clean <- bind_rows(wrlg_entries_clean, newrows_on) %>%
   arrange(Id, Datetime)
-#which gives us a final n of obs 786, meaning that we successfully added the 5 entries from newrows_on (781 + 5 = 786)
+
+#wearlog_intervals_clean contains obs = 786, meaning that we successfully added the 5 entries from newrows_on (781 + 5 = 786)
 
 ```
 
 ###Quality checks after the data cleaning
-After having cleaned the data, we want to make sure that a couple of things are as they should:
+After having cleaned the data, we want to make sure that a couple of things:
 1) The first timestamp for all participant should be a State == 1
 2) The last timestamp should also be a State == 1
 ```{r}
-wearlog_intervals_clean %>%
+wrlg_entries_clean %>%
   group_by(Id) %>%
   summarise(
     first_state = first(State),
@@ -642,7 +642,7 @@ wearlog_intervals_clean %>%
 ###Now we want to code the States into on, off and sleep intervals
 ```{r}
   
-wrlg_int_states <- wearlog_intervals_clean %>%
+wrlg_states <- wrlg_entries_clean %>%
    mutate(
       State = case_when(
       State == 1 & (lag(State) == 0 | lag(State) == 2) ~ "on", #if on and previous one was off or sleep, it's on 
@@ -650,22 +650,22 @@ wrlg_int_states <- wearlog_intervals_clean %>%
       State == 2 & (lead(State) == 1) ~ "sleep", #if sleep and next one is on, then it's sleep
       .default = NA_character_)) 
 
-#To check that the State coding into on, off and sleep worked, we want to see where NA values where assigned. We expect NA values for participant's first entry, as the previous entry is absent
+#To check that the State coding into on, off and sleep worked, we want to see where NA values where assigned. We expect NA values for participant's first entry, as the previous entry is absent, and so defaulted to NA-character as specified by case_when() in the step above
 
-first_tmp_int <- wrlg_int_states %>%
+first_tmp_int <- wrlg_states %>%
   group_by(Id) %>%
   filter(row_number() == first(row_number())) %>%
   ungroup()
 
-#Our assumption was correct
+#Our assumption was correct: all first timestamps are NA values.
 
 #The last timestamp should be "on" for all participants
-last_tmp_int <- wrlg_int_states %>%
+last_tmp_int <- wrlg_states %>%
   group_by(Id) %>%
   filter(row_number() == last(row_number())) %>%
   ungroup()
 
-#For participant 225, it seems like the last timestamp is not on. Going back to the original wearlog file, we notice that there is a missing entry for the participant's "sleep" entry on Sunday (the second to last day), which leads to the first timestamp of the day after to be a "NA" value. As we have previously done, we take this value from the sleep diary, in this case from the column "sleep": 05.11.2023  22:29:00.
+#For participant 225, it seems like the last timestamp is not on. Going back to the original wearlog file, we notice that there is a missing entry for the participant's "sleep" entry on Sunday (the second to last day), which leads to the first timestamp of the day after to be a "NA" value. As we have previously done, we take this value from the sleep diary, in this case from the column "sleep": 05.11.2023 22:29:00.
 
 newrow_225 <- data.frame(
   Id = as.factor(225),
@@ -673,11 +673,11 @@ newrow_225 <- data.frame(
   Datetime = as.POSIXct("2023-11-05 22:29:00", tz = tz)
 )
 
-wearlog_intervals_clean_1 <- bind_rows(wearlog_intervals_clean, newrow_225) %>%
+wrlg_entries_clean_1 <- bind_rows(wrlg_entries_clean, newrow_225) %>%
   arrange(Id, Datetime) #n of obs is now 787, meaning that we have successfully added our entry
 
 #We now have to code again:
-wrlg_int_states <- wearlog_intervals_clean_1 %>%
+wrlg_states <- wrlg_entries_clean_1 %>%
    mutate(
       State = case_when(
       State == 1 & (lag(State) == 0 | lag(State) == 2) ~ "on", #if on and previous one was off or sleep, it's on 
@@ -686,74 +686,53 @@ wrlg_int_states <- wearlog_intervals_clean_1 %>%
       .default = NA_character_)) 
 
 #And check that all last timestamps are now indeed on 
-last_tmp_int <- wrlg_int_states %>%
+last_tmp_int <- wrlg_states %>%
   group_by(Id) %>%
   filter(row_number() == last(row_number())) %>%
   ungroup()
 
 #Finally, we want to check whether we have other NA values in the dataset
-na_values <- wrlg_int_states %>%
+na_values <- wrlg_states %>%
   filter(is.na(State)) #which results in 26 NA values, which we know are the 26 on entries. 
 
 #We now change these 26 NA values to "On" entries
 #That's correct, and we want to change that to an "on" State
-wrlg_int_states <- wrlg_int_states %>%
+wrlg_states <- wrlg_states %>%
   group_by(Id) %>%
   mutate(State = ifelse(row_number() == first(row_number()), "on", State)) %>%
   ungroup()
 
 #We now check again is any NA values are still present
-na_values <- wrlg_int_states %>%
+na_values <- wrlg_states %>%
   filter(is.na(State))
 #which gives us a result of 0 other NA values! Great!
 ```
 
-
-
-
-
-### Quality checks
-We get an error message when using the import_Statechanges() function: "Warnung: There are consecutive states that are the same. This may or may not be an error in the data." Consecutive timestamps would have defaulted in NAs, as specified by the case_when() function above. Also, the first and last timestamp will be NA values, because of how we coded the states with case_when()
-Let's check if this is the case by checking whcih Datetime ended up as NA. We would expect 26x2 = 52 entries.
-
+### Turning the wear log states into an interval, and merging them with the LL dataset
 ```{r}
-#We get all of the NA values
-na_values <- wearlog_intervals %>%
-  filter(is.na(State))
+#Using the sc2interval function, we can turn the Datetime column of joined_df into an interval of time
+wrlg_int <- wrlg_states %>%
+  group_by(Id) %>% #need to do this to prevent that Datetime from 2 different participants get merged into the same interval
+  LightLogR::sc2interval(full = TRUE, length.restriction = 7 * (60*60*24)) %>%
+  ungroup()
 
-#We check whether the NA values are just the first and last timestamps
-na_classification <- na_values %>%
-  group_by(Id) %>%
-  mutate(first = ifelse(row_number() == first(row_number()), "first", State),
-         last = ifelse(row_number() == last(row_number()), "last", State))
+#NOTE: By setting full sc2interval(full = TRUE) we ensure that the last interval for each participant end on Sunday at 00:00, which is the last day. But there is also now a new interval for the last participation day, bringing it from the ON timestamp to midnight of that day. This will be ignored in when applying interval2state(), as the dataset.LL.all has already been filtered for the end times of day 8 to be the last wearlog on entry for that day. 
+  
+#Now that the joined_df is ready, we are ready to merge it to the light logger dataset
+dataset.LL.wrlg <- dataset.LL.all %>% 
+  LightLogR::interval2state(wrlg_int)
 ```
 
 
-```{r pressure, echo=FALSE}
-#The first timestamp for every participant should be NA currently
-first_tmp <- wearlog_intervals %>%
-  group_by(Id) %>%
-  filter(row_number() == first(row_number())) %>%
-  ungroup()
+##To do: 
+#up until now, we have
+1) imported the LL data for all participants
+2) cleaned the wearlog entries from the wear log files for each participant
+3) fused the wearlog entries to the light logger enrtries
 
-
-
-#The last timestamp should also be NA for each participant
-last_tmp <- wearlog_int_on %>%
-  group_by(Id) %>%
-  filter(row_number() == last(row_number())) %>%
-  ungroup()
-
-#Correct, and we want to change that to on
-wearlog_int_clean <- wearlog_int_on %>%
-  group_by(Id)%>%
-  mutate(State = ifelse(row_number() == last(row_number()), "sleep", State)) %>%
-  ungroup()
-
-
-```
-
-
+#The code that follows:
+1) Incorporates the bag information into the same dataframe. However, this must be revisited: we have not changed some entries in the wearlog files, e.g. we have deleted some entries or altered them (changed an on entry to an off entry). How to adjust the bag entries based on these changes?
+2) There is some code for plotting which should be moved into a separate code
 
 ### Incorporate information about the black bag use (2nd source of non-wear)
 We need to re-adjust the original Wear log file, where the black bag information is contained.
@@ -800,7 +779,7 @@ bag_df <- wearlog_bag_clean %>%
   
 
 #Now, we want to use left_join to merge the two dataframes 
-joined_df <- left_join(wearlog_int_clean, bag_df, by = c("Datetime", "Id")) %>%
+joined_df <- left_join(wrlg_int_states, bag_df, by = c("Datetime", "Id")) %>%
     mutate(bag = ifelse(is.na(bag), 2, bag)) #all the "on" and "sleep" intervals have bag = NA (since no bag was used here), so we give it a value of 2 
 
 #Using the sc2interval function, we can turn the Datetime column of joined_df into an interval of time
@@ -810,17 +789,12 @@ joined_int <- joined_df %>%
   ungroup()
 
 #NOTE: By setting full sc2interval(full = TRUE) we ensure that the last interval for each participant end on Sunday at 00:00, which is the last day. But there is also now a new NA interval for the first participation day, up until when participants come in the lab. This will be ignored when using interval2state in the next lines
-
   
 #Now that the joined_df is ready, we are ready to merge it to the light logger dataset
 dataset.LL.joined <- dataset.LL.all %>% 
-  interval2state(joined_int) #note that only the State (not bag) will be carried over from the original dataset
-
-#Now we can apply interval2state a second time to integrate the bag information 
-dataset.LL.clean <- dataset.LL.joined %>%
-  interval2state(joined_int, State.colname = bag)
-
-
+  LightLogR::interval2state(joined_int) %>%
+  #note that only the State (not bag) will be carried over from the original dataset, so we re-apply the function to include the bag
+  LightLogR::interval2state(joined_int, State.colname = bag)
 
 ```
 
@@ -844,13 +818,15 @@ perform_quality_checks <- function(df) {
 }
 
 tryCatch({
-  perform_quality_checks(dataset.LL.clean)
+  perform_quality_checks(dataset.LL.joined)
   print("Quality checks passed successfully")
 }, error = function(e) {
   print(e)
 })
 
 ```
+####PROBLEM! Since we now changed the wearlog entries (cleaned them), this will also change the bag entry for them. How to fix this?
+
 
 ### Plot the non-wear time according to the wear log
 ```{r}
