@@ -27,20 +27,21 @@ Since we have all of this information already loaded after we integrated the sou
 ```{r}
 
 ##List of all unique participant IDs
-participant_ids <- unique(dataset.LL.clean$Id)
+participant_ids <- unique(dataset.LL.wrlg$Id)
 
 ##Create a for loop to generate a plot for each participant 
 for (selected_id in participant_ids) {
-subset_df <- dataset.LL.clean %>%
+subset_df <- dataset.LL.wrlg %>%
   filter(Id == selected_id) %>%
-  select(Id, Datetime, EVENT, PIM, MEDI, State, bag)
+  select(Id, Datetime, EVENT, PIM, MEDI, State)
 
 ##Create new column for the y-values (PIM) of points where EVENT==1
 subset_df$eventpoint <- ifelse(subset_df$EVENT == 1, subset_df$PIM, NA)
 
 ##Calculate the limits of the shaded areas according to the Wear Log
-state.times <- joined_int %>%
+state.times <- wrlg_int %>%
   filter(Id == selected_id & !is.na(State)) %>%
+  filter(row_number() != n()) %>%
   mutate(xmin = int_start(Interval),
          xmax = int_end(Interval),
          Day.data.min = xmin %>% format(format = "%a"), #lower limit of the shaded area, needed for geom_rect
@@ -79,7 +80,7 @@ states.combined <-
   bind_rows(state.times1 %>% rename(Day.min = Day.data.min),
           state.times2) %>%
   select(-Day.max) %>%
-  rename(Day.data = Day.min)
+  rename(Day.data = Day.min) 
 
 
 #Create the plot wit activity (PIM), button presses (eventpoint) and wearlog intervals (State)
@@ -106,7 +107,7 @@ p <- gg_day(data = subset_df,
    scale_fill_manual(
      name = "State",
      values = c("off" = "coral2", "on" = "#EDC000FF", "sleep" = "#868686FF"),
-     labels = c("Off", "On", "Off during sleep")) +
+     labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
   theme(plot.title = element_text(hjust = 0.5)) 
 
 filename <- paste0("p", selected_id, "_activity.png")
@@ -116,7 +117,7 @@ ggsave(filename = filename,
        height = 14,
        dpi = 600,
        bg = "white",
-       path= "F:/cyepi/code/outputs/visualinspection")
+       path= "G:/cyepi/code/outputs/visualinspection2")
 }
 
 
@@ -126,20 +127,21 @@ ggsave(filename = filename,
 Note that this code is the same as above, but is used slightly adjusted to plot light (mEDI) instead of activity
 ```{r}
 ##List of all unique participant IDs
-participant_ids <- unique(dataset.LL.clean$Id)
+participant_ids <- unique(dataset.LL.wrlg$Id)
 
 ##Create a for loop to generate a plot for each participant 
 for (selected_id in participant_ids) {
-subset_df <- dataset.LL.clean %>%
+subset_df <- dataset.LL.wrlg %>%
   filter(Id == selected_id) %>%
-  select(Id, Datetime, EVENT, PIM, MEDI, State, bag)
+  select(Id, Datetime, EVENT, PIM, MEDI, State)
 
 ##Create new column for the y-values (PIM) of points where EVENT==1
 subset_df$eventpoint <- ifelse(subset_df$EVENT == 1, subset_df$MEDI, NA)
 
 ##Calculate the limits of the shaded areas according to the Wear Log
-state.times <- joined_int %>%
+state.times <- wrlg_int %>%
   filter(Id == selected_id & !is.na(State)) %>%
+  filter(row_number() != n()) %>%
   mutate(xmin = int_start(Interval),
          xmax = int_end(Interval),
          Day.data.min = xmin %>% format(format = "%a"), #lower limit of the shaded area, needed for geom_rect
@@ -201,7 +203,7 @@ p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
    scale_fill_manual(
      name = "State",
      values = c("off" = "coral2", "on" = "#EDC000FF", "sleep" = "#868686FF"),
-     labels = c("Off", "On", "Off during sleep")) +
+     labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
   theme(plot.title = element_text(hjust = 0.5)) 
 
 filename <- paste0("p", selected_id, "_light.png")
@@ -211,7 +213,7 @@ ggsave(filename = filename,
        height = 14,
        dpi = 600,
        bg = "white",
-       path= "F:/cyepi/code/outputs/visualinspection/")
+       path= "G:/cyepi/code/outputs/visualinspection2/light")
 }
 
 ```

@@ -1,0 +1,145 @@
+---
+title: "sleepstates_check"
+author: "Carolina Guidolin"
+date: "2024-05-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+##Perform a sanity check between wear log detected intervals and sleep and wake time from sleep diary 
+In the plot above, we visualised time spent in each of the non-wear states: off (device not worn), on (device worn) and off for sleep (device not worn during sleep). As a sanity check, the time that the device is not worn during sleep should be similar to the time that the participants reported actually sleeping, as indicated by the sleep diary. For this reason, we follow a similar approach to the code above to visualise the amount of time participants spend asleep or awake according to the sleep diary. 
+
+```{r}
+#Locate the sleep diary files
+path_sleep <- here("G:/cyepi/data/raw/group/sleepdiary")
+
+# Get the files names from directory
+sleepdiary = list.files(path_sleep, pattern="*.csv", full.names = TRUE)
+
+#Using LightLogR, we import the files and label each timestamp as wake or sleep
+sleepdiary_df <- LightLogR::import_Statechanges(sleepdiary,
+                                     Datetime.format = "dmyHM",
+                                     State.colnames = c("sleep", "out_ofbed"),
+                                     State.encoding = c("sleep", "wake"),
+                                     Id.colname = record_id,
+                                     sep = ";",
+                                     dec = ",",
+                                     tz = tz)
+
+```
+
+###Figure out how to account for sleep diaries incosistencies 
+```{r}
+error_messages_datetime <- character(0) # We create an empty vector where we can store the errors
+
+# Group by ID and then apply the quality check within each group
+sleepdiary_df %>%
+  group_by(Id) %>%
+  arrange(Datetime) %>%  # Ensure data is sorted by Datetime
+  mutate(PrevState = lag(State)) %>%
+  filter(State == PrevState) %>%
+  ungroup() %>%
+  rowwise() %>%
+  mutate(error_message = paste("Consecutive values at record_id:", Id, "datetime:", Datetime, "state:", State)) %>%
+  pull(error_message) -> error_messages_states
+
+# Check if there are error messages
+if (length(error_messages_states) > 0) {
+  # There are errors; print the error messages
+  for (error_message in error_messages_states) {
+    cat("Error:", error_message, "\n")
+  }
+} else {
+  cat("No consecutive value errors found.")
+}
+
+```
+
+```{r}
+#Error 1: Consecutive values at record_id: 202 datetime: 2023-08-16 00:45:00 state: sleep. The participant logged a sleep entry after midnight but forgot to change the date to that of the day after. The error is for both the bedtime and sleep column.
+
+#Solution 1: We change the file and save it as a new csv file
+df <- do.call(rbind.data.frame, sleepdiary)
+
+```
+
+#Similar to what was done for the wearlog intervals, we now turn the state changes of the sleep diary to an interval
+sleep_int <- sleepdiary_df %>%
+  sc2interval() %>%
+  filter(!is.na(State))
+
+#Calculate the amount of time spent in each state (either awake or alseep), for each participant across the whole experiment duration
+sleep_int <- sleep_int %>%
+#calculate length of each interval
+  mutate(int_length = int_length(Interval) %>% as_hms()) %>% 
+  #group by date and summarize 
+  mutate(Date = as.Date(int_end(Interval)), #first, Date and corresponding weekday are calculated
+         day = format(Date, format = "%A", locale="English") %>% 
+           forcats::fct_inorder()) %>%
+  group_by(Id, State, .add = TRUE) %>%
+  summarize(tot_intlength = sum(int_length) %>% as_hms()) %>%
+  ungroup() %>%
+  filter(!is.na(State))
+
+
+# Normalise it to the total time they participated in the experiment
+sleep_int <- sleep_int %>%
+  left_join(particip_int, by ="Id") %>% #append the column containing total participation hours from the particip_int df
+  #note that particip_int has been calculate earlier and can be reused here 
+  mutate(per_length = (as.numeric(tot_intlength)/as.numeric(length_par))*100) #convert to numeric as division betwen difftime objects is not supported
+
+#Turn state into factor
+as.factor(sleep_int$State)
+
+#Organise the order of the factor levels to determine what comes first in the plot
+sleep_int$State <- factor(sleep_int$State, levels = unique(sleep_int$State)[order(sleep_int$per_length, decreasing = TRUE)])
+
+#Plot
+sleep_wake_dist <-
+  ggplot(data = sleep_int, aes(x=per_length, y = State, fill = State)) +
+  xlim(NA,100) +
+  ggdist::stat_halfeye(
+    aes(colour = State,
+        fill = State),
+    adjust = .5,
+    justification = -.15,
+    point_color = NA,
+    interval_color = NA
+    ) +
+  geom_boxplot(
+    aes(color = State),
+    width = .2,
+    alpha = .2,
+    outlier.shape = NA
+  ) +
+  geom_jitter(
+    aes(colour = State),
+    fill = "white",
+    height = .1,
+    alpha = .3
+  ) +
+  scale_fill_manual(
+    values = c("sleep" = "darkgoldenrod2", "wake" = "darkcyan")) +
+  scale_color_manual(
+    values = c("sleep" = "darkgoldenrod2", "wake" = "darkcyan")) +
+  scale_y_discrete(labels = c("sleep" = "Sleep", "wake" = "Wake")) +
+  theme_classic() +
+  ggpubr::rremove("ylab") +
+  ggpubr::rremove("y.ticks") +
+  labs(title = "Sleep and wake distribution across the week", x = "Percentage of time (%)") +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size = 24),
+        axis.text.x = element_text(size = 16),
+        axis.title = element_text(size = 18),
+        axis.text.y = element_text(size = 16))
+
+
+```
+
+
+```
+
