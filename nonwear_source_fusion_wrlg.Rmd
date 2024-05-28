@@ -720,7 +720,7 @@ wrlg_int <- wrlg_states %>%
   
 #Now that the joined_df is ready, we are ready to merge it to the light logger dataset
 dataset.LL.wrlg <- dataset.LL.all %>% 
-  LightLogR::interval2state(wrlg_int)
+  LightLogR::interval2state(wrlg_int) 
 ```
 
 
