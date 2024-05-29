@@ -60,48 +60,51 @@ if (length(error_messages_states) > 0) {
 ```
 
 ```{r}
-#Error 1: Consecutive values at record_id: 202 datetime: 2023-08-16 00:45:00 state: sleep. The participant logged a sleep entry after midnight but forgot to change the date to that of the day after. The error is for both the bedtime and sleep column.
+#This code led to the following errors: 
 
-#Solution 1: We change the file and save it as a new csv file
-df <- do.call(rbind.data.frame, sleepdiary)
+#Error: Consecutive values at record_id: 202 datetime: 2023-08-16 00:45:00 state: sleep 
+#Error: Consecutive values at record_id: 202 datetime: 2023-08-17 06:15:00 state: wake 
+#Error: Consecutive values at record_id: 205 datetime: 2023-08-31 09:47:00 state: wake 
+#Error: Consecutive values at record_id: 205 datetime: 2023-08-31 23:15:00 state: sleep 
+#Error: Consecutive values at record_id: 212 datetime: 2023-09-16 06:32:00 state: wake 
+#Error: Consecutive values at record_id: 212 datetime: 2023-09-17 22:20:00 state: sleep 
 
+#These were corrected directly on the csv file as they all stemmed from the participant accidenatlly logging the wrong data when reporting sleep and bed dates from the previous day. 
 ```
-
+```{r}
 #Similar to what was done for the wearlog intervals, we now turn the state changes of the sleep diary to an interval
 sleep_int <- sleepdiary_df %>%
   sc2interval() %>%
   filter(!is.na(State))
 
 #Calculate the amount of time spent in each state (either awake or alseep), for each participant across the whole experiment duration
-sleep_int <- sleep_int %>%
+int_duration_sleep <- sleep_int %>%
 #calculate length of each interval
   mutate(int_length = int_length(Interval) %>% as_hms()) %>% 
-  #group by date and summarize 
-  mutate(Date = as.Date(int_end(Interval)), #first, Date and corresponding weekday are calculated
-         day = format(Date, format = "%A", locale="English") %>% 
-           forcats::fct_inorder()) %>%
+  #filter out the last "awake" interval, since it goes to midnight of the final exp day, which is not actual data
+  filter(row_number() != n()) %>% #this filters out the rows where row n is equal to tot number of rows, i.e. last enrty
   group_by(Id, State, .add = TRUE) %>%
   summarize(tot_intlength = sum(int_length) %>% as_hms()) %>%
-  ungroup() %>%
-  filter(!is.na(State))
+  ungroup() 
 
+#Loading in a package to create raincloud plots
+library(ggdist)
 
 # Normalise it to the total time they participated in the experiment
-sleep_int <- sleep_int %>%
-  left_join(particip_int, by ="Id") %>% #append the column containing total participation hours from the particip_int df
-  #note that particip_int has been calculate earlier and can be reused here 
-  mutate(per_length = (as.numeric(tot_intlength)/as.numeric(length_par))*100) #convert to numeric as division betwen difftime objects is not supported
+int_duration_sleep_clean <- int_duration_sleep %>%
+  left_join(exp_duration, by ="Id") %>% #append the column containing total participation hours from the exp_duration df
+  #note that exp_duration has been calculate earlier and can be reused here 
+  mutate(id_duration_n= as.numeric(tot_intlength)/as.numeric(id_duration), #calculate percentage of time) #convert to numeric as division betwen difftime objects is not supported
+         id_duration_per = id_duration_n*100) %>%
+  filter(!Id == "213") #we eliminate participant 213 from this visualisation since on einterval of time for the sleep period is missing, which would cause the data to look diferent. 
 
-#Turn state into factor
-as.factor(sleep_int$State)
 
 #Organise the order of the factor levels to determine what comes first in the plot
-sleep_int$State <- factor(sleep_int$State, levels = unique(sleep_int$State)[order(sleep_int$per_length, decreasing = TRUE)])
+int_duration_sleep$State <- factor(int_duration_sleep$State, levels = c("sleep", "wake"))
 
 #Plot
-sleep_wake_dist <-
-  ggplot(data = sleep_int, aes(x=per_length, y = State, fill = State)) +
-  xlim(NA,100) +
+sleep_wake_dist <- ggplot(data = int_duration_sleep_clean, aes(x=id_duration_per, y = State, fill = State)) +
+  xlim(0,100) +
   ggdist::stat_halfeye(
     aes(colour = State,
         fill = State),
@@ -137,9 +140,40 @@ sleep_wake_dist <-
         axis.title = element_text(size = 18),
         axis.text.y = element_text(size = 16))
 
+int_duration_sleep_clean$tot_intlength_hours <- as.numeric(int_duration_sleep_clean$tot_intlength) / 3600
+  
+second_x_axis_sleep <- ggplot(data = int_duration_sleep_clean, aes(x = tot_intlength_hours, y = 0.01)) +
+  geom_blank() +  # Create an empty plot
+  scale_x_continuous(limits = c(0, 166), breaks = c(0, 20, 40, 60, 80, 100, 120, 140, 166)) +
+  coord_fixed(ratio = 4) +
+  theme_classic() +
+  labs(x = "Time (hours)")  +
+  ggpubr::rremove("y.axis") +
+  ggpubr::rremove("ylab") + 
+  ggpubr::rremove("y.ticks") +
+  ggpubr::rremove("y.text") +
+  theme(axis.title.x = element_text(size = 18),
+        axis.text.x = element_text(size = 16)) 
 
+# Combine the plots
+sleep_dist_2axis <- sleep_wake_dist / second_x_axis_sleep 
 ```
 
+###Save plots above
+```{r}
+ggsave(filename = "sleep_wake_dist.png",
+       plot = sleep_wake_dist ,
+       width = 8,
+       height = 4,
+       dpi = 600,
+       path= "G:/cyepi/code/outputs")
 
+ggsave(filename = "sleep_dist_2axis.png",
+       plot = sleep_dist_2axis,
+       width = 9,
+       height = 6,
+       dpi = 600,
+       path= "G:/cyepi/code/outputs")
 ```
+
 
