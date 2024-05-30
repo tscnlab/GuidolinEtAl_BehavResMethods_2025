@@ -1,0 +1,106 @@
+---
+title: "blackbag_use"
+author: "Carolina Guidolin"
+date: "2024-05-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+Here we analyse data from black bag use. The first thing that we want to do is a visual inspection of the data to check how light and activity compare, for each State of the Wear log. 
+```{r}
+dataset.LL.wrlg.201 <- dataset.LL.wrlg %>%
+  filter(Id == "201")
+
+dataset.LL.wrlg$MEDI[dataset.LL.wrlg$MEDI == 0] <- 0.00001
+dataset.LL.wrlg$PIM[dataset.LL.wrlg$PIM == 0] <- 0.00001
+
+boxplot_general <- 
+  ggplot(data = dataset.LL.wrlg, aes(x = log10(MEDI), y = PIM, colour = State, fill = State)) +
+  geom_boxplot(trim = FALSE) + 
+  scale_fill_manual(
+    values = c("off" = "#16439C", "on" = "palegreen4", "sleep" = "darkgoldenrod2")) +
+  scale_color_manual(
+    values = c("off" = "#16439C", "on" = "palegreen4", "sleep" = "darkgoldenrod2")
+  ) +
+  labs(title = "Relationship between light and activity")
+
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r}
+
+mean_data <- dataset.LL.wrlg %>%
+  group_by(Id, State) %>%
+  summarise(medi_m = mean(log10(MEDI), na.rm = TRUE),
+            pim_m = mean(PIM, na.rm = TRUE)) %>%
+  ungroup()
+  
+mean_scatter <- ggplot(mean_data, aes(x = medi_m, y = pim_m, color = State, fill = State)) +
+  geom_point() +
+  scale_fill_manual(
+    values = c("off" = "#16439C", "on" = "palegreen4", "sleep" = "darkgoldenrod2")) +
+  scale_color_manual(
+    values = c("off" = "#16439C", "on" = "palegreen4", "sleep" = "darkgoldenrod2")) +
+  labs(title = "Relationship between light and activity", x = "mEDI", y = "PIM") +
+  theme_minimal()
+
+
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+library(ggpubr)
+
+scatterhist_mean <-
+  ggscatterhist(
+  mean_data, x = "medi_m", y = "pim_m", 
+  color = "State", size = 3, alpha = 0.6,
+  palette = c("#16439C", "palegreen4", "darkgoldenrod2"),
+  margin.params = list(fill = "State", color = "black", size = 0.5)
+)
+
+```
+
+```{r}
+scatterboxplot_mean <-
+  ggscatterhist(
+  mean_data, x = "medi_m", y = "pim_m", 
+  color = "State", size = 3, alpha = 0.6,
+  palette = c("#16439C", "palegreen4", "darkgoldenrod2"),
+  margin.plot = "boxplot",
+  margin.params = list(fill = "State", color = "black", size = 0.5)
+)
+
+dataset.LL.wrlg$State <- as.factor(dataset.LL.wrlg$State)
+
+```
+```{r}
+ggsave(filename = "boxplot_general.png",
+       plot = boxplot_general ,
+       width = 6,
+       height = 6,
+       dpi = 600,
+       path= "G:/cyepi/code/outputs")
+
+ggsave(filename = "mean_scatter.png",
+       plot = mean_scatter,
+       width = 8,
+       height = 8,
+       dpi = 600,
+       path= "G:/cyepi/code/outputs")
+
+scatterhist_mean;ggsave(filename="scatterhist_mean.png", device="png", dpi=600, path = "G:/cyepi/code/outputs" )
+scatterboxplot_mean;ggsave(filename="scatterboxplot_mean.png", device="png", dpi=600, path = "G:/cyepi/code/outputs" )
+
+```
+
