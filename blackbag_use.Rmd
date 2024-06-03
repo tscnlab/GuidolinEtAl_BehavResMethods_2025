@@ -103,4 +103,251 @@ scatterhist_mean;ggsave(filename="scatterhist_mean.png", device="png", dpi=600, 
 scatterboxplot_mean;ggsave(filename="scatterboxplot_mean.png", device="png", dpi=600, path = "G:/cyepi/code/outputs" )
 
 ```
+##Testing steffen's function which indentifies cöusters of non-wear time 
+```{r}
+lowmedi_clusters <- dataset.LL.wrlg %>%
+  ungroup() %>%
+#  filter(State == "off") %>%
+  # Replace `low_activity` by the (logical) variable for which the clusters 
+  # should be found.
+  mutate(low_medi = MEDI < 5) %>% 
+  # Nest by groups, e.g., participant, period. Replace with grouping variables 
+  # in your data, such that the function is applied separately per consecutive 
+  # timeseries (e.g., from one subject during one period).
+  nest_by(Id) %>% 
+  mutate(
+    # Replace `low_activity` by the (logical) variable for which the clusters 
+    # should be found.
+    data = list(
+      data_find_clusters(
+        data, 
+        low_medi, 
+        min_length = "2 mins", 
+        max_interrupt = "1 mins", 
+        cluster_name = "low_medi_cluster"
+      )
+    )
+  ) %>%
+  unnest(cols = data) %>%
+  ungroup()
+```
+
+```{r}
+df2 <- read_csv('https://www.smin95.com/amblyopia_random.csv')
+df2a <- filter(df2, Condition == 'One')  
+df2a <- filter(df2, SF %in% c(0.5,8))
+df2a$SF <- as.factor(df2a$SF)
+```
+
+
+#Plot data
+```{r}
+library(smplot2)
+
+as.factor(lowmedi_clusters$is_low_medi_cluster)
+lowmedi_clusters$MEDI[lowmedi_clusters$MEDI == 0] <- 0.00001
+
+lowmedi_clusters <- lowmedi_clusters %>%
+  select(Id, State, MEDI, is_low_medi_cluster)
+
+
+lowmedi_clusters_t <- filter(lowmedi_clusters, is_low_medi_cluster == "TRUE")
+lowmedi_clusters_f <- filter(lowmedi_clusters, is_low_medi_cluster == "FALSE")
+
+
+raincloud_clusters <- ggplot(mapping = aes(x=  State, y = log10(MEDI), fill = is_low_medi_cluster)) +
+  sm_raincloud(
+    data = lowmedi_clusters_t,
+    position = position_nudge(x = +0.25),
+    vertical = FALSE,
+    point.params = list(size = 1, shape = 21,
+                        color = 'transparent', 
+                        alpha = 0.3,
+                        position = sdamr::position_jitternudge(nudge.x = 0.06, 
+                                                               jitter.width = 0.06)),
+    boxplot.params = list(outlier.shape = NA),
+    sep_level = 2
+    ) +
+  sm_raincloud(
+    data=lowmedi_clusters_f,
+    which_side = 'left',
+    position = position_nudge(x = -0.25),
+    vertical = FALSE,
+    point.params = list(size = 1, shape = 21,
+                        color = 'transparent', alpha = 0.3,
+                        position = sdamr::position_jitternudge(nudge.x = -0.06, 
+                                                              jitter.width = 0.06)),
+    boxplot.params = list(outlier.shape = NA),
+    sep_level = 2
+    ) +
+  scale_fill_manual(
+    values = c("TRUE" = "darkgreen", "FALSE" = "darkred")) +
+  theme(legend.title = element_blank(),
+        legend.text = element_text(size = 14)) +
+  ggtitle("Clusters of low mEDI for each Wear log State")
+
+
+```
+```{r}
+ggsave(filename = "raincloud_clusters.png",
+       plot = raincloud_clusters,
+       width = 8,
+       height = 5,
+       dpi = 600,
+       path= "G:/cyepi/code/outputs")
+```
+
+
+##Reflection
+When we apply a cluster-identifying algorithm to the data, we ask to find clusters of MEDI that are less than 5 mEDI lux for longer than 2 minutes. This identifies, within the State == off, clusters of low medi where this is found. When we plot the data, we then can see that the intervals that are not identified as clusters of low medi within State == off have larger mEDI values than those that did. This is expected. This shows that not all wear log logged off times actaully correspond to an off time as the black bag would suggest. The next interesting step would be to see if for those clusters where mEDI < 5 lux, the glasses were or were not in the bag. 
+
+Also, we would like to plot the clusters of non-wear time as identified by the algorithm.
+```{r}
+lowmedi_clusters201 <- dataset.LL.wrlg %>%
+  ungroup() %>%
+  filter(Id == "201") %>%
+  # Replace `low_activity` by the (logical) variable for which the clusters 
+  # should be found.
+  mutate(low_medi = MEDI < 5) %>% 
+  # Nest by groups, e.g., participant, period. Replace with grouping variables 
+  # in your data, such that the function is applied separately per consecutive 
+  # timeseries (e.g., from one subject during one period).
+  nest_by(Id) %>% 
+  mutate(
+    # Replace `low_activity` by the (logical) variable for which the clusters 
+    # should be found.
+    data = list(
+      data_find_clusters(
+        data, 
+        low_medi, 
+        min_length = "2 mins", 
+        max_interrupt = "1 mins", 
+        cluster_name = "low_medi_cluster"
+      )
+    )
+  ) %>%
+  unnest(cols = data) %>%
+  ungroup()
+
+##Calculate the limits of the shaded areas according to the Wear Log
+cluster.times <- lowmedi_clusters201 %>%
+  filter(!is.na(is_low_medi_cluster)) %>%
+  mutate(xmin = int_start(Interval),
+         xmax = int_end(Interval),
+         Day.data.min = xmin %>% format(format = "%a"), #lower limit of the shaded area, needed for geom_rect
+         Day.data.max = xmax %>% format(format = "%a"), #upper limit of shaded area, needed for geom_rect
+         xmin = xmin %>% hms::as_hms(), #transform xmin to time (currently Datetime)
+         xmax = xmax %>% hms::as_hms(), #transform xmax to time (currently Datetime)
+         Day.data.min = factor(Day.data.min, levels = unique(Day.data.min)),
+         Day.data.max = factor(Day.data.max, levels = unique(Day.data.max)))
+
+##Some intervals on the Wear log that we want to plot cross day boundaries. We thus need to split them in 2 intervals, since we plot each day on a different facet of the plot 
+
+#Step 1: collect the part of the data that does not cross day boundaries
+state.times1 <-
+  state.times %>%
+  filter(Day.data.min == Day.data.max)
+
+#Step 2: Collect part of the data that does cross bounderies and split it by day, i.e. at midnight. 
+state.times2 <-
+state.times %>% filter(Day.data.min != Day.data.max) %>%
+  rowwise() %>%
+  mutate(
+    new_entry = list(
+      tibble(
+        xmin=c(xmin, hms::as_hms("00:00:00")),
+        xmax=c(hms::as_hms("23:59:59"), xmax),
+        Day.min=c(Day.data.min, Day.data.max),
+        Day.max=c(Day.data.min, Day.data.max)
+      )
+    )
+  ) %>%
+  select(Id, State, new_entry) %>%
+  unnest(new_entry)
+
+#Step 3: Combine the two again in a single df
+states.combined <- 
+  bind_rows(state.times1 %>% rename(Day.min = Day.data.min),
+          state.times2) %>%
+  select(-Day.max) %>%
+  rename(Day.data = Day.min)
+
+
+#Create the plot wit activity (PIM), button presses (eventpoint) and wearlog intervals (State)
+
+states.combined$is_l <- factor(states.combined$State) #turn State into factor
+
+p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
+            linewidth = 0.05, 
+            color = "black", 
+            geom = "line",
+            format.day = "%a",
+            x.axis.label = "Time", 
+            title = paste("p", selected_id, "light exposure and non-wear time")) +
+  geom_point(aes(y = eventpoint), #adding button press as points
+             color = "red", 
+             size = 0.8) +
+  geom_rect(data=states.combined, aes(xmin= xmin, xmax = xmax, ymin =0, ymax = Inf, fill = State), #adding wear log
+                    inherit.aes = FALSE,
+                    alpha = 0.15) +
+   scale_fill_manual(
+     name = "State",
+     values = c("off" = "coral2", "on" = "#EDC000FF", "sleep" = "#868686FF"),
+     labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+filename <- paste0("p", selected_id, "_light.png")
+ggsave(filename = filename,
+       plot = p,
+       width = 10,
+       height = 14,
+       dpi = 600,
+       bg = "white",
+       path= "G:/cyepi/code/outputs/visualinspection2/light")
+}
+```
+
+
+
+
+#Identify clusters of low PIM
+```{r}
+
+lowpim_clusters <- dataset.LL.wrlg %>%
+  ungroup() %>%
+  filter(Id == "201" & State == "off") %>%
+  # Replace `low_activity` by the (logical) variable for which the clusters 
+  # should be found.
+  mutate(low_pim = PIM < 5) %>% 
+  # Nest by groups, e.g., participant, period. Replace with grouping variables 
+  # in your data, such that the function is applied separately per consecutive 
+  # timeseries (e.g., from one subject during one period).
+  nest_by(Id) %>% 
+  mutate(
+    # Replace `low_activity` by the (logical) variable for which the clusters 
+    # should be found.
+    data = list(
+      data_find_clusters(
+        data, 
+        low_pim, 
+        min_length = "2 mins", 
+        max_interrupt = "1 mins", 
+        cluster_name = "low_pim_cluster"
+      )
+    )
+  ) %>%
+  unnest(cols = data) %>%
+  ungroup()
+
+as.factor(lowpim_clusters$is_low_pim_cluster)
+```
+```{r}
+
+ggplot(data = lowpim_clusters, aes(x= is_low_pim_cluster, y = PIM)) +
+  geom_boxplot()
+  
+```
+```{r}
+
+```
 
