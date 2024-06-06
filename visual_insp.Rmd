@@ -90,7 +90,7 @@ states.combined$State <- factor(states.combined$State) #turn State into factor
 p <- gg_day(data = subset_df,
             y.axis = PIM, #base plot containing PIM
             linewidth = 0.05, 
-            color = "darkgreen", 
+            color = "black", 
             geom = "line", 
             y.scale = "identity",
             y.axis.label = "Activity (PIM)",
@@ -103,10 +103,10 @@ p <- gg_day(data = subset_df,
              size = 0.8) +
   geom_rect(data=states.combined, aes(xmin= xmin, xmax = xmax, ymin =0, ymax = Inf, fill = State), #adding wear log
                     inherit.aes = FALSE,
-                    alpha = 0.15) +
+                    alpha = 0.25) +
    scale_fill_manual(
      name = "State",
-     values = c("off" = "coral2", "on" = "#EDC000FF", "sleep" = "#868686FF"),
+     values = c("off" = "#16439C", "on" = "palegreen4", "sleep" = "darkgoldenrod2"),
      labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
   theme(plot.title = element_text(hjust = 0.5)) 
 
@@ -202,7 +202,7 @@ p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
                     alpha = 0.15) +
    scale_fill_manual(
      name = "State",
-     values = c("off" = "coral2", "on" = "#EDC000FF", "sleep" = "#868686FF"),
+     values = c("on" = "#0072B2", "off" = "darkred", "sleep" = "darkgoldenrod2"),
      labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
   theme(plot.title = element_text(hjust = 0.5)) 
 
@@ -217,4 +217,5 @@ ggsave(filename = filename,
 }
 
 ```
-
+##Poster making
+For the poster I am preparing for a conference, I would like to create a 

@@ -130,43 +130,79 @@ bd_wrlg_df <- bind_rows(interval_checker) %>%
 bp_wrlg_df_wide <- bd_wrlg_df %>%
   pivot_wider(names_from = classification, values_from = c(n, n_per))
 
-#Create colour palette
-val <- c("1" = "forestgreen", "2" = "darkmagenta", "3" = "tomato1", "4" = "tomato2", "5" = "tomato3", "6" = "royalblue1", "7" = "royalblue2", "8" = "royalblue3")
+#Create possible colour palettes 
+val <- c("1" = "forestgreen", "2" = "darkmagenta", "3" = "tomato1", "4" = "tomato2", "5" = "tomato3", "6" = "royalblue1", "7" = "royalblue2", "8" = "royalblue3") #self made
+val1 <- c("1" = "#00366C", "2" = "#00457D", "3" = "#005590", "4" = "#0066A5", "5" = "#0076BA", "6" = "#2C86CA", "7" = "#5295D4", "8" = "#6DA4DD") #from hcl.colours Blues 3
 
+val2 <- c("#4B0055", "#8B0069", "#274983", "#008298", "#A4473D", "#A85A20" , "#9E9000",  "#86B13E") #hcl.colours mix of hawaii and ballow
 #Plot
 wrlg_int_classified <- ggplot(bp_wrlg_df_wide, aes(x = n_per_bounded, y = n_per_unbounded, colour = as.factor(window_size))) +
-  geom_point(position = position_dodge(w=0.3),
-             alpha =0.3, size=4) +
+  geom_point(position = position_jitter(w=0.3),
+             alpha =0.5, size=2.5) +
   xlim(0, 100) +
   ylim(0, 100) +
     scale_color_manual(values = val,
                      breaks = c("1", "2", "3", "4", "5", "6", "7", "8")) +
-  labs(title = "Non-wear interval type according to \nbutton press events", x = "Closed intervals (%)", y = "Open intervals (%)", color = "Window size\n(minutes)") +
+  labs(x = "Closed intervals (%)", y = "Open intervals (%)", color = "Window size\n(minutes)") +
   theme_bw()  +
-  geom_rect(aes(xmin = 60.0, xmax = Inf, ymin = -Inf, ymax = 40.0), fill = "gold1", colour = "gold1", alpha = 0.03) +
+  geom_rect(aes(xmin = 60.0, xmax = Inf, ymin = -Inf, ymax = 40.0), fill = "#FFC20A", colour = NA, alpha = 0.03) +
   theme(plot.title = element_text(hjust = 0.5, size = 24),
         axis.text = element_text(size = 16),
         axis.title = element_text(size = 18),
-        legend.title = element_text(size = 16),
-        legend.text = element_text(size = 14)) +
-  coord_fixed(ratio = 1)
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 14),
+        legend.title.align =0.5 ) +
+  coord_fixed(ratio = 1) +
+  ggpubr::rremove("xylab") +
+  guides(color = guide_legend(nrow =1)) 
+ 
 
 #Zoom in the yellow shaded area
+
 wrlg_int_classified_zoom <- ggplot(bp_wrlg_df_wide, aes(x = n_per_bounded, y = n_per_unbounded, colour = as.factor(window_size))) +
-  geom_point(position = position_dodge(w=0.3),
-             alpha =0.3, size=4) +
+  geom_point(position = position_jitter(w=0.3),
+             alpha =0.5, size=4) +
   xlim(60.0, 100) +
   ylim(0, 40.0) +
     scale_color_manual(values = val,
                      breaks = c("1", "2", "3", "4", "5", "6", "7", "8")) +
-  labs(title = "Non-wear interval type according to \nbutton press events", x = "Closed intervals (%)", y = "Open intervals (%)", color = "Window size\n(minutes)") +
+  labs(x = "Closed intervals (%)", y = "Open intervals (%)", color = "Window size\n(minutes)") +
   theme_bw()  +
+  geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf), fill = "#FFC20A", colour = NA, alpha = 0.03) +
   theme(plot.title = element_text(hjust = 0.5, size = 24),
         axis.text = element_text(size = 16),
         axis.title = element_text(size = 18),
-        legend.title = element_text(size = 16),
-        legend.text = element_text(size = 14)) +
-  coord_fixed(ratio = 1)
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 14),
+        legend) +
+  coord_fixed(ratio = 1) +
+  ggpubr::rremove("xylab")
+
+
+
+plot <- ggarrange(wrlg_int_classified, wrlg_int_classified_zoom, 
+                  ncol = 2, 
+                  nrow = 1,
+                  common.legend = TRUE,
+                  legend = "top",
+                  widths = c(1,1),
+                  heights = c(1,1),
+                  align = "hv") 
+
+wrlg_int_type_multipanel <- annotate_figure(plot, 
+                                            top = text_grob("Wake 'off' interval type according to button press event",
+                                                            color = "black",
+                                                            face = "plain",
+                                                            size = 18,
+                                                            hjust = 0.5),
+                                            left = text_grob("Open intervals (%)",
+                                                             size = 16,
+                                                             rot = 90,
+                                                             hjust = 0.6),
+                                            bottom = text_grob("Closed intervals (%)",
+                                                               size = 16,
+                                                               hjust = 0.5))
+
 
 ```
 
@@ -184,6 +220,15 @@ ggsave(filename = "wrlg_int_classified_zoom.png",
        height = 8,
        dpi = 600,
        path= "G:/cyepi/code/outputs")
+
+ggsave(filename = "wrlg_int_type_multipanel.png",
+       plot = wrlg_int_type_multipanel,
+       width = 6.8,
+       height = 4,
+       dpi = 600,
+       bg = "white",
+       path= "G:/cyepi/code/outputs")
+
 ```
 
 

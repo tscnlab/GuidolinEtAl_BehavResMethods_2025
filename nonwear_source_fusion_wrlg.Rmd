@@ -731,7 +731,7 @@ dataset.LL.wrlg <- dataset.LL.all %>%
 3) fused the wearlog entries to the light logger enrtries
 
 #The code that follows:
-1) Incorporates the bag information into the same dataframe. However, this must be revisited: we have not changed some entries in the wearlog files, e.g. we have deleted some entries or altered them (changed an on entry to an off entry). How to adjust the bag entries based on these changes?
+1) Incorporates the bag information into the same dataframe. However, this must be revisited: we have now changed some entries in the wearlog files, e.g. we have deleted some entries or altered them (changed an on entry to an off entry). How to adjust the bag entries based on these changes?
 2) There is some code for plotting which should be moved into a separate code
 
 ### Incorporate information about the black bag use (2nd source of non-wear)
