@@ -9,92 +9,27 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+## Wear log plots
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-### Plot the non-wear time according to the wear log
-```{r}
-Sys.setlocale("LC_TIME", "en_US.UTF-8") #needed to run this code to have the days displayed in English and not German
-
-#Non-wear time can be calculated from the joined_int dataset
-nonwear_time <-wrlg_int %>%
-#filter for intervals on non-wear (State == "off")
-  filter(State == "off") %>% 
-  #calculate the non-wear time through the interval column
-  mutate(off_time = int_length(Interval) %>% as_hms()) %>% 
-  #group by date and summarize daily non-wear time
-  mutate(Date = as.Date(int_end(Interval)), #first, Date and corresponding weekday are calculated
-         day = format(Date, format = "%A", locale="English") %>% 
-           forcats::fct_inorder()) %>%
-  group_by(Id, day, .add = TRUE) %>%
-  summarize(off_time = sum(off_time)) %>%
-  ungroup()
-
-#There are participants who have 0 non-wear time for a day, i.e. they have no State == off, who we still want to display as 0 points in our plot. Since we filtered for State == off above, we need to use complete to fill in days of 0 non-wear with 0 values. 
-off_states <- off_states %>%
-  complete(Id, day, fill = list(off_time = as_hms(0)))
-
-off_states$off_time <- as.numeric(off_states$off_time, "hours")
-
-```
+This script creates:
+1) Plots to visualise how much time participants spent in each Wear log state across the week
+2) Descriptive statistics on how much time participants spent in each Wear log state across the week 
 
 
-```{r}
-#plotting the data
-nonwear_duration <- off_states %>% 
-ggplot(aes(x = day, y = off_time)) +
-  geom_violin(alpha = 0.3, aes(fill=day), trim = TRUE) + 
-  geom_dotplot(binaxis = "y",
-               stackdir = "center",
-               dotsize = 0.5,
-               binwidth = 0.1) +
-  theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5, size = 26, face = "plain"),
-        axis.text = element_text(size=18),
-        axis.title = element_text(size=18),
-        axis.title.y = element_text(size = 20),
-        axis.title.x = element_text(size = 20),
-        legend.position = "none") +
-  xlab("Experimental day") + 
-  ylab("Non-wear time (hours)") +
-  scale_y_continuous(breaks = c(0, 2, 4, 6, 8, 10, 12, 14, 16), 
-                     label = c(0, 2, 4, 6, 8, 10, 12, 14, 16), 
-                     expand = c(0,0)) +
-  ggtitle("Self-reported non-wear time entries (Wear log)")
-```
-
-###Saving  
-```{r}
-ggsave(filename = "nonwear_all.png",
-       plot = nonwear_duration,
-       width = 13,
-       height = 14,
-       dpi = 600,
-       path= "F:/cyepi/code/outputs")
-
-ggsave(filename = "nonwear_all.pdf",
-       plot = nonwear_duration,
-       width = 13,
-       height = 14,
-       dpi = 600,
-       path= "F:/cyepi/code/outputs")
-```
-
-###While the plot above gives us an overview of the non-wear time for all participants, we would like to plot this as an histogram of non-wear time distribution, ranging from 0 non wear time to 100% non wear time
+###1) Plots to visualise how much time participants spend in each wear log state across the week.
+We would like to visualise this as a distribution of time spent in each State, where the max x axis is 7 days (168 hours). Since 168hours is not very indicative for someone looking at the graph, we also want to express this as a percentage of time, where 168 hours is 100%
 
 ```{r}
 #First, while all participants took part in the experiment for 7 days, they started at different times, and so it is important not just to approximate to 7 days (168 hours), but to calculate the specific 100% of "participation time" for each participant. For this, we first need to calculate the n of hours that each participant spends in the experiment.
+
+Sys.setlocale("LC_TIME", "en_US.UTF-8") #needed to run this code to have the days displayed in English and not German
 
 exp_duration <- filtered_time %>%
   mutate(id_int = lubridate::interval(start, end),
          id_duration = lubridate::int_length(id_int) %>% as_hms()) %>% #tot hours of participation for each participant
   select(Id, id_duration)
 
-```
-
-###Visualise how much time participants spend in which State (on/off/sleep)
-```{r}
+#Loading in a package to create raincloud plots
 library(ggdist)
 
 #Time in each interval can be calculated from wrlg_int 
@@ -118,25 +53,12 @@ int_duration <- int_duration %>%
   mutate(id_duration_n= as.numeric(tot_intlength)/as.numeric(id_duration), #convert to numeric as division betwen difftime objects is not supported, n stands for "normalised"
          id_duration_per = id_duration_n*100) #calculate percentage of time
 
-
-#Calculating median time in each state
-
-summary <- int_types %>%
-  group_by(State) %>%
-  summarise(mean = mean(per_length),
-            sd = sd(per_length),
-            min = min(per_length),
-            max = max(per_length),
-            median = median(per_length),
-            range = max-min) %>%
-  ungroup()
-
 as.factor(int_duration$State)
 
 #Plot
-int_duration$State <- factor(int_duration$State, levels = unique(int_duration$State)[order(int_duration$per_length, decreasing = TRUE)])
+int_duration$State <- factor(int_duration$State, levels = c("sleep", "off", "on"))
 
-states_dist_jitter <- ggplot(data = int_duration, aes(x=id_duration_per, y = State, fill = State)) +
+states_dist_jitter2 <- ggplot(data = int_duration, aes(x=id_duration_per, y = State, fill = State)) +
   xlim(NA,100) +
   ggdist::stat_halfeye(
     aes(colour = State,
@@ -148,7 +70,7 @@ states_dist_jitter <- ggplot(data = int_duration, aes(x=id_duration_per, y = Sta
     ) +
   geom_boxplot(
     aes(color = State),
-    width = .2,
+    width = .3,
     alpha = .2,
     outlier.shape = NA
   ) +
@@ -156,25 +78,90 @@ states_dist_jitter <- ggplot(data = int_duration, aes(x=id_duration_per, y = Sta
     aes(colour = State),
     fill = "white",
     height = .1,
-    alpha = .3
+    alpha = .3,
+    size = 1.2
   ) +
   scale_fill_manual(
-    values = c("off" = "#16439C", "on" = "palegreen4", "sleep" = "darkgoldenrod2")) +
+    values = c("on" = "#0072B2", "off" = "darkred", "sleep" = "darkgoldenrod2")) +
   scale_color_manual(
-    values = c("off" = "#16439C", "on" = "palegreen4", "sleep" = "darkgoldenrod2")) +
-  scale_y_discrete(labels = c("on" = "On", "off" = "Off", "sleep" = "Off while\nsleeping")) +
-  theme_classic() +
+    values = c("on" = "#0072B2", "off" = "darkred", "sleep" = "darkgoldenrod2")) +
+  scale_y_discrete(labels = c("on" = "Wake 'on'", "off" = "Wake 'off'", "sleep" = "Sleep 'off'")) +
+  theme_ggdist() +
   ggpubr::rremove("ylab") +
   ggpubr::rremove("y.ticks") +
+ # ggpubr::rremove("xlab")+ 
   labs(title = "(Non-)wear time distribution across the week", x = "Percentage of time (%)") +
+  coord_fixed(ratio = 12) + # reduce white space between categorical variables on y axis
   theme(legend.position = "none",
         plot.title = element_text(hjust = 0.5, size = 24),
         axis.text.x = element_text(size = 16),
         axis.title = element_text(size = 18),
         axis.text.y = element_text(size = 16))
 
-#Same plot without jitter and boxplot, just with distribution
-  states_dist_histo <- ggplot(data = int_types, aes(x=per_length, y = State, fill = State)) +
+#We want to add a 2nd axis to the plot, where hours, instead of % of time, are specified
+
+int_duration$tot_intlength_hours <- as.numeric(int_duration$tot_intlength) / 3600
+  
+second_x_axis <- ggplot(data = int_duration, aes(x = tot_intlength_hours, y = 0.01)) +
+  geom_blank() +  # Create an empty plot
+  scale_x_continuous(limits = c(0, 166), breaks = c(0, 20, 40, 60, 80, 100, 120, 140, 166)) +
+  coord_fixed(ratio = 4) +
+  theme_ggdist() +
+  labs(x = "Time (hours)")  +
+  ggpubr::rremove("y.axis") +
+  ggpubr::rremove("ylab") + 
+  ggpubr::rremove("y.ticks") +
+  ggpubr::rremove("y.text") +
+  theme(axis.title.x = element_text(size = 18),
+        axis.text.x = element_text(size = 16)) 
+  
+
+# Combine the plots
+library(patchwork)
+
+state_dist_2axis_2 <- states_dist_jitter2/second_x_axis
+
+```
+
+###Save plots above
+```{r}
+ggsave(filename = "state_dist_jitter2.png",
+       plot = states_dist_jitter2 ,
+       width =8,
+       height = 5,
+       dpi = 600,
+       path= "G:/cyepi/code/outputs")
+
+ggsave(filename = "state_dist_2axis_2.png",
+       plot = state_dist_2axis_2,
+       width = 8,
+       height = 5,
+       dpi = 600,
+       path= "G:/cyepi/code/outputs")
+```
+
+###2) Calculate descriptive statistics on how much time participants spent in each Wear log state across the week 
+```{r}
+#Calculating median time in each state
+
+wrlg_state_summary <- int_duration %>%
+  group_by(State) %>%
+  summarise(mean = mean(id_duration_per),
+            sd = sd(id_duration_per),
+            min = min(id_duration_per),
+            max = max(id_duration_per),
+            median = median(id_duration_per),
+            range = max-min) %>%
+  ungroup()
+
+```
+
+
+
+###The following chunks of code contain alternative plots to those above
+```{r}
+#Extra plot 1: Same plot as states_dist_jitter, but without jitter and boxplot, just with distribution
+  states_dist_histo <- ggplot(data = int_duration, aes(x=id_duration_per, y = State, fill = State)) +
   xlim(NA,100) +
   ggdist::stat_halfeye(
     aes(colour = State,
@@ -204,13 +191,90 @@ states_dist_jitter <- ggplot(data = int_duration, aes(x=id_duration_per, y = Sta
 
 
 ```
-
-###Save plot above
 ```{r}
-ggsave(filename = "state_dist_jitter.png",
-       plot = states_dist_jitter ,
-       width = 8,
-       height = 5,
-       dpi = 600,
-       path= "F:/cyepi/code/outputs")
+#Extra plot 3: only visualise non-wear time distribution 
+
+tot_nonwear <- int_duration%>%
+  filter(State == "off")
+
+#tot_nonwear$offtime_per <- (tot_nonwear$off_time / (24*7))*100
+
+nonwear_dist_overview <- ggplot(data = int_duration, aes(x = id_duration_per, fill = State))  +
+  xlim(NA, 100) +
+  ggdist::stat_halfeye(
+    aes(colour = State,
+        fill = State),
+    adjust = .5,
+    ) +
+  ggdist::stat_dotsinterval(
+    side = "bottom",
+    scale = .3,
+    slab_colour = NA,
+    slab_linewidth = NA) +
+   scale_fill_manual(values = c("off" = "#16439C")) +
+  theme_classic() +
+  labs(title = "Non-wear time distribution", x = "Non-wear time (%)") +
+  ggpubr::rremove("ylab") +
+  ggpubr::rremove("y.ticks") +
+  ggpubr::rremove("y.text") +
+  theme(plot.title = element_text(hjust = 0.5, size = 24),
+        axis.text.x = element_text(size = 16),
+        axis.title = element_text(size = 18),
+        axis.text.x.top = element_blank(),
+        axis.ticks.x.top = element_blank(),
+        axis.line.x.top = element_blank(),
+        legend.position = "none") +
+  scale_x_break(c(15,99.9),
+                ticklabels = 100)
+
 ```
+
+```
+
+```{r}
+#Extra plot2: visualing only non-wear time for each day of the week
+
+#Non-wear time can be calculated from the joined_int dataset
+nonwear_time <-wrlg_int %>%
+#filter for intervals on non-wear (State == "off")
+  filter(State == "off") %>% 
+  #calculate the non-wear time through the interval column
+  mutate(off_time = int_length(Interval) %>% as_hms()) %>% 
+  #group by date and summarize daily non-wear time
+  mutate(Date = as.Date(int_end(Interval)), #first, Date and corresponding weekday are calculated
+         day = format(Date, format = "%A", locale="English") %>% 
+           forcats::fct_inorder()) %>%
+  group_by(Id, day, .add = TRUE) %>%
+  summarize(off_time = sum(off_time)) %>%
+  ungroup()
+
+#There are participants who have 0 non-wear time for a day, i.e. they have no State == off, who we still want to display as 0 points in our plot. Since we filtered for State == off above, we need to use complete to fill in days of 0 non-wear with 0 values. 
+off_states <- off_states %>%
+  complete(Id, day, fill = list(off_time = as_hms(0)))
+
+off_states$off_time <- as.numeric(off_states$off_time, "hours")
+
+#plotting the data
+nonwear_duration <- off_states %>% 
+ggplot(aes(x = day, y = off_time)) +
+  geom_violin(alpha = 0.3, aes(fill=day), trim = TRUE) + 
+  geom_dotplot(binaxis = "y",
+               stackdir = "center",
+               dotsize = 0.5,
+               binwidth = 0.1) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 26, face = "plain"),
+        axis.text = element_text(size=18),
+        axis.title = element_text(size=18),
+        axis.title.y = element_text(size = 20),
+        axis.title.x = element_text(size = 20),
+        legend.position = "none") +
+  xlab("Experimental day") + 
+  ylab("Non-wear time (hours)") +
+  scale_y_continuous(breaks = c(0, 2, 4, 6, 8, 10, 12, 14, 16), 
+                     label = c(0, 2, 4, 6, 8, 10, 12, 14, 16), 
+                     expand = c(0,0)) +
+  ggtitle("Self-reported non-wear time entries (Wear log)")
+```
+
+
