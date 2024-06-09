@@ -59,7 +59,7 @@ as.factor(int_duration$State)
 int_duration$State <- factor(int_duration$State, levels = c("sleep", "off", "on"))
 
 states_dist_jitter2 <- ggplot(data = int_duration, aes(x=id_duration_per, y = State, fill = State)) +
-  xlim(NA,100) +
+  scale_x_continuous(limits = c(0,100), expand = c(0.05,0.05)) +
   ggdist::stat_halfeye(
     aes(colour = State,
         fill = State),
@@ -93,7 +93,7 @@ states_dist_jitter2 <- ggplot(data = int_duration, aes(x=id_duration_per, y = St
   labs(title = "(Non-)wear time distribution across the week", x = "Percentage of time (%)") +
   coord_fixed(ratio = 12) + # reduce white space between categorical variables on y axis
   theme(legend.position = "none",
-        plot.title = element_text(hjust = 0.5, size = 24),
+        plot.title = element_text(hjust = 0.5, size = 20),
         axis.text.x = element_text(size = 16),
         axis.title = element_text(size = 18),
         axis.text.y = element_text(size = 16))
@@ -104,7 +104,8 @@ int_duration$tot_intlength_hours <- as.numeric(int_duration$tot_intlength) / 360
   
 second_x_axis <- ggplot(data = int_duration, aes(x = tot_intlength_hours, y = 0.01)) +
   geom_blank() +  # Create an empty plot
-  scale_x_continuous(limits = c(0, 166), breaks = c(0, 20, 40, 60, 80, 100, 120, 140, 166)) +
+  scale_x_continuous(limits = c(0, 166), breaks = c(0, 20, 40, 60, 80, 100, 120, 140, 166), 
+                     expand = c(0.05,0.05)) +
   coord_fixed(ratio = 4) +
   theme_ggdist() +
   labs(x = "Time (hours)")  +
@@ -112,7 +113,7 @@ second_x_axis <- ggplot(data = int_duration, aes(x = tot_intlength_hours, y = 0.
   ggpubr::rremove("ylab") + 
   ggpubr::rremove("y.ticks") +
   ggpubr::rremove("y.text") +
-  theme(axis.title.x = element_text(size = 18),
+  theme(axis.title.x = element_text(size = 16),
         axis.text.x = element_text(size = 16)) 
   
 
@@ -132,12 +133,12 @@ ggsave(filename = "state_dist_jitter2.png",
        dpi = 600,
        path= "G:/cyepi/code/outputs")
 
-ggsave(filename = "state_dist_2axis_2.png",
+ggsave(filename = "state_dist_2axis_3.png",
        plot = state_dist_2axis_2,
        width = 8,
        height = 5,
        dpi = 600,
-       path= "G:/cyepi/code/outputs")
+       path= "D:/cyepi/code/outputs")
 ```
 
 ###2) Calculate descriptive statistics on how much time participants spent in each Wear log state across the week 
@@ -228,6 +229,38 @@ nonwear_dist_overview <- ggplot(data = int_duration, aes(x = id_duration_per, fi
                 ticklabels = 100)
 
 ```
+
+
+We now want to visualise when, during the day, participants took the light logger on and/or off
+```{r}
+timing_off <- wrlg_int %>%
+  filter(State == "off") %>%
+  mutate(start = int_start(Interval),
+         end = int_end(Interval),
+         centre_point = as.POSIXct(start + difftime(end,start)/2, tz = tz),
+         centre_point_h = hour(centre_point))
+
+timing_dens_plot <- ggplot(timing_off, aes(x = as.numeric(centre_point_h), y = after_stat(count))) +
+  geom_histogram(color = "black", fill = "darkred", alpha = 0.6, position = "identity", bins = 24) +
+  geom_density(color = "black", fill= "darkred", alpha = 0.3, outline.type = "upper") +
+  labs(x = "Centre point of non-wear interval", y = "Number of Wake 'off' events", title = "Timing of non-wear episodes across the day") +
+  scale_x_continuous(
+    breaks = c(0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24),
+    labels = c("00:00", "02:00", "04:00", "06:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00", "22:00", "24:00"),
+    expand = c(0, 0)) +
+   theme_bw() +
+   theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text.x = element_text(size = 16, angle = 45, hjust = 1),
+        axis.title = element_text(size = 16),
+        axis.text.y = element_text(size = 16))
+
+ggsave(filename = "timing_dens_plot.png",
+       plot = timing_dens_plot,
+       width = 9,
+       height = 6,
+       dpi = 600,
+       path= "D:/cyepi/code/outputs")
 
 ```
 
