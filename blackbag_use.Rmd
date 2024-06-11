@@ -45,8 +45,9 @@ median_scatter <-
   labs(title = "Relationship between light and activity", x = "mEDI", y = "PIM") +
   geom_errorbar(aes(ymin = qr1_pim, ymax = qr3_pim)) +
   geom_errorbarh(aes(xmin = qr1_medi, xmax = qr3_medi)) +
-  theme_minimal()
-
+  theme_minimal() +
+  scale_x_continuous(transform = "symlog")
+1
 #For the states sleep and off, there are a lot of overlapping points, which is why only a few points are shows. While this plot shows that we have a lot of variability, especially in PIM, we can't really say much about the individual datapoints. 
 
 ```
@@ -110,6 +111,8 @@ ggsave(filename = "plot_marginal.png",
        path= "G:/cyepi/code/outputs")
 
 ```
+
+
 
 ```{r}
 #Another alternative visualisation would be to simply plot mEDI, without activity, across the Wear log states
@@ -229,8 +232,10 @@ roc_medi <- mediclusters_clean %>%
   pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
   mutate(TPR = TP/(TP+FN), #this is the formula for TPR (true positive rate)
          FPR = FP/(FP+TN), #this is the formula for the FPR (false positive rate)
-         threshold = threshold) %>% #adding manually which mEDI threshold I am considering here 
-  select(TPR, FPR, threshold)
+         PPV = TP/(TP+FP),
+         NPV = TN/(FN+TN),
+         threshold = threshold)  #adding manually which mEDI threshold I am considering here 
+ # select(TPR, FPR, threshold)
 
 
  #Add the result to the list
@@ -241,41 +246,41 @@ roc_medi <- mediclusters_clean %>%
 total_roc <- bind_rows(roc_medi_list)
 
 #Turn thresholds from character to factor for plotting
-#total_roc$threshold <- factor(total_roc$threshold)
+total_roc$threshold <- as.numeric(total_roc$threshold)
 
 #Plot ROC: FPR on x axis, TPR on y axis
 #create a colour palette with n=20 colours
 palette <- hcl.colors(palette = "viridis", n = 10)
 
-roc_medi <- ggplot(total_roc, aes(x = FPR, y = TPR, color = threshold)) +
+roc_medi <- ggplot(total_roc, aes(x = 1-PPV, y = TPR, color = threshold)) +
   geom_point() +
  # geom_smooth() +
   xlim(0,1) + 
   ylim(0,1) +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "darkgrey") + #add a 45 degree line 
-  scale_color_manual(
-    values = palette,
-    labels = c(#"0.5" = "mEDI < 0.5 lx",
-               "1" = "mEDI < 1 lx",
+  #scale_color_manual(
+ #   values = palette,
+   # labels = c(#"0.5" = "mEDI < 0.5 lx",
+            #   "1" = "mEDI < 1 lx",
               # "1.5"= "mEDI < 1.5 lx",
-               "2" = "mEDI < 2 lx",
+            #   "2" = "mEDI < 2 lx",
               # "2.5" = "mEDI < 2.5 lx",
-               "3" = "mEDI < 3 lx",
+            #   "3" = "mEDI < 3 lx",
               # "3.5" = "mEDI < 3.5 lx",
-               "4" = "mEDI < 4 lx",
+            #   "4" = "mEDI < 4 lx",
               # "4.5" = "mEDI < 4.5 lx",
-               "5" = "mEDI < 5 lx",
+             #  "5" = "mEDI < 5 lx",
               # "5.5" = "mEDI < 5.5 lx",
-               "6" = "mEDI < 6 lx",
+             #  "6" = "mEDI < 6 lx",
              #  "6.5" = "mEDI < 6.5 lx",
-               "7" = "mEDI < 7 lx",
+           #    "7" = "mEDI < 7 lx",
              #  "7.5" = "mEDI < 7.5 lx",
-               "8" = "mEDI < 8 lx",
+           #    "8" = "mEDI < 8 lx",
               # "8.5" = "mEDI < 8.5 lx",
-               "9" = "mEDI < 9 lx",
+           #    "9" = "mEDI < 9 lx",
               # "9.5" = "mEDI < 9.5 lx",
-               "10" = "mEDI < 10 lx")) +
-  labs(x="False positive rate",
+           #    "10" = "mEDI < 10 lx")) +
+  labs(x="1 - PPV",
        y = "True positive rate",
        title = "ROC curve for automatic detection \nof non-wear based on different mEDI thresholds") +
   guides(color = guide_legend(title = "mEDI threshold")) +
@@ -326,7 +331,7 @@ medi10lux_clusters_clean <- medi10lux_clusters %>%
       is_low_medi_cluster == FALSE ~ 1
     ))
 
-#We want to build a Receiver Operating Curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
+#We want to build a Receiver Operating Curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 0), classifies the performance of our algorithm for detecting non-wear as follows:
 #1) State = 0, cluster = 0 -> true positive
 #2) State = 0, cluster = 1 -> false negative
 #3) State = 1, cluster = 1 -> false positive
@@ -346,8 +351,11 @@ roc_10medi <- medi10lux_clusters_clean %>%
   pivot_wider(names_from = classification, values_from = count) %>%
   mutate(TPR = TP/(TP+FN),
          FPR = FP/(FP+TN),
-         threshold = 10) %>%
-  select(TPR, FPR, threshold)
+         PPV = TP/(TP+FP),
+         NPV = TN/(FN+TN),
+         threshold = threshold)  #adding manually which mEDI threshold I am considering here 
+#  select(TPR, FPR, threshold) %>%
+      
 
 
 roc_curve10 <- roc(data = medi10lux_clusters_clean,
