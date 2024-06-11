@@ -252,7 +252,7 @@ total_roc$threshold <- as.numeric(total_roc$threshold)
 #create a colour palette with n=20 colours
 palette <- hcl.colors(palette = "viridis", n = 10)
 
-roc_medi <- ggplot(total_roc, aes(x = 1-PPV, y = TPR, color = threshold)) +
+roc_medi <- ggplot(total_roc, aes(x = FPR, y = TPR, color = threshold)) +
   geom_point() +
  # geom_smooth() +
   xlim(0,1) + 
@@ -280,7 +280,7 @@ roc_medi <- ggplot(total_roc, aes(x = 1-PPV, y = TPR, color = threshold)) +
            #    "9" = "mEDI < 9 lx",
               # "9.5" = "mEDI < 9.5 lx",
            #    "10" = "mEDI < 10 lx")) +
-  labs(x="1 - PPV",
+  labs(x="FPR",
        y = "True positive rate",
        title = "ROC curve for automatic detection \nof non-wear based on different mEDI thresholds") +
   guides(color = guide_legend(title = "mEDI threshold")) +
@@ -366,4 +366,176 @@ roc_curve10 <- roc(data = medi10lux_clusters_clean,
 ggroc(roc_curve10)
 
 ```
+
+
+```{r}
+generate_roc_medi <- function(dataset, low_medi_var, min_length, max_interrupt, medi_threshold) {
+  medi_clusters <- dataset %>%
+    ungroup() %>%
+    filter(!State == "sleep") %>%
+    mutate(low_medi = !!rlang::sym(low_medi_var) < medi_threshold) %>%
+    nest_by(Id) %>%
+    mutate(
+      data = list(
+        data_find_clusters(
+          data, 
+          low_medi, 
+          min_length = min_length, 
+          max_interrupt = max_interrupt, 
+          cluster_name = "low_medi_cluster"
+        )
+      )
+    ) %>%
+    unnest(cols = data) %>%
+    ungroup()
+  
+  mediclusters_clean <- medi_clusters %>%
+    select(Id, Datetime, State, is_low_medi_cluster) %>%
+    mutate(
+      State = case_when(
+        State == "on" ~ 1, 
+        State == "off" ~ 0),
+      is_low_medi_cluster = case_when(
+        is_low_medi_cluster == TRUE ~ 0,
+        is_low_medi_cluster == FALSE ~ 1
+      )
+    )
+  
+  mediclusters_clean <- mediclusters_clean %>%
+    mutate(classification = case_when(
+      State == 0 & is_low_medi_cluster == 0 ~ "TP",
+      State == 0 & is_low_medi_cluster == 1 ~ "FN",
+      State == 1 & is_low_medi_cluster == 0 ~ "FP",
+      State == 1 & is_low_medi_cluster == 1 ~ "TN",
+      .default = NA_character_
+    ))
+  
+  roc_medi <- mediclusters_clean %>%
+    group_by(classification) %>%
+    summarise(count = n()) %>%
+    pivot_wider(names_from = classification, values_from = count, values_fill = list(count = 0)) %>%
+    mutate(
+      TPR = TP / (TP + FN),
+      FPR = FP / (FP + TN),
+      PPV = TP / (TP + FP),
+      NPV = TN / (FN + TN),
+      max_interrupt = max_interrupt #note: this has to be changed every time based on which variable you are varying
+    )
+  
+  return(roc_medi)
+}
+
+
+```
+
+
+#Now, we vary one parameter: mEDI values 
+```{r}
+# Step 1: vary mEDI thresholds
+thresholds <- seq(1, 10, by = 1)
+roc_medi <- map(thresholds, ~ generate_roc_medi(
+  dataset = dataset.LL.wrlg,
+  low_medi_var = "MEDI",
+  min_length = "2 mins",
+  max_interrupt = "1 mins",
+  medi_threshold = .x
+))
+
+names(roc_medi) <- as.character(thresholds)
+roc_medi <- bind_rows(roc_medi)
+
+
+ggplot(roc_medi, aes(x = FPR, y = TPR)) +
+  geom_point(aes(color = medi_threshold)) +
+  xlim(0,1) + 
+  ylim(0,1) +
+  scale_color_continuous(
+    limits= c(1,10), breaks = c(2, 4, 6, 8, 10)
+  ) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "darkgrey") + #add a 45 degree line 
+  labs(x="False positive rate",
+       y = "True positive rate",
+       title = "ROC curve for automatic detection \nof non-wear based on different mEDI thresholds") +
+  guides(
+    color = guide_colorbar(
+    title = "mEDI threshold (lx)",
+    nbin = 10,
+    reverse = TRUE)) +
+  theme_bw() +
+  coord_fixed(ratio = 1)
+
+
+```
+
+
+
+
+```{r}
+# Step 2: vary length of interval 
+min_lengths <- paste0(seq(1, 10, by = 1), " min")
+roc_minlength <- map(min_lengths, ~ generate_roc_medi(
+  dataset = dataset.LL.wrlg,
+  low_medi_var = "MEDI",
+  min_length = .x,
+  max_interrupt = "1 mins",
+  medi_threshold = 4
+))
+
+names(roc_minlength) <- min_lengths
+roc_minlength <- bind_rows(roc_minlength)
+
+ggplot(roc_minlength, aes(x = FPR, y = TPR)) +
+  geom_point(aes(color = min_length)) +
+  xlim(0,1) + 
+  ylim(0,1) +
+ # scale_color_continuous(
+ # limits= c(1,10), breaks = c(2, 4, 6, 8, 10)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "darkgrey") + #add a 45 degree line 
+  labs(x="False positive rate",
+       y = "True positive rate",
+       title = "ROC curve for automatic detection \nof non-wear based on different mEDI thresholds") +
+  theme_legend(
+  #  color = guide_colorbar(
+    title = "Min. length"
+  #  nbin = 10,
+  #  reverse = TRUE
+  ) +
+  theme_bw() +
+  coord_fixed(ratio = 1)
+```
+
+```{r}
+# Step 3: vary max interruption length 
+max_interrupt <- paste0(seq(1, 10, by = 1), " min")
+roc_max_interrupt<- map(max_interrupt, ~ generate_roc_medi(
+  dataset = dataset.LL.wrlg,
+  low_medi_var = "MEDI",
+  min_length = "2 mins",
+  max_interrupt = .x,
+  medi_threshold = 4
+))
+
+names(roc_max_interrupt) <- max_intlengths
+roc_max_interrupt <- bind_rows(roc_max_interrupt)
+
+ggplot(roc_max_interrupt, aes(x = FPR, y = TPR)) +
+  geom_point(aes(color = max_interrupt)) +
+  xlim(0,1) + 
+  ylim(0,1) +
+ # scale_color_continuous(
+  #limits= c(1,10), breaks = c(2, 4, 6, 8, 10)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "darkgrey") + #add a 45 degree line 
+  labs(x="False positive rate",
+       y = "True positive rate",
+       title = "ROC curve for automatic detection \nof non-wear based on different mEDI thresholds") +
+ # guides(
+  #  color = guide_colorbar(
+  #  title = "Max. interrupt (mins)",
+  #  nbin = 10,
+   # reverse = TRUE)) +
+  theme_bw() +
+  coord_fixed(ratio = 1)
+
+```
+
 
