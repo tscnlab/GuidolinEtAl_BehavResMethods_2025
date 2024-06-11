@@ -9,54 +9,35 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+## Use of black bag (low illuminance values) to detect non-wear time
 
-Here we analyse data from black bag use. The first thing that we want to do is a visual inspection of the data to check how light and activity compare, for each State of the Wear log. 
+Here we analyse data from black bag use (low illuminance [mEDI] values). The first thing that we want to do is a visual inspection of the data to check how light and activity compare, for each State of the Wear log. Low activity is also often used as a way to understand non-wear time in field studies. Since we have both information (light and activity), we want to know how these two source compare to each other. 
+
 ```{r}
-dataset.LL.wrlg.201 <- dataset.LL.wrlg %>%
-  filter(Id == "201")
+#We will be plotting using log10 transformation, so we want to replace 0 values for mEDI (light) and PIM (activity) to very low values
 
 dataset.LL.wrlg$MEDI[dataset.LL.wrlg$MEDI == 0] <- 0.00001
 dataset.LL.wrlg$PIM[dataset.LL.wrlg$PIM == 0] <- 0.00001
 
-boxplot_general <- 
-  ggplot(data = dataset.LL.wrlg, aes(x = log10(MEDI), y = log10(PIM), colour = State, fill = State)) +
-  geom_boxplot() + 
-  scale_fill_manual(
-    values = c("off" = "#16439C", "on" = "palegreen4", "sleep" = "darkgoldenrod2")) +
-  scale_color_manual(
-    values = c("off" = "#16439C", "on" = "palegreen4", "sleep" = "darkgoldenrod2")
-  ) +
-  labs(title = "Relationship between light and activity")
-
-
-```
-
-## Including Plots
-
-```{r}
+#TO be able to visually observe how light and activity relate to each other in our dataset, we cannot plot all our datapoints (too many). So, we take median values of each Id, for each State (off/on/sleep)
 
 median.LL.wrlg <- dataset.LL.wrlg %>%
   group_by(Id, State) %>%
   summarise(median_medi = median(log10(MEDI), na.rm = TRUE),
-            median_pim = median(PIM, na.rm = TRUE),
-            qr1_medi = quantile(log10(MEDI), 1/4, na.rm = TRUE),
-            qr1_pim = quantile(PIM, 1/4, na.rm = TRUE),
-            qr3_medi = quantile(log10(MEDI), 3/4, na.rm = TRUE),
-            qr3_pim = quantile(PIM, 3/4, na.rm = TRUE)) %>%
+            median_pim = median(log10(PIM), na.rm = TRUE),
+            qr1_medi = quantile(log10(MEDI), 1/4, na.rm = TRUE), #first quantile
+            qr1_pim = quantile(log10(PIM), 1/4, na.rm = TRUE), #first quantile
+            qr3_medi = quantile(log10(MEDI), 3/4, na.rm = TRUE), #third quantile
+            qr3_pim = quantile(log10(PIM), 3/4, na.rm = TRUE)) %>% #third quantile
   ungroup()
 
-mean_data <- dataset.LL.wrlg %>%
-  group_by(Id, State) %>%
-  summarise(mean_medi = mean(log10(MEDI), na.rm = TRUE),
-            mean_pim = mean(PIM, na.rm = TRUE)) %>%
-  ungroup()
-  
+#Let's create a simple scatterplot where median mEDI and PIM are plotted against each other, including error bars
 median_scatter <- 
   ggplot(median.LL.wrlg, aes(x = median_medi, y = median_pim, color = State, fill = State)) +
   geom_point() +
-  xlim(-5, 2.5) +
-  ylim(0, 750) +
+    #position = position_jitter(width = 0.5, height = 0.5)) 
+ # xlim(-5, 2.5) +
+ # ylim(0, 750) +
   scale_fill_manual(
     values = c("off" = "#16439C", "on" = "palegreen4", "sleep" = "darkgoldenrod2")) +
   scale_color_manual(
@@ -66,93 +47,136 @@ median_scatter <-
   geom_errorbarh(aes(xmin = qr1_medi, xmax = qr3_medi)) +
   theme_minimal()
 
-  ggplot(mean_data, aes(x = mean_medi, y = mean_pim, color = State, fill = State)) +
-  geom_point(position = position_jitter(width = 1, height = 3)) +
-  scale_fill_manual(
-    values = c("off" = "#16439C", "on" = "palegreen4", "sleep" = "darkgoldenrod2")) +
+#For the states sleep and off, there are a lot of overlapping points, which is why only a few points are shows. While this plot shows that we have a lot of variability, especially in PIM, we can't really say much about the individual datapoints. 
+
+```
+
+
+```{r}
+#To improve the visualisation above, we can create a simple scatterplot without error bars, and add boxplots as marginal plots
+
+scatter <- ggplot(median.LL.wrlg, aes(x = median_medi, y = median_pim)) + 
+  geom_jitter(aes(fill = State, color = State), size = 2.5, alpha = 0.6,
+              position = position_jitter(width = .3, height = .3)) + #adjust position of points to avoid overlap
+   scale_fill_manual(
+    name = "Wear log \n'state'",
+    values = c("off" = "#0072B2", "on" = "darkred", "sleep" = "darkgoldenrod2"),
+    labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
   scale_color_manual(
-    values = c("off" = "#16439C", "on" = "palegreen4", "sleep" = "darkgoldenrod2")) +
-  labs(title = "Relationship between light and activity", x = "mEDI", y = "PIM") +
-  theme_minimal()
+    name = "Wear log \n'state'",
+    values = c("off" = "#0072B2", "on" = "darkred", "sleep" = "darkgoldenrod2"),
+    labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
+  scale_x_continuous(
+    breaks = c(-5, -3, -1, 1, 3), 
+    labels = c(expression(10^-5), expression(10^-3), expression(10^-1), expression(10^1), expression(10^3)), #ensure that the log expression is labelled correctly 
+    limits = c(-5.5, 3)
+  ) +
+  scale_y_continuous(
+    breaks = c(-5, -3, -1, 1, 3),
+    labels = c(expression(10^-5), expression(10^-3), expression(10^-1), expression(10^1), expression(10^3)), #ensure that the log expression is labelled correctly 
+    limits = c(-5.5, 3)
+  ) +
+  labs(x = "Median illuminance (mEDI, lx)",
+       y = "Activity (PIM)") +
+  coord_fixed(ratio=1) + #make sure plot is a square
+  theme_bw() + 
+  theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 16),
+        axis.title = element_text(size = 16),
+        legend.title = element_text(size = 12, hjust = 0.5),
+        legend.text = element_text(size = 12),
+        legend.position = "bottom") +
+  guides(fill = guide_legend(nrow = 1))
+  
+#Add a boxpot as a marginal plot using package ggExtra
+library(ggExtra)
 
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
-```{r}
-library(ggpubr)
-
-scatterhist_mean <-
-  ggscatterhist(
-  mean_data, x = "mean_medi", y = "mean_pim", 
-  color = "State", size = 3, alpha = 0.6,
-  palette = c("#16439C", "palegreen4", "darkgoldenrod2"),
-  margin.params = list(fill = "State", color = "black", size = 0.5)
-)
-
-ggscatterhist(
-  median.LL.wrlg, x = "median_medi", y = "median_pim", 
-  color = "State", size = 3, alpha = 0.6,
-  position = position_jitter(width = .5, height = 3),
-  palette = c("#16439C", "palegreen4", "darkgoldenrod2"),
-  margin.params = list(fill = "State", color = "black", size = 0.5)
-) +
-  geom_errorbar(aes(median.LL.wrlg, ymin = qr1_pim, ymax = qr3_pim), width = 0.2)
-
-```
-
-```{r}
-###Add median (instead of mean) and IQR as error bars to this plot
-median.LL.wrlg$State <- as.factor(median.LL.wrlg$State)
-
-scatterboxplot_median <-
-  ggscatterhist(
-  median.LL.wrlg, 
-  x = "median_medi", 
-  y = "median_pim", 
-  position = position_jitter(width = .5, height = 3),
-  color = "State", size = 2, alpha = 0.6,
-  palette = c("#16439C", "palegreen4", "darkgoldenrod2"),
-  margin.plot = "boxplot",
-  margin.params = list(fill = "State", color = "State", size = 0.5)
-) +
-  geom_errorbar(aes(ymin = qr1_pim, ymax = qr3_pim)) +
-  geom_errorbarh(aes(xmin = qr1_medi, xmax = qr3_medi)) 
+marginal <- ggExtra::ggMarginal(scatter, type = "boxplot", groupColour = TRUE, groupFill = TRUE)
 
 
+plot_marginal <- annotate_figure(marginal,
+                                 #Add title
+                                 top = text_grob("Relationship between illuminance \nand activity across wear log states",
+                                                            color = "black",
+                                                            face = "plain",
+                                                            size = 18))
 
-```
-```{r}
-ggsave(filename = "boxplot_general.png",
-       plot = boxplot_general ,
-       width = 6,
-       height = 6,
+ggsave(filename = "plot_marginal.png",
+       plot = plot_marginal ,
+       width = 5,
+       height = 6.5,
        dpi = 600,
+       bg = "white",
        path= "G:/cyepi/code/outputs")
 
-ggsave(filename = "mean_scatter.png",
-       plot = mean_scatter,
-       width = 8,
-       height = 8,
-       dpi = 600,
-       path= "G:/cyepi/code/outputs")
+```
 
-scatterhist_mean;ggsave(filename="scatterhist_mean.png", device="png", dpi=600, path = "G:/cyepi/code/outputs" )
-scatterboxplot_mean;ggsave(filename="scatterboxplot_mean.png", device="png", dpi=600, path = "G:/cyepi/code/outputs" )
+```{r}
+#Another alternative visualisation would be to simply plot mEDI, without activity, across the Wear log states
+library(ggdist)
+
+ggplot(data = median.LL.wrlg, aes(x=median_medi, y = State, fill = State)) +
+  ggdist::stat_halfeye(
+    aes(colour = State,
+        fill = State),
+    adjust = .5,
+    justification = -.25,
+    point_color = NA,
+    interval_color = NA
+    ) +
+  geom_boxplot(
+    aes(color = State),
+    width = .3,
+    alpha = .2,
+    outlier.shape = NA
+  ) +
+  geom_jitter(
+    aes(colour = State),
+    fill = "white",
+    height = .1,
+    alpha = .3,
+    size = 1.2
+  ) +
+  scale_fill_manual(
+    values = c("on" = "#0072B2", "off" = "darkred", "sleep" = "darkgoldenrod2")) +
+  scale_color_manual(
+    values = c("on" = "#0072B2", "off" = "darkred", "sleep" = "darkgoldenrod2")) +
+  scale_y_discrete(labels = c("on" = "Wake 'on'", "off" = "Wake 'off'", "sleep" = "Sleep 'off'")) +
+  theme_ggdist() +
+  ggpubr::rremove("ylab") +
+  ggpubr::rremove("y.ticks") +
+ # ggpubr::rremove("xlab")+ 
+  labs(title = "(Non-)wear time distribution across the week", x = "Illuminance (mEDI, lx)") +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text.x = element_text(size = 16),
+        axis.title = element_text(size = 18),
+        axis.text.y = element_text(size = 16))
+
+#This does not seem to work very well, probably because our sample has too many duplicates of low values 
 
 ```
-##Testing steffen's function which indentifies cöusters of non-wear time 
+
+##Testing steffen's function which indentifies clusters of non-wear time 
+These functions (find_clusters_funs, loaded in separately) identify clusters of low illuminance. The following parameters can be selected: 
+1) logical values where clusters should be found - in this case, low illuminance values (below a certain threshold)
+2) minimum length of the clusters
+3) max interrpution length for the cluster to still be identified as such 
 ```{r}
 
-library(plotROC)
-library(pROC)
+medithresholds <- seq(1, 10, by = 1)
 
+#Empty list to store classification results
+roc_medi_list <- list()
 
-medi5lux_clusters <- dataset.LL.wrlg %>%
+for (threshold in medithresholds) {
+
+medi_clusters <- dataset.LL.wrlg %>%
   ungroup() %>%
   filter(!State == "sleep") %>%
   # Replace `low_activity` by the (logical) variable for which the clusters 
   # should be found.
-  mutate(low_medi = MEDI < 5) %>% 
+  mutate(low_medi = MEDI < threshold) %>% 
   # Nest by groups, e.g., participant, period. Replace with grouping variables 
   # in your data, such that the function is applied separately per consecutive 
   # timeseries (e.g., from one subject during one period).
@@ -164,7 +188,7 @@ medi5lux_clusters <- dataset.LL.wrlg %>%
       data_find_clusters(
         data, 
         low_medi, 
-        min_length = "5 mins", 
+        min_length = "2 mins", 
         max_interrupt = "1 mins", 
         cluster_name = "low_medi_cluster"
       )
@@ -174,7 +198,7 @@ medi5lux_clusters <- dataset.LL.wrlg %>%
   ungroup()
 
 
-medi5lux_clusters_clean <- medi5lux_clusters %>%
+mediclusters_clean <- medi_clusters %>%
   select(Id, Datetime, State, is_low_medi_cluster) %>%
   mutate(
     State = case_when(
@@ -183,7 +207,7 @@ medi5lux_clusters_clean <- medi5lux_clusters %>%
     is_low_medi_cluster = case_when(
       is_low_medi_cluster == TRUE ~ 0,
       is_low_medi_cluster == FALSE ~ 1
-    ))
+    )) 
 
 #We want to build a Receiver Operating Curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
 #1) State = 0, cluster = 0 -> true positive
@@ -191,7 +215,7 @@ medi5lux_clusters_clean <- medi5lux_clusters %>%
 #3) State = 1, cluster = 1 -> false positive
 #4) State = 1, cluster = 0 -> true negative
 
-medi5lux_clusters_clean <- medi5lux_clusters_clean %>%
+mediclusters_clean <- mediclusters_clean %>%
   mutate(classification = case_when(
     State == 0 & is_low_medi_cluster == 0 ~ "TP",
     State == 0 & is_low_medi_cluster == 1 ~ "FN",
@@ -199,30 +223,77 @@ medi5lux_clusters_clean <- medi5lux_clusters_clean %>%
     State == 1 & is_low_medi_cluster == 1 ~ "TN",
     .default = NA_character_))
 
-roc_5medi <- medi5lux_clusters_clean %>%
+roc_medi <- mediclusters_clean %>%
   group_by(classification) %>%
   summarise(count = n()) %>%
-  pivot_wider(names_from = classification, values_from = count) %>%
-  mutate(TPR = TP/(TP+FN),
-         FPR = FP/(FP+TN),
-         threshold = 5) %>%
+  pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
+  mutate(TPR = TP/(TP+FN), #this is the formula for TPR (true positive rate)
+         FPR = FP/(FP+TN), #this is the formula for the FPR (false positive rate)
+         threshold = threshold) %>% #adding manually which mEDI threshold I am considering here 
   select(TPR, FPR, threshold)
 
 
-roc_curve5 <- roc(data = medi5lux_clusters_clean,
-                  response = is_low_medi_cluster,
-                  predictor = State,
-                  levels = c(control = 1, case = 0))
+ #Add the result to the list
+  roc_medi_list[[as.character(threshold)]] <- roc_medi
+}
 
-ggroc(roc_curve5)
+#Turn the list with the results into a df 
+total_roc <- bind_rows(roc_medi_list)
+
+#Turn thresholds from character to factor for plotting
+#total_roc$threshold <- factor(total_roc$threshold)
+
+#Plot ROC: FPR on x axis, TPR on y axis
+#create a colour palette with n=20 colours
+palette <- hcl.colors(palette = "viridis", n = 10)
+
+roc_medi <- ggplot(total_roc, aes(x = FPR, y = TPR, color = threshold)) +
+  geom_point() +
+ # geom_smooth() +
+  xlim(0,1) + 
+  ylim(0,1) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "darkgrey") + #add a 45 degree line 
+  scale_color_manual(
+    values = palette,
+    labels = c(#"0.5" = "mEDI < 0.5 lx",
+               "1" = "mEDI < 1 lx",
+              # "1.5"= "mEDI < 1.5 lx",
+               "2" = "mEDI < 2 lx",
+              # "2.5" = "mEDI < 2.5 lx",
+               "3" = "mEDI < 3 lx",
+              # "3.5" = "mEDI < 3.5 lx",
+               "4" = "mEDI < 4 lx",
+              # "4.5" = "mEDI < 4.5 lx",
+               "5" = "mEDI < 5 lx",
+              # "5.5" = "mEDI < 5.5 lx",
+               "6" = "mEDI < 6 lx",
+             #  "6.5" = "mEDI < 6.5 lx",
+               "7" = "mEDI < 7 lx",
+             #  "7.5" = "mEDI < 7.5 lx",
+               "8" = "mEDI < 8 lx",
+              # "8.5" = "mEDI < 8.5 lx",
+               "9" = "mEDI < 9 lx",
+              # "9.5" = "mEDI < 9.5 lx",
+               "10" = "mEDI < 10 lx")) +
+  labs(x="False positive rate",
+       y = "True positive rate",
+       title = "ROC curve for automatic detection \nof non-wear based on different mEDI thresholds") +
+  guides(color = guide_legend(title = "mEDI threshold")) +
+  theme_bw() +
+  coord_fixed(ratio = 1)
+
 ```
+
 ```{r}
+library(plotROC)
+library(pROC)
+
 medi10lux_clusters <- dataset.LL.wrlg %>%
   ungroup() %>%
   filter(!State == "sleep") %>%
   # Replace `low_activity` by the (logical) variable for which the clusters 
   # should be found.
-  mutate(low_medi = MEDI < 5) %>% 
+  mutate(low_medi = MEDI < 10) %>% 
   # Nest by groups, e.g., participant, period. Replace with grouping variables 
   # in your data, such that the function is applied separately per consecutive 
   # timeseries (e.g., from one subject during one period).
@@ -234,7 +305,7 @@ medi10lux_clusters <- dataset.LL.wrlg %>%
       data_find_clusters(
         data, 
         low_medi, 
-        min_length = "10 mins", 
+        min_length = "2 mins", 
         max_interrupt = "1 mins", 
         cluster_name = "low_medi_cluster"
       )
@@ -278,12 +349,6 @@ roc_10medi <- medi10lux_clusters_clean %>%
          threshold = 10) %>%
   select(TPR, FPR, threshold)
 
-roc_points <- data.frame(FPR = c(0,1),
-                         TPR = c(0,1),
-                         threshold = c(10,10))
-
-roc_10medi_df <- bind_rows(roc_10medi, roc_points)
-
 
 roc_curve10 <- roc(data = medi10lux_clusters_clean,
                   response = is_low_medi_cluster,
@@ -291,994 +356,6 @@ roc_curve10 <- roc(data = medi10lux_clusters_clean,
                   levels = c(control = 1, case = 0))
 
 ggroc(roc_curve10)
-
-```
-
-```{r}
-medi2lux_clusters <- dataset.LL.wrlg %>%
-  ungroup() %>%
-  filter(!State == "sleep") %>%
-  # Replace `low_activity` by the (logical) variable for which the clusters 
-  # should be found.
-  mutate(low_medi = MEDI < 5) %>% 
-  # Nest by groups, e.g., participant, period. Replace with grouping variables 
-  # in your data, such that the function is applied separately per consecutive 
-  # timeseries (e.g., from one subject during one period).
-  nest_by(Id) %>% 
-  mutate(
-    # Replace `low_activity` by the (logical) variable for which the clusters 
-    # should be found.
-    data = list(
-      data_find_clusters(
-        data, 
-        low_medi, 
-        min_length = "2 mins", 
-        max_interrupt = "1 mins", 
-        cluster_name = "low_medi_cluster"
-      )
-    )
-  ) %>%
-  unnest(cols = data) %>%
-  ungroup()
-
-
-medi2lux_clusters_clean <- medi2lux_clusters %>%
-  select(Id, Datetime, State, is_low_medi_cluster) %>%
-  mutate(
-    State = case_when(
-      State == "on" ~ 1, 
-      State == "off" ~ 0),
-    is_low_medi_cluster = case_when(
-      is_low_medi_cluster == TRUE ~ 0,
-      is_low_medi_cluster == FALSE ~ 1
-    ))
-
-#We want to build a Receiver Operating Curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
-#1) State = 0, cluster = TRUE -> true positive
-#2) State = 0, cluster = FALSE -> false negative
-#3) State = 1, cluster = TRUE -> false positive
-#4) State = 1, cluster = FALSE -> true negative
-
-medi2lux_clusters_clean <- medi2lux_clusters_clean %>%
-  mutate(classification = case_when(
-    State == 0 & is_low_medi_cluster == 0 ~ "TP",
-    State == 0 & is_low_medi_cluster == 1 ~ "FN",
-    State == 1 & is_low_medi_cluster == 0 ~ "FP",
-    State == 1 & is_low_medi_cluster == 1 ~ "TN",
-    .default = NA_character_))
-
-roc_2medi <- medi2lux_clusters_clean %>%
-  group_by(classification) %>%
-  summarise(count = n()) %>%
-  pivot_wider(names_from = classification, values_from = count) %>%
-  mutate(TPR = TP/(TP+FN),
-         FPR = FP/(FP+TN),
-         threshold = 2)%>%
-  select(TPR, FPR, threshold)
-
-roc_points <- data.frame(FPR = c(0,1),
-                         TPR = c(0,1),
-                         threshold = c(2,2))
-
-roc_2medi_df <- bind_rows(roc_2medi, roc_points)
-
-
-ggplot(roc_2medi_df, aes(x=FPR, y=TPR, group = 1)) +
-  geom_line() +
-  geom_point() +
-  geom_smooth()
-
-roc_curve2 <- roc(data = medi2lux_clusters_clean,
-                  response = is_low_medi_cluster,
-                  predictor = State,
-                  levels = c(control = 1, case = 0))
-
-ggroc(list(medi_10 = roc_curve10, medi_5 = roc_curve5, medi_2 = roc_curve2), size = 1.2) + 
-  labs(y = "True positive rate (specificity)", x = "False positive rate (1 - sensitivity)", title = "ROC curve for automatic detection of non-wear based on different mEDI thresholds") +
-  geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "darkgrey") +
-theme_bw() +
-  scale_color_manual(values = c("medi_10" = "#481B65" , "medi_5" = "#007094", "medi_2" = "salmon2"),
-                     labels = c("medi_10" = "mEDI < 10 lx", "medi_5" = "mEDI < 5 lx", "medi_2" = "mEDI < 2 lx")) +
-  guides(color = guide_legend(title = "mEDI threshold")) +
-    coord_fixed(ratio = 1) 
-  
-```
-
-
-
-```{r}
-medi15lux_clusters <- dataset.LL.wrlg %>%
-  ungroup() %>%
-  filter(!State == "sleep") %>%
-  # Replace `low_activity` by the (logical) variable for which the clusters 
-  # should be found.
-  mutate(low_medi = MEDI < 5) %>% 
-  # Nest by groups, e.g., participant, period. Replace with grouping variables 
-  # in your data, such that the function is applied separately per consecutive 
-  # timeseries (e.g., from one subject during one period).
-  nest_by(Id) %>% 
-  mutate(
-    # Replace `low_activity` by the (logical) variable for which the clusters 
-    # should be found.
-    data = list(
-      data_find_clusters(
-        data, 
-        low_medi, 
-        min_length = "15 mins", 
-        max_interrupt = "1 mins", 
-        cluster_name = "low_medi_cluster"
-      )
-    )
-  ) %>%
-  unnest(cols = data) %>%
-  ungroup()
-
-
-medi15lux_clusters_clean <- medi15lux_clusters %>%
-  select(Id, Datetime, State, is_low_medi_cluster) %>%
-  mutate(
-    State = case_when(
-      State == "on" ~ 1, 
-      State == "off" ~ 0),
-    is_low_medi_cluster = case_when(
-      is_low_medi_cluster == TRUE ~ 0,
-      is_low_medi_cluster == FALSE ~ 1
-    ))
-
-#We want to build a Receiver Operating Curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
-#1) State = 0, cluster = TRUE -> true positive
-#2) State = 0, cluster = FALSE -> false negative
-#3) State = 1, cluster = TRUE -> false positive
-#4) State = 1, cluster = FALSE -> true negative
-
-medi15lux_clusters_clean <- medi15lux_clusters_clean %>%
-  mutate(classification = case_when(
-    State == 0 & is_low_medi_cluster == 0 ~ "TP",
-    State == 0 & is_low_medi_cluster == 1 ~ "FN",
-    State == 1 & is_low_medi_cluster == 0 ~ "FP",
-    State == 1 & is_low_medi_cluster == 1 ~ "TN",
-    .default = NA_character_))
-
-roc_15medi <- medi15lux_clusters_clean %>%
-  group_by(classification) %>%
-  summarise(count = n()) %>%
-  pivot_wider(names_from = classification, values_from = count) %>%
-  mutate(TPR = TP/(TP+FN),
-         FPR = FP/(FP+TN),
-         threshold = 15)%>%
-  select(TPR, FPR, threshold)
-```
-
-
-```{r}
-pim5_clusters <- dataset.LL.wrlg %>%
-  ungroup() %>%
-  filter(!State == "sleep") %>%
-  # Replace `low_activity` by the (logical) variable for which the clusters 
-  # should be found.
-  mutate(low_medi = MEDI < 5) %>% 
-  # Nest by groups, e.g., participant, period. Replace with grouping variables 
-  # in your data, such that the function is applied separately per consecutive 
-  # timeseries (e.g., from one subject during one period).
-  nest_by(Id) %>% 
-  mutate(
-    # Replace `low_activity` by the (logical) variable for which the clusters 
-    # should be found.
-    data = list(
-      data_find_clusters(
-        data, 
-        low_medi, 
-        min_length = "2 mins", 
-        max_interrupt = "1 mins", 
-        cluster_name = "low_medi_cluster"
-      )
-    )
-  ) %>%
-  unnest(cols = data) %>%
-  ungroup()
-
-
-medi5lux_clusters_clean <- medi5lux_clusters %>%
-  select(Id, Datetime, State, is_low_medi_cluster) %>%
-  mutate(
-    State = case_when(
-      State == "on" ~ 1, 
-      State == "off" ~ 0),
-    is_low_medi_cluster = case_when(
-      is_low_medi_cluster == TRUE ~ 0,
-      is_low_medi_cluster == FALSE ~ 1
-    ))
-
-#We want to build a Receiver Operating Curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
-#1) State = 0, cluster = 0 -> true positive
-#2) State = 0, cluster = 1 -> false negative
-#3) State = 1, cluster = 1 -> false positive
-#4) State = 1, cluster = 0 -> true negative
-
-medi5lux_clusters_clean <- medi5lux_clusters_clean %>%
-  mutate(classification = case_when(
-    State == 0 & is_low_medi_cluster == 0 ~ "TP",
-    State == 0 & is_low_medi_cluster == 1 ~ "FN",
-    State == 1 & is_low_medi_cluster == 0 ~ "FP",
-    State == 1 & is_low_medi_cluster == 1 ~ "TN",
-    .default = NA_character_))
-
-roc_5medi <- medi5lux_clusters_clean %>%
-  group_by(classification) %>%
-  summarise(count = n()) %>%
-  pivot_wider(names_from = classification, values_from = count) %>%
-  mutate(TPR = TP/(TP+FN),
-         FPR = FP/(FP+TN),
-         threshold = 5)%>%
-  select(TPR, FPR, threshold)
-
-roc_points <- data.frame(FPR = c(0,1),
-                         TPR = c(0,1),
-                         threshold = c(5,5))
-
-roc_5medi_df <- bind_rows(roc_5medi, roc_points)
-
-
-roc_curve5 <- roc(data = medi5lux_clusters_clean,
-                  response = is_low_medi_cluster,
-                  predictor = State,
-                  levels = c(control = 1, case = 0))
-
-ggroc(roc_curve5)
-```
-
-```{r}
-medi10lux_clusters <- dataset.LL.wrlg %>%
-  ungroup() %>%
-  filter(!State == "sleep") %>%
-  # Replace `low_activity` by the (logical) variable for which the clusters 
-  # should be found.
-  mutate(low_medi = MEDI < 5) %>% 
-  # Nest by groups, e.g., participant, period. Replace with grouping variables 
-  # in your data, such that the function is applied separately per consecutive 
-  # timeseries (e.g., from one subject during one period).
-  nest_by(Id) %>% 
-  mutate(
-    # Replace `low_activity` by the (logical) variable for which the clusters 
-    # should be found.
-    data = list(
-      data_find_clusters(
-        data, 
-        low_medi, 
-        min_length = "10 mins", 
-        max_interrupt = "1 mins", 
-        cluster_name = "low_medi_cluster"
-      )
-    )
-  ) %>%
-  unnest(cols = data) %>%
-  ungroup()
-
-
-medi10lux_clusters_clean <- medi10lux_clusters %>%
-  select(Id, Datetime, State, is_low_medi_cluster) %>%
-  mutate(
-    State = case_when(
-      State == "on" ~ 1, 
-      State == "off" ~ 0),
-    is_low_medi_cluster = case_when(
-      is_low_medi_cluster == TRUE ~ 0,
-      is_low_medi_cluster == FALSE ~ 1
-    ))
-
-#We want to build a Receiver Operating Curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
-#1) State = 0, cluster = 0 -> true positive
-#2) State = 0, cluster = 1 -> false negative
-#3) State = 1, cluster = 1 -> false positive
-#4) State = 1, cluster = 0 -> true negative
-
-medi10lux_clusters_clean <- medi10lux_clusters_clean %>%
-  mutate(classification = case_when(
-    State == 0 & is_low_medi_cluster == 0 ~ "TP",
-    State == 0 & is_low_medi_cluster == 1 ~ "FN",
-    State == 1 & is_low_medi_cluster == 0 ~ "FP",
-    State == 1 & is_low_medi_cluster == 1 ~ "TN",
-    .default = NA_character_))
-
-roc_10medi <- medi10lux_clusters_clean %>%
-  group_by(classification) %>%
-  summarise(count = n()) %>%
-  pivot_wider(names_from = classification, values_from = count) %>%
-  mutate(TPR = TP/(TP+FN),
-         FPR = FP/(FP+TN),
-         threshold = 10)%>%
-  select(TPR, FPR, threshold)
-
-roc_points <- data.frame(FPR = c(0,1),
-                         TPR = c(0,1),
-                         threshold = c(10,10))
-
-roc_10medi_df <- bind_rows(roc_10medi, roc_points)
-
-
-roc_curve10 <- roc(data = medi10lux_clusters_clean,
-                  response = is_low_medi_cluster,
-                  predictor = State,
-                  levels = c(control = 1, case = 0))
-
-ggroc(roc_curve10)
-
-
-
-
-
-```
-
-```{r}
-medi05lux_clusters <- dataset.LL.wrlg %>%
-  ungroup() %>%
-  filter(!State == "sleep") %>%
-  # Replace `low_activity` by the (logical) variable for which the clusters 
-  # should be found.
-  mutate(low_medi = MEDI < 0.5) %>% 
-  # Nest by groups, e.g., participant, period. Replace with grouping variables 
-  # in your data, such that the function is applied separately per consecutive 
-  # timeseries (e.g., from one subject during one period).
-  nest_by(Id) %>% 
-  mutate(
-    # Replace `low_activity` by the (logical) variable for which the clusters 
-    # should be found.
-    data = list(
-      data_find_clusters(
-        data, 
-        low_medi, 
-        min_length = "2 mins", 
-        max_interrupt = "1 mins", 
-        cluster_name = "low_medi_cluster"
-      )
-    )
-  ) %>%
-  unnest(cols = data) %>%
-  ungroup()
-
-
-medi05lux_clusters_clean <- medi05lux_clusters %>%
-  select(Id, Datetime, State, is_low_medi_cluster) %>%
-  mutate(
-    State = case_when(
-      State == "on" ~ 1, 
-      State == "off" ~ 0),
-    is_low_medi_cluster = case_when(
-      is_low_medi_cluster == TRUE ~ 0,
-      is_low_medi_cluster == FALSE ~ 1
-    ))
-
-#We want to build a Receiver Operating Curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
-#1) State = 0, cluster = TRUE -> true positive
-#2) State = 0, cluster = FALSE -> false negative
-#3) State = 1, cluster = TRUE -> false positive
-#4) State = 1, cluster = FALSE -> true negative
-
-medi05lux_clusters_clean <- medi05lux_clusters_clean %>%
-  mutate(classification = case_when(
-    State == 0 & is_low_medi_cluster == 0 ~ "TP",
-    State == 0 & is_low_medi_cluster == 1 ~ "FN",
-    State == 1 & is_low_medi_cluster == 0 ~ "FP",
-    State == 1 & is_low_medi_cluster == 1 ~ "TN",
-    .default = NA_character_))
-
-roc_05medi <- medi05lux_clusters_clean %>%
-  group_by(classification) %>%
-  summarise(count = n()) %>%
-  pivot_wider(names_from = classification, values_from = count) %>%
-  mutate(TPR = TP/(TP+FN),
-         FPR = FP/(FP+TN),
-         threshold = 0.5) %>%
-  select(TPR, FPR, threshold)
-
-```
-
-
-```{r}
-medi1lux_clusters <- dataset.LL.wrlg %>%
-  ungroup() %>%
-  filter(!State == "sleep") %>%
-  # Replace `low_activity` by the (logical) variable for which the clusters 
-  # should be found.
-  mutate(low_medi = MEDI < 1) %>% 
-  # Nest by groups, e.g., participant, period. Replace with grouping variables 
-  # in your data, such that the function is applied separately per consecutive 
-  # timeseries (e.g., from one subject during one period).
-  nest_by(Id) %>% 
-  mutate(
-    # Replace `low_activity` by the (logical) variable for which the clusters 
-    # should be found.
-    data = list(
-      data_find_clusters(
-        data, 
-        low_medi, 
-        min_length = "1 mins", 
-        max_interrupt = "1 mins", 
-        cluster_name = "low_medi_cluster"
-      )
-    )
-  ) %>%
-  unnest(cols = data) %>%
-  ungroup()
-
-
-medi1lux_clusters_clean <- medi1lux_clusters %>%
-  select(Id, Datetime, State, is_low_medi_cluster) %>%
-  mutate(
-    State = case_when(
-      State == "on" ~ 1, 
-      State == "off" ~ 0),
-    is_low_medi_cluster = case_when(
-      is_low_medi_cluster == TRUE ~ 0,
-      is_low_medi_cluster == FALSE ~ 1
-    ))
-
-#We want to build a Receiver Operating Curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
-#1) State = 0, cluster = TRUE -> true positive
-#2) State = 0, cluster = FALSE -> false negative
-#3) State = 1, cluster = TRUE -> false positive
-#4) State = 1, cluster = FALSE -> true negative
-
-medi1lux_clusters_clean <- medi1lux_clusters_clean %>%
-  mutate(classification = case_when(
-    State == 0 & is_low_medi_cluster == 0 ~ "TP",
-    State == 0 & is_low_medi_cluster == 1 ~ "FN",
-    State == 1 & is_low_medi_cluster == 0 ~ "FP",
-    State == 1 & is_low_medi_cluster == 1 ~ "TN",
-    .default = NA_character_))
-
-roc_1medi <- medi1lux_clusters_clean %>%
-  group_by(classification) %>%
-  summarise(count = n()) %>%
-  pivot_wider(names_from = classification, values_from = count) %>%
-  mutate(TPR = TP/(TP+FN),
-         FPR = FP/(FP+TN),
-         threshold = 1) %>%
-  select(TPR, FPR, threshold)
-
-```
-
-
-```{r}
-
-```
-
-
-```{r}
-medi3lux_clusters <- dataset.LL.wrlg %>%
-  ungroup() %>%
-  filter(!State == "sleep") %>%
-  # Replace `low_activity` by the (logical) variable for which the clusters 
-  # should be found.
-  mutate(low_medi = MEDI < 3) %>% 
-  # Nest by groups, e.g., participant, period. Replace with grouping variables 
-  # in your data, such that the function is applied separately per consecutive 
-  # timeseries (e.g., from one subject during one period).
-  nest_by(Id) %>% 
-  mutate(
-    # Replace `low_activity` by the (logical) variable for which the clusters 
-    # should be found.
-    data = list(
-      data_find_clusters(
-        data, 
-        low_medi, 
-        min_length = "2 mins", 
-        max_interrupt = "1 mins", 
-        cluster_name = "low_medi_cluster"
-      )
-    )
-  ) %>%
-  unnest(cols = data) %>%
-  ungroup()
-
-
-medi3lux_clusters_clean <- medi3lux_clusters %>%
-  select(Id, Datetime, State, is_low_medi_cluster) %>%
-  mutate(
-    State = case_when(
-      State == "on" ~ 1, 
-      State == "off" ~ 0),
-    is_low_medi_cluster = case_when(
-      is_low_medi_cluster == TRUE ~ 0,
-      is_low_medi_cluster == FALSE ~ 1
-    ))
-
-#We want to build a Receiver Operating Curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
-#1) State = 0, cluster = TRUE -> true positive
-#2) State = 0, cluster = FALSE -> false negative
-#3) State = 1, cluster = TRUE -> false positive
-#4) State = 1, cluster = FALSE -> true negative
-
-medi3lux_clusters_clean <- medi3lux_clusters_clean %>%
-  mutate(classification = case_when(
-    State == 0 & is_low_medi_cluster == 0 ~ "TP",
-    State == 0 & is_low_medi_cluster == 1 ~ "FN",
-    State == 1 & is_low_medi_cluster == 0 ~ "FP",
-    State == 1 & is_low_medi_cluster == 1 ~ "TN",
-    .default = NA_character_))
-
-roc_3medi <- medi3lux_clusters_clean %>%
-  group_by(classification) %>%
-  summarise(count = n()) %>%
-  pivot_wider(names_from = classification, values_from = count) %>%
-  mutate(TPR = TP/(TP+FN),
-         FPR = FP/(FP+TN),
-         threshold = 3) %>%
-  select(TPR, FPR, threshold)
-
-```
-
-```{r}
-medi4lux_clusters <- dataset.LL.wrlg %>%
-  ungroup() %>%
-  filter(!State == "sleep") %>%
-  # Replace `low_activity` by the (logical) variable for which the clusters 
-  # should be found.
-  mutate(low_medi = MEDI < 4) %>% 
-  # Nest by groups, e.g., participant, period. Replace with grouping variables 
-  # in your data, such that the function is applied separately per consecutive 
-  # timeseries (e.g., from one subject during one period).
-  nest_by(Id) %>% 
-  mutate(
-    # Replace `low_activity` by the (logical) variable for which the clusters 
-    # should be found.
-    data = list(
-      data_find_clusters(
-        data, 
-        low_medi, 
-        min_length = "2 mins", 
-        max_interrupt = "1 mins", 
-        cluster_name = "low_medi_cluster"
-      )
-    )
-  ) %>%
-  unnest(cols = data) %>%
-  ungroup()
-
-
-medi4lux_clusters_clean <- medi4lux_clusters %>%
-  select(Id, Datetime, State, is_low_medi_cluster) %>%
-  mutate(
-    State = case_when(
-      State == "on" ~ 1, 
-      State == "off" ~ 0),
-    is_low_medi_cluster = case_when(
-      is_low_medi_cluster == TRUE ~ 0,
-      is_low_medi_cluster == FALSE ~ 1
-    ))
-
-#We want to build a Receiver Operating Curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
-#1) State = 0, cluster = TRUE -> true positive
-#2) State = 0, cluster = FALSE -> false negative
-#3) State = 1, cluster = TRUE -> false positive
-#4) State = 1, cluster = FALSE -> true negative
-
-medi4lux_clusters_clean <- medi4lux_clusters_clean %>%
-  mutate(classification = case_when(
-    State == 0 & is_low_medi_cluster == 0 ~ "TP",
-    State == 0 & is_low_medi_cluster == 1 ~ "FN",
-    State == 1 & is_low_medi_cluster == 0 ~ "FP",
-    State == 1 & is_low_medi_cluster == 1 ~ "TN",
-    .default = NA_character_))
-
-roc_4medi <- medi4lux_clusters_clean %>%
-  group_by(classification) %>%
-  summarise(count = n()) %>%
-  pivot_wider(names_from = classification, values_from = count) %>%
-  mutate(TPR = TP/(TP+FN),
-         FPR = FP/(FP+TN),
-         threshold = 4) %>%
-  select(TPR, FPR, threshold)
-
-```
-
-
-```{r}
-medi2lux_clusters <- dataset.LL.wrlg %>%
-  ungroup() %>%
-  filter(!State == "sleep") %>%
-  # Replace `low_activity` by the (logical) variable for which the clusters 
-  # should be found.
-  mutate(low_medi = MEDI < 2) %>% 
-  # Nest by groups, e.g., participant, period. Replace with grouping variables 
-  # in your data, such that the function is applied separately per consecutive 
-  # timeseries (e.g., from one subject during one period).
-  nest_by(Id) %>% 
-  mutate(
-    # Replace `low_activity` by the (logical) variable for which the clusters 
-    # should be found.
-    data = list(
-      data_find_clusters(
-        data, 
-        low_medi, 
-        min_length = "2 mins", 
-        max_interrupt = "1 mins", 
-        cluster_name = "low_medi_cluster"
-      )
-    )
-  ) %>%
-  unnest(cols = data) %>%
-  ungroup()
-
-
-medi2lux_clusters_clean <- medi2lux_clusters %>%
-  select(Id, Datetime, State, is_low_medi_cluster) %>%
-  mutate(
-    State = case_when(
-      State == "on" ~ 1, 
-      State == "off" ~ 0),
-    is_low_medi_cluster = case_when(
-      is_low_medi_cluster == TRUE ~ 0,
-      is_low_medi_cluster == FALSE ~ 1
-    ))
-
-#We want to build a Receiver Operating Curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
-#1) State = 0, cluster = TRUE -> true positive
-#2) State = 0, cluster = FALSE -> false negative
-#3) State = 1, cluster = TRUE -> false positive
-#4) State = 1, cluster = FALSE -> true negative
-
-medi2lux_clusters_clean <- medi2lux_clusters_clean %>%
-  mutate(classification = case_when(
-    State == 0 & is_low_medi_cluster == 0 ~ "TP",
-    State == 0 & is_low_medi_cluster == 1 ~ "FN",
-    State == 1 & is_low_medi_cluster == 0 ~ "FP",
-    State == 1 & is_low_medi_cluster == 1 ~ "TN",
-    .default = NA_character_))
-
-roc_2medi <- medi2lux_clusters_clean %>%
-  group_by(classification) %>%
-  summarise(count = n()) %>%
-  pivot_wider(names_from = classification, values_from = count) %>%
-  mutate(TPR = TP/(TP+FN),
-         FPR = FP/(FP+TN),
-         threshold = 2) %>%
-  select(TPR, FPR, threshold)
-
-roc_points <- data.frame(FPR = c(0,1),
-                         TPR = c(0,1),
-                         threshold = c(2,2))
-
-roc_2medi_df <- bind_rows(roc_2medi, roc_points)
-
-
-ggplot(roc_2medi_df, aes(x=FPR, y=TPR, group = 1)) +
-  geom_line() +
-  geom_point() +
-  geom_smooth()
-
-roc_curve2 <- roc(data = medi2lux_clusters_clean,
-                  response = is_low_medi_cluster,
-                  predictor = State,
-                  levels = c(control = 1, case = 0))
-
-ggroc(roc_curve2)
-
-ggroc(list(medi_10 = roc_curve10, medi_5 = roc_curve5, medi_2 = roc_curve2), size = 1.2) + 
-  labs(y = "True positive rate (specificity)", x = "False positive rate (1 - sensitivity)", title = "ROC curve for automatic detection \nof non-wear based on different mEDI thresholds") +
-  geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "darkgrey") +
-theme_bw() +
-  scale_color_manual(values = c("medi_10" = "#481B65" , "medi_5" = "#007094", "medi_2" = "salmon2"),
-                     labels = c("medi_10" = "mEDI < 10 lx", "medi_5" = "mEDI < 5 lx", "medi_2" = "mEDI < 2 lx")) +
-  guides(color = guide_legend(title = "mEDI threshold")) +
-    coord_fixed(ratio = 1) 
-
-
-total_roc <- bind_rows(roc_05medi, roc_1medi, roc_2medi, roc_3medi, roc_4medi, roc_5medi, roc_10medi)
-
-total_roc$threshold <- as.factor(total_roc$threshold)
-
-roc_medi <- ggplot(total_roc, aes(x = FPR, y = TPR, color = threshold)) +
-  geom_point() +
- # geom_smooth() +
-  xlim(0,1) + 
-  ylim(0,1) +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "darkgrey") +
-  scale_color_manual(
-    values = c("#FF7F0E", 
-               "#4B0055" ,
-               "#274983", 
-               "#008298" ,
-               "#00B28A", 
-               "#7ED357", 
-               "#FDE333"),
-    labels = c("0.5" = "mEDI < 0.5 lux",
-               "1" = "mEDI < 1 lx",
-               "2" = "mEDI < 2 lx",
-               "3" = "mEDI < 3 lx",
-               "4" = "mEDI < 4 lx",
-               "5" = "mEDI < 5 lx",
-               "10" = "mEDI < 10 lx")) +
-  labs(x="False positive rate", y = "True positive rate", title = "ROC curve for automatic detection \nof non-wear based on different mEDI thresholds") +
-  guides(color = guide_legend(title = "mEDI threshold")) +
-  theme_bw() +
-  coord_fixed(ratio = 1)
-
-ggsave(filename = "roc_medi.png",
-       plot = roc_medi,
-       width = 8,
-       height = 8,
-       dpi = 600,
-       path= "G:/cyepi/code/outputs")
-  
-```
-
-
-```{r}
-total_roc <- bind_rows(roc_15medi, roc_5medi, roc_10medi)
-
-total_roc$threshold <- as.factor(total_roc$threshold)
-
-roc_medi <- ggplot(total_roc, aes(x = FPR, y = TPR, color = threshold)) +
-  geom_point() +
- # geom_smooth() +
-  xlim(0,1) + 
-  ylim(0,1) +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "darkgrey") +
-  scale_color_manual(
-    values = c("#FF7F0E", 
-               "#4B0055" ,
-               "#274983"),
-    labels = c("15" = "15 min length",
-               "5" = "5 min length",
-               "10" = "10 min length")) +
-  labs(x="False positive rate", y = "True positive rate", title = "ROC curve for automatic detection \nof non-wear based on different mEDI thresholds") +
-  guides(color = guide_legend(title = "min interval length")) +
-  theme_bw() +
-  coord_fixed(ratio = 1)
-
-```
-
-
-
-#Plot data
-```{r}
-library(smplot2)
-
-as.factor(lowmedi_clusters$is_low_medi_cluster)
-lowmedi_clusters$MEDI[lowmedi_clusters$MEDI == 0] <- 0.00001
-
-lowmedi_clusters <- lowmedi_clusters %>%
-  select(Id, State, MEDI, is_low_medi_cluster)
-
-
-lowmedi_clusters_t <- filter(lowmedi_clusters, is_low_medi_cluster == "TRUE")
-lowmedi_clusters_f <- filter(lowmedi_clusters, is_low_medi_cluster == "FALSE")
-
-
-raincloud_clusters <- ggplot(mapping = aes(x=  State, y = log10(MEDI), fill = is_low_medi_cluster)) +
-  sm_raincloud(
-    data = lowmedi_clusters_t,
-    position = position_nudge(x = +0.25),
-    vertical = FALSE,
-    point.params = list(size = 1, shape = 21,
-                        color = 'transparent', 
-                        alpha = 0.3,
-                        position = sdamr::position_jitternudge(nudge.x = 0.06, 
-                                                               jitter.width = 0.06)),
-    boxplot.params = list(outlier.shape = NA),
-    sep_level = 2
-    ) +
-  sm_raincloud(
-    data=lowmedi_clusters_f,
-    which_side = 'left',
-    position = position_nudge(x = -0.25),
-    vertical = FALSE,
-    point.params = list(size = 1, shape = 21,
-                        color = 'transparent', alpha = 0.3,
-                        position = sdamr::position_jitternudge(nudge.x = -0.06, 
-                                                              jitter.width = 0.06)),
-    boxplot.params = list(outlier.shape = NA),
-    sep_level = 2
-    ) +
-  scale_fill_manual(
-    values = c("TRUE" = "darkgreen", "FALSE" = "darkred")) +
-  theme(legend.title = element_blank(),
-        legend.text = element_text(size = 14)) +
-  ggtitle("Clusters of low mEDI for each Wear log State")
-
-
-```
-
-```{r}
-ggsave(filename = "raincloud_clusters.png",
-       plot = raincloud_clusters,
-       width = 8,
-       height = 5,
-       dpi = 600,
-       path= "G:/cyepi/code/outputs")
-```
-
-
-##Reflection
-When we apply a cluster-identifying algorithm to the data, we ask to find clusters of MEDI that are less than 5 mEDI lux for longer than 2 minutes. This identifies, within the State == off, clusters of low medi where this is found. When we plot the data, we then can see that the intervals that are not identified as clusters of low medi within State == off have larger mEDI values than those that did. This is expected. This shows that not all wear log logged off times actaully correspond to an off time as the black bag would suggest. The next interesting step would be to see if for those clusters where mEDI < 5 lux, the glasses were or were not in the bag. 
-
-Also, we would like to plot the clusters of non-wear time as identified by the algorithm.
-```{r}
-lowmedi_clusters201 <- dataset.LL.wrlg %>%
-  ungroup() %>%
-  filter(Id == "201") %>%
-  # Replace `low_activity` by the (logical) variable for which the clusters 
-  # should be found.
-  mutate(low_medi = MEDI < 5) %>% 
-  # Nest by groups, e.g., participant, period. Replace with grouping variables 
-  # in your data, such that the function is applied separately per consecutive 
-  # timeseries (e.g., from one subject during one period).
-  nest_by(Id) %>% 
-  mutate(
-    # Replace `low_activity` by the (logical) variable for which the clusters 
-    # should be found.
-    data = list(
-      data_find_clusters(
-        data, 
-        low_medi, 
-        min_length = "2 mins", 
-        max_interrupt = "1 mins", 
-        cluster_name = "low_medi_cluster"
-      )
-    )
-  ) %>%
-  unnest(cols = data) %>%
-  ungroup()
-```
-
-```{r}
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-##Calculate the limits of the shaded areas according to the Wear Log
-cluster.times <- lowmedi_clusters201 %>%
-  filter(!is.na(is_low_medi_cluster)) %>%
-  mutate(xmin = int_start(Interval),
-         xmax = int_end(Interval),
-         Day.data.min = xmin %>% format(format = "%a"), #lower limit of the shaded area, needed for geom_rect
-         Day.data.max = xmax %>% format(format = "%a"), #upper limit of shaded area, needed for geom_rect
-         xmin = xmin %>% hms::as_hms(), #transform xmin to time (currently Datetime)
-         xmax = xmax %>% hms::as_hms(), #transform xmax to time (currently Datetime)
-         Day.data.min = factor(Day.data.min, levels = unique(Day.data.min)),
-         Day.data.max = factor(Day.data.max, levels = unique(Day.data.max)))
-
-##Some intervals on the Wear log that we want to plot cross day boundaries. We thus need to split them in 2 intervals, since we plot each day on a different facet of the plot 
-
-#Step 1: collect the part of the data that does not cross day boundaries
-state.times1 <-
-  state.times %>%
-  filter(Day.data.min == Day.data.max)
-
-#Step 2: Collect part of the data that does cross bounderies and split it by day, i.e. at midnight. 
-state.times2 <-
-state.times %>% filter(Day.data.min != Day.data.max) %>%
-  rowwise() %>%
-  mutate(
-    new_entry = list(
-      tibble(
-        xmin=c(xmin, hms::as_hms("00:00:00")),
-        xmax=c(hms::as_hms("23:59:59"), xmax),
-        Day.min=c(Day.data.min, Day.data.max),
-        Day.max=c(Day.data.min, Day.data.max)
-      )
-    )
-  ) %>%
-  select(Id, State, new_entry) %>%
-  unnest(new_entry)
-
-#Step 3: Combine the two again in a single df
-states.combined <- 
-  bind_rows(state.times1 %>% rename(Day.min = Day.data.min),
-          state.times2) %>%
-  select(-Day.max) %>%
-  rename(Day.data = Day.min)
-
-
-#Create the plot wit activity (PIM), button presses (eventpoint) and wearlog intervals (State)
-
-states.combined$is_l <- factor(states.combined$State) #turn State into factor
-
-p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
-            linewidth = 0.05, 
-            color = "black", 
-            geom = "line",
-            format.day = "%a",
-            x.axis.label = "Time", 
-            title = paste("p", selected_id, "light exposure and non-wear time")) +
-  geom_point(aes(y = eventpoint), #adding button press as points
-             color = "red", 
-             size = 0.8) +
-  geom_rect(data=states.combined, aes(xmin= xmin, xmax = xmax, ymin =0, ymax = Inf, fill = State), #adding wear log
-                    inherit.aes = FALSE,
-                    alpha = 0.15) +
-   scale_fill_manual(
-     name = "State",
-     values = c("off" = "coral2", "on" = "#EDC000FF", "sleep" = "#868686FF"),
-     labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
-  theme(plot.title = element_text(hjust = 0.5)) 
-
-filename <- paste0("p", selected_id, "_light.png")
-ggsave(filename = filename,
-       plot = p,
-       width = 10,
-       height = 14,
-       dpi = 600,
-       bg = "white",
-       path= "G:/cyepi/code/outputs/visualinspection2/light")
-}
-
-
-
-#Identify clusters of low PIM
-```{r}
-
-pim10lux_clusters <- dataset.LL.wrlg %>%
-  ungroup() %>%
-  filter(!State == "sleep") %>%
-  # Replace `low_activity` by the (logical) variable for which the clusters 
-  # should be found.
-  mutate(low_pim = PIM < 10) %>% 
-  # Nest by groups, e.g., participant, period. Replace with grouping variables 
-  # in your data, such that the function is applied separately per consecutive 
-  # timeseries (e.g., from one subject during one period).
-  nest_by(Id) %>% 
-  mutate(
-    # Replace `low_activity` by the (logical) variable for which the clusters 
-    # should be found.
-    data = list(
-      data_find_clusters(
-        data, 
-        low_pim, 
-        min_length = "2 mins", 
-        max_interrupt = "1 mins", 
-        cluster_name = "low_medi_cluster"
-      )
-    )
-  ) %>%
-  unnest(cols = data) %>%
-  ungroup()
-
-
-medi2lux_clusters_clean <- medi2lux_clusters %>%
-  select(Id, Datetime, State, is_low_medi_cluster) %>%
-  mutate(
-    State = case_when(
-      State == "on" ~ 1, 
-      State == "off" ~ 0),
-    is_low_medi_cluster = case_when(
-      is_low_medi_cluster == TRUE ~ 0,
-      is_low_medi_cluster == FALSE ~ 1
-    ))
-
-#We want to build a Receiver Operating Curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
-#1) State = 0, cluster = TRUE -> true positive
-#2) State = 0, cluster = FALSE -> false negative
-#3) State = 1, cluster = TRUE -> false positive
-#4) State = 1, cluster = FALSE -> true negative
-
-medi2lux_clusters_clean <- medi2lux_clusters_clean %>%
-  mutate(classification = case_when(
-    State == 0 & is_low_medi_cluster == 0 ~ "TP",
-    State == 0 & is_low_medi_cluster == 1 ~ "FN",
-    State == 1 & is_low_medi_cluster == 0 ~ "FP",
-    State == 1 & is_low_medi_cluster == 1 ~ "TN",
-    .default = NA_character_))
-
-roc_2medi <- medi2lux_clusters_clean %>%
-  group_by(classification) %>%
-  summarise(count = n()) %>%
-  pivot_wider(names_from = classification, values_from = count) %>%
-  mutate(TPR = TP/(TP+FN),
-         FPR = FP/(FP+TN),
-         threshold = 2) %>%
-  select(TPR, FPR, threshold)
 
 ```
 

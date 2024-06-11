@@ -173,8 +173,7 @@ wrlg_int_classified_zoom <- ggplot(bp_wrlg_df_wide, aes(x = n_per_bounded, y = n
         axis.text = element_text(size = 16),
         axis.title = element_text(size = 18),
         legend.title = element_text(size = 14),
-        legend.text = element_text(size = 14),
-        legend) +
+        legend.text = element_text(size = 14)) +
   coord_fixed(ratio = 1) +
   ggpubr::rremove("xylab")
 
@@ -221,7 +220,7 @@ ggsave(filename = "wrlg_int_classified_zoom.png",
        dpi = 600,
        path= "G:/cyepi/code/outputs")
 
-ggsave(filename = "wrlg_int_type_multipanel.png",
+ggsave(filename = "wrlg_int_type_multipanel_horiz.png",
        plot = wrlg_int_type_multipanel,
        width = 6.8,
        height = 4,
