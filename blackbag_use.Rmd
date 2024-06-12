@@ -167,10 +167,10 @@ These functions (find_clusters_funs, loaded in separately) identify clusters of 
 3) max interrpution length for the cluster to still be identified as such 
 ```{r}
 
-pimthresholds <- seq(1, 50, by = 5)
+pimthresholds <- seq(5, 50, by = 5)
 
 #Empty list to store classification results
-roc_pim_list <- list()
+prc_pim_list <- list()
 
 for (threshold in pimthresholds) {
 
@@ -226,62 +226,166 @@ pimclusters_clean <- pimclusters_clean %>%
     State == 1 & is_low_pim_cluster == 1 ~ "TN",
     .default = NA_character_))
 
-roc_pim <- pimclusters_clean %>%
+prc_pim <- pimclusters_clean %>%
   group_by(classification) %>%
   summarise(count = n()) %>%
   pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
   mutate(TPR = TP/(TP+FN), #this is the formula for TPR (true positive rate)
          FPR = FP/(FP+TN), #this is the formula for the FPR (false positive rate)
-         PPV = TP/(TP+FP),
-         NPV = TN/(FN+TN),
-         threshold = threshold)  #adding manually which mEDI threshold I am considering here 
- # select(TPR, FPR, threshold)
-
+         PPV = TP/(TP+FP), #positive predictive value
+         NPV = TN/(FN+TN), #negative predictive values
+         threshold = threshold)  #adding manually which threshold I am considering here 
 
  #Add the result to the list
-  roc_pim_list[[as.character(threshold)]] <- roc_pim
+  prc_pim_list[[as.character(threshold)]] <- prc_pim
 }
 
 #Turn the list with the results into a df 
-total_roc <- bind_rows(roc_pim_list)
+prcurve_pim <- bind_rows(prc_pim_list)
 
 #Turn thresholds from character to factor for plotting
-total_roc$threshold <- as.numeric(total_roc$threshold)
-
-#Plot ROC: FPR on x axis, TPR on y axis
-#create a colour palette with n=20 colours
-palette <- hcl.colors(palette = "viridis", n = 10)
-
-activity_medi <- ggplot() +
-  geom_point(data = total_roc, aes(x = TPR, y = PPV, color = threshold)) +
- # geom_smooth() +
-  xlim(0,1) + 
-  ylim(0,1) +
-  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line
-   scale_color_gradient(
-     name = "PIM threshold",
-    limits= c(1,50))  +
-  ggnewscale::new_scale_color() +
-  geom_point(data = roc_medi, aes(x = TPR, y = PPV, color = medi_threshold)) +
-   scale_color_gradient(
-     name = "mEDI threshold (lx)",
-     low = "red", high = "orange",
-     limits= c(1,10)) +
-  labs(x="True positive rate (recall)",
-       y = "Positive predictive value (precision)",
-       title = "Precision recall curve for detection \nof non-wear intervals based on illuminance and activity thresholds") +
-  theme_bw() +
-  coord_fixed(ratio = 1)
-
-ggsave(filename = "activity_medi.png",
-       plot = activity_medi,
-       height = 6, 
-       width = 6,
-       dpi = 600,
-       bg = "white",
-       path= "D:/cyepi/code/outputs")
+prcurve_pim$threshold <- as.numeric(prcurve_pim$threshold)
 
 ```
+
+#We now do the same thing for light
+```{r}
+medithresholds <- seq(1, 10, by = 1)
+
+#Empty list to store classification results
+prc_medi_list <- list()
+
+for (threshold in medithresholds) {
+
+medi_clusters <- dataset.LL.wrlg %>%
+  ungroup() %>%
+  filter(!State == "sleep") %>%
+  # Replace `low_activity` by the (logical) variable for which the clusters 
+  # should be found.
+  mutate(low_medi = MEDI < threshold) %>% 
+  # Nest by groups, e.g., participant, period. Replace with grouping variables 
+  # in your data, such that the function is applied separately per consecutive 
+  # timeseries (e.g., from one subject during one period).
+  nest_by(Id) %>% 
+  mutate(
+    # Replace `low_activity` by the (logical) variable for which the clusters 
+    # should be found.
+    data = list(
+      data_find_clusters(
+        data, 
+        low_medi, 
+        min_length = "2 mins", 
+        max_interrupt = "1 mins", 
+        cluster_name = "low_medi_cluster"
+      )
+    )
+  ) %>%
+  unnest(cols = data) %>%
+  ungroup()
+
+
+mediclusters_clean <- medi_clusters %>%
+  select(Id, Datetime, State, is_low_medi_cluster) %>%
+  mutate(
+    State = case_when(
+      State == "on" ~ 1, 
+      State == "off" ~ 0),
+    is_low_medi_cluster = case_when(
+      is_low_medi_cluster == TRUE ~ 0,
+      is_low_medi_cluster == FALSE ~ 1
+    )) 
+
+#We want to build a precision recall curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
+#1) State = 0, cluster = 0 -> true positive
+#2) State = 0, cluster = 1 -> false negative
+#3) State = 1, cluster = 1 -> false positive
+#4) State = 1, cluster = 0 -> true negative
+
+mediclusters_clean <- mediclusters_clean %>%
+  mutate(classification = case_when(
+    State == 0 & is_low_medi_cluster == 0 ~ "TP",
+    State == 0 & is_low_medi_cluster == 1 ~ "FN",
+    State == 1 & is_low_medi_cluster == 0 ~ "FP",
+    State == 1 & is_low_medi_cluster == 1 ~ "TN",
+    .default = NA_character_))
+
+prc_medi <- mediclusters_clean %>%
+  group_by(classification) %>%
+  summarise(count = n()) %>%
+  pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
+  mutate(TPR = TP/(TP+FN), #true positive rate
+         FPR = FP/(FP+TN), #false positive rate
+         PPV = TP/(TP+FP), #positive predictive value
+         NPV = TN/(FN+TN), #negative predictive values
+         threshold = threshold)  #adding manually which threshold I am considering here 
+
+ #Add the result to the list
+  prc_medi_list[[as.character(threshold)]] <- prc_medi
+}
+
+#Turn the list with the results into a df 
+prcurve_medi <- bind_rows(prc_medi_list)
+
+#Turn thresholds from character to factor for plotting
+prc_medi_list$threshold <- as.numeric(prc_medi_list$threshold)
+```
+
+#Now we want to plot both precision recall curves together
+```{r}
+
+
+precision_recall_curve <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  #First plot: activity
+  geom_point(data = prcurve_pim, aes(x = TPR, y = PPV, color = threshold)) +
+   scale_color_gradient(
+     name = "Activity threshold (PIM)",
+    limits= c(5,50),
+    guide = guide_colorbar(title.position = "top", title.hjust = 0.5))  +
+  ggnewscale::new_scale_color() + #need this to reset the color scale for the next plot
+  #Adding the arrow to show directionality
+  geom_segment(aes(x = 0.6, y = 0.54, xend = 0.63, yend = 0.27),
+               arrow = arrow(length=unit(.2, "cm")), lwd = 0.8) +
+  #Second plot: light
+  geom_point(data = prcurve_medi, aes(x = TPR, y = PPV, colour = threshold)) +
+   scale_colour_gradient(
+     name = "mEDI threshold (lx)",
+     low = "red", high = "orange",
+     limits= c(1,10),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  #Adding the arrow to show directionality
+  geom_segment(aes(x = 0.49, y = 0.165, xend = 0.57, yend = 0.125),
+               arrow = arrow(length=unit(.2, "cm")), lwd = 0.8) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Precision recall curve for detection of \nnon-wear intervals based on activity \nand illuminance thresholds") +
+  #Adding the symbols for the arrows as text and the label
+  annotate("text", x = 0.64, y = 0.45, label = sprintf('\u2191')) +
+  geom_text(aes(x= 0.80, y = 0.445, label = "Illuminance")) +
+  annotate("text", x = 0.28, y = 0.14, label = sprintf('\u2191')) +
+  geom_text(aes(x = 0.39, y = 0.135, label = "Activity")) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 18),
+        axis.text = element_text(size = 16),
+        axis.title = element_text(size = 16),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 12), 
+        legend.position = "bottom",
+        legend.box = "horizontal") +
+  coord_fixed(ratio = 1) 
+
+#Save the plot
+ggsave(filename = "precision_recall_curve.png",
+       plot = precision_recall_curve,
+       height = 5.5, 
+       width = 5.5,
+       dpi = 600,
+       bg = "white",
+       path= "G:/cyepi/code/outputs")
+```
+
 
 ```{r}
 library(plotROC)
