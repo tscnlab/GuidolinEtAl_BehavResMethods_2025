@@ -167,19 +167,19 @@ These functions (find_clusters_funs, loaded in separately) identify clusters of 
 3) max interrpution length for the cluster to still be identified as such 
 ```{r}
 
-medithresholds <- seq(1, 10, by = 1)
+pimthresholds <- seq(1, 50, by = 5)
 
 #Empty list to store classification results
-roc_medi_list <- list()
+roc_pim_list <- list()
 
-for (threshold in medithresholds) {
+for (threshold in pimthresholds) {
 
-medi_clusters <- dataset.LL.wrlg %>%
+pim_clusters <- dataset.LL.wrlg %>%
   ungroup() %>%
   filter(!State == "sleep") %>%
   # Replace `low_activity` by the (logical) variable for which the clusters 
   # should be found.
-  mutate(low_medi = MEDI < threshold) %>% 
+  mutate(low_pim = PIM < threshold) %>% 
   # Nest by groups, e.g., participant, period. Replace with grouping variables 
   # in your data, such that the function is applied separately per consecutive 
   # timeseries (e.g., from one subject during one period).
@@ -190,10 +190,10 @@ medi_clusters <- dataset.LL.wrlg %>%
     data = list(
       data_find_clusters(
         data, 
-        low_medi, 
+        low_pim, 
         min_length = "2 mins", 
         max_interrupt = "1 mins", 
-        cluster_name = "low_medi_cluster"
+        cluster_name = "low_pim_cluster"
       )
     )
   ) %>%
@@ -201,15 +201,15 @@ medi_clusters <- dataset.LL.wrlg %>%
   ungroup()
 
 
-mediclusters_clean <- medi_clusters %>%
-  select(Id, Datetime, State, is_low_medi_cluster) %>%
+pimclusters_clean <- pim_clusters %>%
+  select(Id, Datetime, State, is_low_pim_cluster) %>%
   mutate(
     State = case_when(
       State == "on" ~ 1, 
       State == "off" ~ 0),
-    is_low_medi_cluster = case_when(
-      is_low_medi_cluster == TRUE ~ 0,
-      is_low_medi_cluster == FALSE ~ 1
+    is_low_pim_cluster = case_when(
+      is_low_pim_cluster == TRUE ~ 0,
+      is_low_pim_cluster == FALSE ~ 1
     )) 
 
 #We want to build a Receiver Operating Curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
@@ -218,15 +218,15 @@ mediclusters_clean <- medi_clusters %>%
 #3) State = 1, cluster = 1 -> false positive
 #4) State = 1, cluster = 0 -> true negative
 
-mediclusters_clean <- mediclusters_clean %>%
+pimclusters_clean <- pimclusters_clean %>%
   mutate(classification = case_when(
-    State == 0 & is_low_medi_cluster == 0 ~ "TP",
-    State == 0 & is_low_medi_cluster == 1 ~ "FN",
-    State == 1 & is_low_medi_cluster == 0 ~ "FP",
-    State == 1 & is_low_medi_cluster == 1 ~ "TN",
+    State == 0 & is_low_pim_cluster == 0 ~ "TP",
+    State == 0 & is_low_pim_cluster == 1 ~ "FN",
+    State == 1 & is_low_pim_cluster == 0 ~ "FP",
+    State == 1 & is_low_pim_cluster == 1 ~ "TN",
     .default = NA_character_))
 
-roc_medi <- mediclusters_clean %>%
+roc_pim <- pimclusters_clean %>%
   group_by(classification) %>%
   summarise(count = n()) %>%
   pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
@@ -239,11 +239,11 @@ roc_medi <- mediclusters_clean %>%
 
 
  #Add the result to the list
-  roc_medi_list[[as.character(threshold)]] <- roc_medi
+  roc_pim_list[[as.character(threshold)]] <- roc_pim
 }
 
 #Turn the list with the results into a df 
-total_roc <- bind_rows(roc_medi_list)
+total_roc <- bind_rows(roc_pim_list)
 
 #Turn thresholds from character to factor for plotting
 total_roc$threshold <- as.numeric(total_roc$threshold)
@@ -252,40 +252,34 @@ total_roc$threshold <- as.numeric(total_roc$threshold)
 #create a colour palette with n=20 colours
 palette <- hcl.colors(palette = "viridis", n = 10)
 
-roc_medi <- ggplot(total_roc, aes(x = FPR, y = TPR, color = threshold)) +
-  geom_point() +
+activity_medi <- ggplot() +
+  geom_point(data = total_roc, aes(x = TPR, y = PPV, color = threshold)) +
  # geom_smooth() +
   xlim(0,1) + 
   ylim(0,1) +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "darkgrey") + #add a 45 degree line 
-  #scale_color_manual(
- #   values = palette,
-   # labels = c(#"0.5" = "mEDI < 0.5 lx",
-            #   "1" = "mEDI < 1 lx",
-              # "1.5"= "mEDI < 1.5 lx",
-            #   "2" = "mEDI < 2 lx",
-              # "2.5" = "mEDI < 2.5 lx",
-            #   "3" = "mEDI < 3 lx",
-              # "3.5" = "mEDI < 3.5 lx",
-            #   "4" = "mEDI < 4 lx",
-              # "4.5" = "mEDI < 4.5 lx",
-             #  "5" = "mEDI < 5 lx",
-              # "5.5" = "mEDI < 5.5 lx",
-             #  "6" = "mEDI < 6 lx",
-             #  "6.5" = "mEDI < 6.5 lx",
-           #    "7" = "mEDI < 7 lx",
-             #  "7.5" = "mEDI < 7.5 lx",
-           #    "8" = "mEDI < 8 lx",
-              # "8.5" = "mEDI < 8.5 lx",
-           #    "9" = "mEDI < 9 lx",
-              # "9.5" = "mEDI < 9.5 lx",
-           #    "10" = "mEDI < 10 lx")) +
-  labs(x="FPR",
-       y = "True positive rate",
-       title = "ROC curve for automatic detection \nof non-wear based on different mEDI thresholds") +
-  guides(color = guide_legend(title = "mEDI threshold")) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line
+   scale_color_gradient(
+     name = "PIM threshold",
+    limits= c(1,50))  +
+  ggnewscale::new_scale_color() +
+  geom_point(data = roc_medi, aes(x = TPR, y = PPV, color = medi_threshold)) +
+   scale_color_gradient(
+     name = "mEDI threshold (lx)",
+     low = "red", high = "orange",
+     limits= c(1,10)) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value (precision)",
+       title = "Precision recall curve for detection \nof non-wear intervals based on illuminance and activity thresholds") +
   theme_bw() +
   coord_fixed(ratio = 1)
+
+ggsave(filename = "activity_medi.png",
+       plot = activity_medi,
+       height = 6, 
+       width = 6,
+       dpi = 600,
+       bg = "white",
+       path= "D:/cyepi/code/outputs")
 
 ```
 
@@ -419,7 +413,7 @@ generate_roc_medi <- function(dataset, low_medi_var, min_length, max_interrupt, 
       FPR = FP / (FP + TN),
       PPV = TP / (TP + FP),
       NPV = TN / (FN + TN),
-      max_interrupt = max_interrupt #note: this has to be changed every time based on which variable you are varying
+      medi_threshold = medi_threshold #note: this has to be changed every time based on which variable you are varying
     )
   
   return(roc_medi)
@@ -445,17 +439,17 @@ names(roc_medi) <- as.character(thresholds)
 roc_medi <- bind_rows(roc_medi)
 
 
-ggplot(roc_medi, aes(x = FPR, y = TPR)) +
-  geom_point(aes(color = medi_threshold)) +
+medi_thresholds <- ggplot(roc_medi, aes(x = TPR, y = PPV)) +
+  geom_point(aes(color = threshold)) +
   xlim(0,1) + 
   ylim(0,1) +
   scale_color_continuous(
     limits= c(1,10), breaks = c(2, 4, 6, 8, 10)
   ) +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "darkgrey") + #add a 45 degree line 
-  labs(x="False positive rate",
-       y = "True positive rate",
-       title = "ROC curve for automatic detection \nof non-wear based on different mEDI thresholds") +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat degree line 
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value (precision)",
+       title = "Precision recall curve for detection \nof non-wear intervals based on illuminance thresholds") +
   guides(
     color = guide_colorbar(
     title = "mEDI threshold (lx)",
@@ -464,6 +458,13 @@ ggplot(roc_medi, aes(x = FPR, y = TPR)) +
   theme_bw() +
   coord_fixed(ratio = 1)
 
+ggsave(filename = "medi_thresholds.png",
+       plot = medi_thresholds,
+       height = 6, 
+       width = 6,
+       dpi = 600,
+       bg = "white",
+       path= "D:/cyepi/code/outputs")
 
 ```
 
@@ -484,24 +485,30 @@ roc_minlength <- map(min_lengths, ~ generate_roc_medi(
 names(roc_minlength) <- min_lengths
 roc_minlength <- bind_rows(roc_minlength)
 
-ggplot(roc_minlength, aes(x = FPR, y = TPR)) +
+roc_minlength$min_length <- gsub(" min", "", roc_minlength$min_length)
+roc_minlength$min_length <- as.factor(roc_minlength$min_length)
+
+min_length <- ggplot(roc_minlength, aes(x = TPR , y = PPV)) +
   geom_point(aes(color = min_length)) +
   xlim(0,1) + 
   ylim(0,1) +
- # scale_color_continuous(
- # limits= c(1,10), breaks = c(2, 4, 6, 8, 10)) +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "darkgrey") + #add a 45 degree line 
-  labs(x="False positive rate",
-       y = "True positive rate",
-       title = "ROC curve for automatic detection \nof non-wear based on different mEDI thresholds") +
-  theme_legend(
-  #  color = guide_colorbar(
-    title = "Min. length"
-  #  nbin = 10,
-  #  reverse = TRUE
-  ) +
+  scale_color_discrete(
+    name = "Minimum length (mins)") +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a 45 degree line 
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value (precision)",
+       title = "Precision recall curve for detection \nof non-wear interval based on interval length")  +
+  theme(plot.title = element_text(hjust=0.5)) +
   theme_bw() +
   coord_fixed(ratio = 1)
+
+ggsave(filename = "min_length.png",
+       plot = min_length,
+       height = 6, 
+       width = 6,
+       dpi = 600,
+       bg = "white",
+       path= "D:/cyepi/code/outputs")
 ```
 
 ```{r}
@@ -515,27 +522,87 @@ roc_max_interrupt<- map(max_interrupt, ~ generate_roc_medi(
   medi_threshold = 4
 ))
 
-names(roc_max_interrupt) <- max_intlengths
+names(roc_max_interrupt) <- max_interrupt
 roc_max_interrupt <- bind_rows(roc_max_interrupt)
 
-ggplot(roc_max_interrupt, aes(x = FPR, y = TPR)) +
+roc_max_interrupt$max_interrupt <- gsub(" min", "", roc_max_interrupt$max_interrupt)
+roc_max_interrupt$max_interrupt <- as.factor(roc_max_interrupt$max_interrupt)
+
+max_interrupt <- ggplot(roc_max_interrupt, aes(x = TPR, y = PPV )) +
   geom_point(aes(color = max_interrupt)) +
   xlim(0,1) + 
   ylim(0,1) +
- # scale_color_continuous(
-  #limits= c(1,10), breaks = c(2, 4, 6, 8, 10)) +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "darkgrey") + #add a 45 degree line 
-  labs(x="False positive rate",
-       y = "True positive rate",
-       title = "ROC curve for automatic detection \nof non-wear based on different mEDI thresholds") +
- # guides(
-  #  color = guide_colorbar(
-  #  title = "Max. interrupt (mins)",
-  #  nbin = 10,
-   # reverse = TRUE)) +
+ scale_color_discrete(
+    name = "Maximum interruption (mins)") +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line 
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value (precision)",
+       title = "Precision recall curve for detection \nof non-wear interval based on interruption length")  +
+  theme(plot.title = element_text(hjust=0.5)) +
   theme_bw() +
   coord_fixed(ratio = 1)
 
+ggsave(filename = "max_interrupt.png",
+       plot = max_interrupt,
+       height = 6, 
+       width = 6,
+       dpi = 600,
+       bg = "white",
+       path= "D:/cyepi/code/outputs")
+
 ```
 
+
+#One plot with all the curves 
+```{r}
+
+library(cowplot)
+
+multiplot <- cowplot::plot_grid(medi_thresholds, min_length, max_interrupt,
+                               ncol = 3,
+                               nrow = 1,
+                               align = "hv")
+
+ggsave(filename = "PCR_multiplot.png",
+       plot = multiplot,
+       width = 16, 
+       height = 5,
+       dpi = 600, 
+       bg = "white",
+       path = "D:/cyepi/code/outputs")
+
+
+
+library(ggnewscale)
+
+ggplot() +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line 
+  xlim(0,1) + 
+  ylim(0,1) +
+  #plot 1 
+  geom_point(data = roc_medi, aes(x = TPR, y = PPV, color = threshold)) + 
+   scale_color_continuous(
+    limits= c(1,10), breaks = c(2, 4, 6, 8, 10)
+  ) +
+  ggnewscale::new_scale_colour() + #resets scale for next geom
+  #plot 2 
+  geom_point(data = roc_minlength, aes(x = TPR, y = PPV, color = min_lengths)) + 
+  
+  geom_point(data = roc_max_interrupt, aes(x = TPR, y = PPV, color = max_interrupt)) +
+  +
+ 
+  
+ # scale_color_continuous(
+  #limits= c(1,10), breaks = c(2, 4, 6, 8, 10)) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line 
+  labs(x="True positive rate",
+       y = "Positive predictive value",
+       title = "ROC curve for automatic detection \nof non-wear based on different mEDI thresholds")
+
+
+```
+
+```{r}
+#Trying out if low activity is a better classifier that light 
+```
 
