@@ -94,9 +94,9 @@ states_dist_jitter2 <- ggplot(data = int_duration, aes(x=id_duration_per, y = St
   coord_fixed(ratio = 12) + # reduce white space between categorical variables on y axis
   theme(legend.position = "none",
         plot.title = element_text(hjust = 0.5, size = 20),
-        axis.text.x = element_text(size = 16),
-        axis.title = element_text(size = 18),
-        axis.text.y = element_text(size = 16))
+        axis.text.x = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        axis.text.y = element_text(size = 14))
 
 #We want to add a 2nd axis to the plot, where hours, instead of % of time, are specified
 
@@ -109,12 +109,12 @@ second_x_axis <- ggplot(data = int_duration, aes(x = tot_intlength_hours, y = 0.
   coord_fixed(ratio = 4) +
   theme_ggdist() +
   labs(x = "Time (hours)")  +
+  theme(axis.title = element_text(size = 16),
+        axis.text = element_text(size = 14)) +
   ggpubr::rremove("y.axis") +
   ggpubr::rremove("ylab") + 
   ggpubr::rremove("y.ticks") +
-  ggpubr::rremove("y.text") +
-  theme(axis.title.x = element_text(size = 16),
-        axis.text.x = element_text(size = 16)) 
+  ggpubr::rremove("y.text") 
   
 
 # Combine the plots
@@ -133,12 +133,12 @@ ggsave(filename = "state_dist_jitter2.png",
        dpi = 600,
        path= "G:/cyepi/code/outputs")
 
-ggsave(filename = "state_dist_2axis_3.png",
+ggsave(filename = "state_dist_2axis_3.svg",
        plot = state_dist_2axis_2,
-       width = 8,
-       height = 5,
+       width = 7,
+       height = 4,
        dpi = 600,
-       path= "D:/cyepi/code/outputs")
+       path= "G:/cyepi/code/outputs")
 ```
 
 ###2) Calculate descriptive statistics on how much time participants spent in each Wear log state across the week 
@@ -240,29 +240,146 @@ timing_off <- wrlg_int %>%
          centre_point = as.POSIXct(start + difftime(end,start)/2, tz = tz),
          centre_point_h = hour(centre_point))
 
-timing_dens_plot <- ggplot(timing_off, aes(x = as.numeric(centre_point_h), y = after_stat(count))) +
+timing_dens_plot_svg <- ggplot(timing_off, aes(x = as.numeric(centre_point_h), y = after_stat(count))) +
   geom_histogram(color = "black", fill = "darkred", alpha = 0.6, position = "identity", bins = 24) +
   geom_density(color = "black", fill= "darkred", alpha = 0.3, outline.type = "upper") +
   labs(x = "Centre point of non-wear interval", y = "Number of Wake 'off' events", title = "Timing of non-wear episodes across the day") +
   scale_x_continuous(
     breaks = c(0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24),
     labels = c("00:00", "02:00", "04:00", "06:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00", "22:00", "24:00"),
-    expand = c(0, 0)) +
-   theme_bw() +
+    expand = c(0.0,0.0)) +
+   theme_ggdist() +
    theme(legend.position = "none",
-        plot.title = element_text(hjust = 0.5, size = 20),
+        plot.title = element_text(hjust = 0.5, size = 22),
         axis.text.x = element_text(size = 16, angle = 45, hjust = 1),
-        axis.title = element_text(size = 16),
+        axis.title = element_text(size = 18),
         axis.text.y = element_text(size = 16))
 
-ggsave(filename = "timing_dens_plot.png",
-       plot = timing_dens_plot,
-       width = 9,
-       height = 6,
+ggsave(filename = "timing_dens_plot.svg",
+       plot = timing_dens_plot_svg,
+       width = 7,
+       height = 4,
        dpi = 600,
-       path= "D:/cyepi/code/outputs")
+       path= "G:/cyepi/code/outputs")
 
 ```
+
+##Looking at weekday vs weekend difference
+```{r}
+int_wknd_wkday <- wrlg_int %>%
+  group_by(Id) %>%
+  #filter out the last "on" interval, since it goes to midnight of the final exp day, which is not actual data
+  filter(State == "off") %>%
+  ungroup() %>%
+  #calculate length of each individual interval
+  mutate(int_length = int_length(Interval) %>% as_hms(),
+         int_start = int_start(Interval),
+         int_end = int_end(Interval),
+         day.start = int_start %>% format(format = "%a"), #format as day
+         day.end = int_end %>% format(format = "%a"), #format as day
+         int_start = int_start %>% hms::as_hms(), #transform xmin to time (currently Datetime)
+         int_end = int_end %>% hms::as_hms(), #transform xmax to time (currently Datetime)
+         day.start = factor(day.start, levels = unique(day.start)),
+         day.end = factor(day.end, levels = unique(day.end)))
+
+#Step 1: collect the part of the data that does not cross day boundaries
+off_times1 <-
+  int_wknd_wkday %>%
+  filter(day.start == day.end)
+
+#Step 2: Collect part of the data that does cross bounderies and split it by day, i.e. at midnight. 
+off_times2 <-
+int_wknd_wkday %>% filter(day.start != day.end) %>%
+  rowwise() %>%
+  mutate(
+    new_entry = list(
+      tibble(
+        int_start=c(int_start, hms::as_hms("00:00:00")),
+        int_end =c(hms::as_hms("23:59:59"), int_end),
+        day.start.1=c(day.start, day.end),
+        day.end.1=c(day.start, day.end)
+      )
+    )
+  ) %>%
+  select(Id, State, Interval, new_entry) %>%
+  unnest(new_entry)
+
+wknd_wkday.combined <- 
+  bind_rows(off_times1 %>% rename(day.start.1 = day.start),
+          off_times2) %>%
+  select(-c(day.end.1, day.end, int_length)) %>%
+  rename(Day.data = day.start.1) %>%
+  mutate(off_length = as_hms(int_end - int_start),
+         day_type = ifelse(Day.data %in% c("Sat", "Sun"), "weekend", "weekday")) %>%
+  #group by Id and State to then  summarise the total (i.e. across the whole week) duration of each state (on/off/sleep) 
+  group_by(Id, day_type) %>%
+  summarize(off_length = sum(off_length) %>% as_hms()) %>%
+  ungroup() %>%
+  complete(Id, day_type, fill = list(off_length = as_hms(0)))
+
+wknd_wkday <- wknd_wkday.combined %>%
+  left_join(exp_duration, by ="Id") %>% #append the column containing total participation hours from the exp_duration df
+  mutate(wknd_duration = hms::as_hms(48 * 3600),
+         wk_duration = hms::as_hms(id_duration - wknd_duration),
+         normalised_length = if_else(day_type == "weekend", as.numeric(off_length)/as.numeric(wknd_duration), 
+                                     as.numeric(off_length)/as.numeric(wk_duration)),
+         perc_length = normalised_length * 100)
+
+ wknd_wk_dist.svg <- ggplot(data = wknd_wkday, aes(x=perc_length, y = day_type, fill = day_type)) +
+  scale_x_continuous(limits = c(0,100), expand = c(0.05,0.05)) +
+  ggdist::stat_halfeye(
+    aes(colour = day_type,
+        fill = day_type),
+    adjust = .5,
+    justification = -.45,
+    point_color = NA,
+    interval_color = NA,
+    scale = 0.5,
+    height = 1
+    ) +
+  geom_boxplot(
+    aes(color = day_type),
+    width = 0.25,
+    alpha = .2,
+    outlier.shape = NA
+  ) +
+  geom_jitter(
+    aes(colour = day_type),
+    fill = "white",
+    height = .1,
+    alpha = .3,
+    size = 1.2
+  ) +
+  scale_fill_manual(
+    values = c("weekday" = "#bf0000", "weekend" = "#800000")) +
+  scale_color_manual(
+    values = c("weekday" = "#bf0000", "weekend" = "#800000")) +
+  scale_y_discrete(labels = c("weekday" = "Weekday", "weekend" = "Weekend day")) +
+  theme_ggdist() +
+  ggpubr::rremove("ylab") +
+  ggpubr::rremove("y.ticks") +
+ # ggpubr::rremove("xlab")+ 
+  labs(title = "Non-wear time distribution across weekdays and weekend days", x = "Percentage of time (%)") +
+  coord_fixed(ratio = 16) + # reduce white space between categorical variables on y axis
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text.x = element_text(size = 16),
+        axis.title = element_text(size = 16),
+        axis.text.y = element_text(size = 16))
+ 
+ ggsave(filename = " wknd_wk_dist.svg",
+       plot =  wknd_wk_dist.svg,
+       width = 7,
+       height = 4,
+       dpi = 600,
+       path= "G:/cyepi/code/outputs")
+
+```
+
+
+
+
+
 
 ```{r}
 #Extra plot2: visualing only non-wear time for each day of the week
@@ -296,7 +413,7 @@ ggplot(aes(x = day, y = off_time)) +
                dotsize = 0.5,
                binwidth = 0.1) +
   theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5, size = 26, face = "plain"),
+  theme(plot.title = element_text(hjust = 0.5, size = 30, face = "plain"),
         axis.text = element_text(size=18),
         axis.title = element_text(size=18),
         axis.title.y = element_text(size = 20),

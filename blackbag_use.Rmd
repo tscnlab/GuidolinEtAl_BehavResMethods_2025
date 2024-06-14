@@ -61,11 +61,11 @@ scatter <- ggplot(median.LL.wrlg, aes(x = median_medi, y = median_pim)) +
               position = position_jitter(width = .3, height = .3)) + #adjust position of points to avoid overlap
    scale_fill_manual(
     name = "Wear log \n'state'",
-    values = c("off" = "#0072B2", "on" = "darkred", "sleep" = "darkgoldenrod2"),
+    values = c("off" = "darkred", "on" = "#0072B2", "sleep" = "darkgoldenrod2"),
     labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
   scale_color_manual(
     name = "Wear log \n'state'",
-    values = c("off" = "#0072B2", "on" = "darkred", "sleep" = "darkgoldenrod2"),
+    values = c("off" = "darkred", "on" = "#0072B2", "sleep" = "darkgoldenrod2"),
     labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
   scale_x_continuous(
     breaks = c(-5, -3, -1, 1, 3), 
@@ -84,8 +84,8 @@ scatter <- ggplot(median.LL.wrlg, aes(x = median_medi, y = median_pim)) +
   theme(plot.title = element_text(hjust = 0.5, size = 20),
         axis.text = element_text(size = 16),
         axis.title = element_text(size = 16),
-        legend.title = element_text(size = 12, hjust = 0.5),
-        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 13, hjust = 0.5),
+        legend.text = element_text(size = 13),
         legend.position = "bottom") +
   guides(fill = guide_legend(nrow = 1))
   
@@ -102,7 +102,7 @@ plot_marginal <- annotate_figure(marginal,
                                                             face = "plain",
                                                             size = 18))
 
-ggsave(filename = "plot_marginal.png",
+ggsave(filename = "plot_marginal.svg",
        plot = plot_marginal ,
        width = 5,
        height = 6.5,
@@ -152,9 +152,11 @@ ggplot(data = median.LL.wrlg, aes(x=median_medi, y = State, fill = State)) +
   labs(title = "(Non-)wear time distribution across the week", x = "Illuminance (mEDI, lx)") +
   theme(legend.position = "none",
         plot.title = element_text(hjust = 0.5, size = 20),
-        axis.text.x = element_text(size = 16),
+        axis.text = element_text(size = 16),
         axis.title = element_text(size = 18),
-        axis.text.y = element_text(size = 16))
+        legend.title = element_text(size = 13),
+        legend.text = element_text(size = 13))
+
 
 #This does not seem to work very well, probably because our sample has too many duplicates of low values 
 
@@ -334,7 +336,7 @@ prc_medi_list$threshold <- as.numeric(prc_medi_list$threshold)
 ```{r}
 
 
-precision_recall_curve <- ggplot() +
+precision_recall_3 <- ggplot() +
    xlim(0,1) + 
    ylim(0,1) +
   geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
@@ -345,7 +347,7 @@ precision_recall_curve <- ggplot() +
     limits= c(5,50),
     guide = guide_colorbar(title.position = "top", title.hjust = 0.5))  +
   ggnewscale::new_scale_color() + #need this to reset the color scale for the next plot
-  #Adding the arrow to show directionality
+  #Adding the arrow to show directionality (for illuminance)
   geom_segment(aes(x = 0.6, y = 0.54, xend = 0.63, yend = 0.27),
                arrow = arrow(length=unit(.2, "cm")), lwd = 0.8) +
   #Second plot: light
@@ -355,32 +357,34 @@ precision_recall_curve <- ggplot() +
      low = "red", high = "orange",
      limits= c(1,10),
      guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
-  #Adding the arrow to show directionality
-  geom_segment(aes(x = 0.49, y = 0.165, xend = 0.57, yend = 0.125),
+  #Adding the arrow to show directionality (for activity)
+  geom_segment(aes(x = 0.49, y = 0.165, xend = 0.57, yend = 0.115),
                arrow = arrow(length=unit(.2, "cm")), lwd = 0.8) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
-       title = "Precision recall curve for detection of \nnon-wear intervals based on activity \nand illuminance thresholds") +
+       title = "Precision-recall curve for detection of \nnon-wear intervals based on activity \nand illuminance thresholds") +
   #Adding the symbols for the arrows as text and the label
-  annotate("text", x = 0.64, y = 0.45, label = sprintf('\u2191')) +
-  geom_text(aes(x= 0.80, y = 0.445, label = "Illuminance")) +
-  annotate("text", x = 0.28, y = 0.14, label = sprintf('\u2191')) +
-  geom_text(aes(x = 0.39, y = 0.135, label = "Activity")) +
+  annotate("text", x = 0.64, y = 0.45, label = sprintf('\u2191')) + #arrow pointing upwards for Illuminance
+  geom_text(aes(x= 0.80, y = 0.445, label = "Illuminance")) + #label of illuminance
+  annotate("text", x = 0.28, y = 0.14, label = sprintf('\u2191')) + #arrow pointing upwards for activity
+  geom_text(aes(x = 0.39, y = 0.135, label = "Activity")) + #label for activity
+  geom_text(aes(x=0.215, y = 0.535, label = "Baseline classifier"), color = "darkgrey", size = 3.8) +
   theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5, size = 18),
-        axis.text = element_text(size = 16),
-        axis.title = element_text(size = 16),
+  theme(plot.title = element_text(hjust = 0.5, size = 16),
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 14),
         legend.title = element_text(size = 12),
-        legend.text = element_text(size = 12), 
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
         legend.position = "bottom",
         legend.box = "horizontal") +
   coord_fixed(ratio = 1) 
 
 #Save the plot
-ggsave(filename = "precision_recall_curve.png",
-       plot = precision_recall_curve,
+ggsave(filename = "precision_recall_3.svg",
+       plot = precision_recall_3,
        height = 5.5, 
-       width = 5.5,
+       width = 5,
        dpi = 600,
        bg = "white",
        path= "G:/cyepi/code/outputs")

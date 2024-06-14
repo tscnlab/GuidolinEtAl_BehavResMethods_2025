@@ -186,7 +186,7 @@ states.combined <-
   bind_rows(state.times1 %>% rename(Day.min = Day.data.min),
           state.times2) %>%
   select(-Day.max) %>%
-  rename(Day.data = Day.min)
+  rename(Day.data = Day.min) 
 
 
 #Create the plot wit activity (PIM), button presses (eventpoint) and wearlog intervals (State)
@@ -287,9 +287,10 @@ states.combined <-
 states.combined$State <- factor(states.combined$State) #turn State into factor
 
 p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
-            linewidth = 0.05, 
+            linewidth = 0.015, 
             color = "black", 
             geom = "line",
+            #alpha = 0.7,
             group = date(Datetime),
             format.day = "%a",
             x.axis.label = "Time", 
@@ -312,16 +313,20 @@ p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
         axis.text.x = element_text(size = 16),
         axis.title = element_text(size = 18),
         axis.text.y = element_text(size = 16),
-        legend.title = element_text(size = 16),
-        legend.text = element_text(size = 16)) 
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 14),
+        legend.position = "inside", 
+        legend.position.inside = c(0.08, 0.935),
+        legend.box.background = element_rect(fill = "white", colour = "darkgrey"),
+        legend.margin = margin(c(1,1,1,1)))
 
-ggsave(filename = "exemplaryrawreadings.png",
+ggsave(filename = "exemplaryrawreadings_2.svg",
        plot = p,
        width = 11,
        height = 14,
        dpi = 600,
        bg = "white",
-       path= "D:/cyepi/code/outputs/visualinspection2/light/sltbr")
+       path= "G:/cyepi/code/outputs/visualinspection2/light/sltbr")
 
 ```
 

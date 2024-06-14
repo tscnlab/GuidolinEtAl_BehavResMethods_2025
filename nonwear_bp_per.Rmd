@@ -220,7 +220,7 @@ ggsave(filename = "wrlg_int_classified_zoom.png",
        dpi = 600,
        path= "G:/cyepi/code/outputs")
 
-ggsave(filename = "wrlg_int_type_multipanel_horiz.png",
+ggsave(filename = "wrlg_int_type_multipanel_horiz.svg",
        plot = wrlg_int_type_multipanel,
        width = 6.8,
        height = 4,
