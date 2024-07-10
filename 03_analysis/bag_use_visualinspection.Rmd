@@ -1,0 +1,165 @@
+---
+title: "blackbag_use"
+author: "Carolina Guidolin"
+date: "2024-05-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Note
+This script should be run after 01_import and 02_datapreparation scripts. 
+
+## Use of black bag (low illuminance values) to detect non-wear time
+Aim: Here we analyse data from black bag use (low illuminance [mEDI] values). The first thing that we want to do is a visual inspection of the data to check how light and activity compare, for each State of the Wear log. Low activity is also often used as a way to understand non-wear time in field studies. Since we have both information (light and activity), we want to know how these two source compare to each other. 
+
+```{r}
+#We will be plotting using log10 transformation, so we want to replace 0 values for mEDI (light) and PIM (activity) to very low values
+
+dataset.LL.wrlg$MEDI[dataset.LL.wrlg$MEDI == 0] <- 0.00001
+dataset.LL.wrlg$PIM[dataset.LL.wrlg$PIM == 0] <- 0.00001
+
+#To be able to visually observe how light and activity relate to each other in our dataset, we cannot plot all our data points (too many). So, we take median values of each Id, for each State (off/on/sleep)
+
+median.LL.wrlg <- dataset.LL.wrlg %>%
+  group_by(Id, State) %>%
+  summarise(median_medi = median(log10(MEDI), na.rm = TRUE),
+            median_pim = median(log10(PIM), na.rm = TRUE),
+            qr1_medi = quantile(log10(MEDI), 1/4, na.rm = TRUE), #first quantile
+            qr1_pim = quantile(log10(PIM), 1/4, na.rm = TRUE), #first quantile
+            qr3_medi = quantile(log10(MEDI), 3/4, na.rm = TRUE), #third quantile
+            qr3_pim = quantile(log10(PIM), 3/4, na.rm = TRUE)) %>% #third quantile
+  ungroup()
+
+#Let's create a simple scatterplot where median mEDI and PIM are plotted against each other, including error bars
+median_scatter <- 
+  ggplot(median.LL.wrlg, aes(x = median_medi, y = median_pim, color = State, fill = State)) +
+  geom_point() +
+    #position = position_jitter(width = 0.5, height = 0.5)) 
+ # xlim(-5, 2.5) +
+ # ylim(0, 750) +
+  scale_fill_manual(
+    values = c("off" = "#16439C", "on" = "palegreen4", "sleep" = "darkgoldenrod2")) +
+  scale_color_manual(
+    values = c("off" = "#16439C", "on" = "palegreen4", "sleep" = "darkgoldenrod2")) +
+  labs(title = "Relationship between light and activity", x = "mEDI", y = "PIM") +
+  geom_errorbar(aes(ymin = qr1_pim, ymax = qr3_pim)) +
+  geom_errorbarh(aes(xmin = qr1_medi, xmax = qr3_medi)) +
+  theme_minimal() +
+  scale_x_continuous(transform = "symlog")
+
+#For the states sleep and off, there are a lot of overlapping points, which is why only a few points are shows. While this plot shows that we have a lot of variability, especially in PIM, we can't really say much about the individual datapoints. 
+
+```
+## Improving visualisation above
+To improve the visualisation above, we can create a simple scatterplot without error bars, and add boxplots as marginal plots
+```{r}
+scatter <- ggplot(median.LL.wrlg, aes(x = median_medi, y = median_pim)) + 
+  geom_jitter(aes(fill = State, color = State), size = 2.5, alpha = 0.6,
+              position = position_jitter(width = .3, height = .3)) + #adjust position of points to avoid overlap
+   scale_fill_manual(
+    name = "Wear log \n'state'",
+    values = c("off" = "darkred", "on" = "#0072B2", "sleep" = "darkgoldenrod2"),
+    labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
+  scale_color_manual(
+    name = "Wear log \n'state'",
+    values = c("off" = "darkred", "on" = "#0072B2", "sleep" = "darkgoldenrod2"),
+    labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
+  scale_x_continuous(
+    breaks = c(-5, -3, -1, 1, 3), 
+    labels = c(expression(10^-5), expression(10^-3), expression(10^-1), expression(10^1), expression(10^3)), #ensure that the log expression is labelled correctly 
+    limits = c(-5.5, 3)
+  ) +
+  scale_y_continuous(
+    breaks = c(-5, -3, -1, 1, 3),
+    labels = c(expression(10^-5), expression(10^-3), expression(10^-1), expression(10^1), expression(10^3)), #ensure that the log expression is labelled correctly 
+    limits = c(-5.5, 3)
+  ) +
+  labs(x = "Median illuminance (mEDI, lx)",
+       y = "Activity (PIM)") +
+  coord_fixed(ratio=1) + #make sure plot is a square
+  theme_bw() + 
+  theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 16),
+        axis.title = element_text(size = 16),
+        legend.title = element_text(size = 13, hjust = 0.5),
+        legend.text = element_text(size = 13),
+        legend.position = "bottom") +
+  guides(fill = guide_legend(nrow = 1))
+  
+#Add a boxpot as a marginal plot using package ggExtra
+library(ggExtra)
+
+marginal <- ggExtra::ggMarginal(scatter, type = "boxplot", groupColour = TRUE, groupFill = TRUE)
+
+
+plot_marginal <- annotate_figure(marginal,
+                                 #Add title
+                                 top = text_grob("Relationship between illuminance \nand activity across wear log states",
+                                                            color = "black",
+                                                            face = "plain",
+                                                            size = 18))
+# Saving the plot
+ggsave(filename = "plot_marginal.svg",
+       plot = plot_marginal ,
+       width = 5,
+       height = 6.5,
+       dpi = 600,
+       bg = "white",
+       path= "G:/cyepi/code/outputs")
+
+```
+
+
+## Final, alternative plot
+Another alternative visualisation would be to simply plot mEDI, without activity, across the Wear log states
+```{r}
+
+library(ggdist)
+
+ggplot(data = median.LL.wrlg, aes(x=median_medi, y = State, fill = State)) +
+  ggdist::stat_halfeye(
+    aes(colour = State,
+        fill = State),
+    adjust = .5,
+    justification = -.25,
+    point_color = NA,
+    interval_color = NA
+    ) +
+  geom_boxplot(
+    aes(color = State),
+    width = .3,
+    alpha = .2,
+    outlier.shape = NA
+  ) +
+  geom_jitter(
+    aes(colour = State),
+    fill = "white",
+    height = .1,
+    alpha = .3,
+    size = 1.2
+  ) +
+  scale_fill_manual(
+    values = c("on" = "#0072B2", "off" = "darkred", "sleep" = "darkgoldenrod2")) +
+  scale_color_manual(
+    values = c("on" = "#0072B2", "off" = "darkred", "sleep" = "darkgoldenrod2")) +
+  scale_y_discrete(labels = c("on" = "Wake 'on'", "off" = "Wake 'off'", "sleep" = "Sleep 'off'")) +
+  theme_ggdist() +
+  ggpubr::rremove("ylab") +
+  ggpubr::rremove("y.ticks") +
+ # ggpubr::rremove("xlab")+ 
+  labs(title = "(Non-)wear time distribution across the week", x = "Illuminance (mEDI, lx)") +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 16),
+        axis.title = element_text(size = 18),
+        legend.title = element_text(size = 13),
+        legend.text = element_text(size = 13))
+
+
+#This does not seem to work very well, probably because our sample has too many duplicates of low values 
+
+```
+
