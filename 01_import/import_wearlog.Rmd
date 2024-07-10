@@ -9,6 +9,8 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+#Note: run this script after import_LL
+
 # Importing Wear log files 
 Here, we import the raw data from the wear log
 
