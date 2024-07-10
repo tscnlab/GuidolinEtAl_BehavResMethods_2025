@@ -9,6 +9,8 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+# Note: run this script after import_LL and import_wearlog
+
 # Performing quality checks for the Wear log dataset 
 In this script, we perform 2 quality checks on the Wear log dataset.
 1. Identifying identical consecutive timestamps 
