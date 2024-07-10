@@ -10,8 +10,8 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
-##Perform a sanity check between wear log detected intervals and sleep and wake time from sleep diary 
-In the plot above, we visualised time spent in each of the non-wear states: off (device not worn), on (device worn) and off for sleep (device not worn during sleep). As a sanity check, the time that the device is not worn during sleep should be similar to the time that the participants reported actually sleeping, as indicated by the sleep diary. For this reason, we follow a similar approach to the code above to visualise the amount of time participants spend asleep or awake according to the sleep diary. 
+## Perform a quality check for raw sleep diary files sanity check between wear log detected intervals and sleep and wake time from sleep diary 
+As part of the non-wear analysis, we visualised time spent in each of the non-wear states: off (device not worn), on (device worn) and off for sleep (device not worn during sleep). As a sanity check, the time that the device is not worn during sleep should be similar to the time that the participants reported actually sleeping, as indicated by the sleep diary. For this reason, we follow a similar approach to the code above to visualise the amount of time participants spend asleep or awake according to the sleep diary. 
 
 ```{r}
 #Locate the sleep diary files
@@ -32,7 +32,8 @@ sleepdiary_df <- LightLogR::import_Statechanges(sleepdiary,
 
 ```
 
-###Figure out how to account for sleep diaries incosistencies 
+## Quality check of the raw files
+Here, we identify consecutive identidical States in the sleep diary
 ```{r}
 error_messages_datetime <- character(0) # We create an empty vector where we can store the errors
 
@@ -69,14 +70,25 @@ if (length(error_messages_states) > 0) {
 #Error: Consecutive values at record_id: 212 datetime: 2023-09-16 06:32:00 state: wake 
 #Error: Consecutive values at record_id: 212 datetime: 2023-09-17 22:20:00 state: sleep 
 
-#These were corrected directly on the csv file as they all stemmed from the participant accidenatlly logging the wrong data when reporting sleep and bed dates from the previous day. 
+#These were corrected directly on the csv file as they all stemmed from the participant accidentally logging the wrong data when reporting sleep and bed dates from the previous day. 
 ```
 
+## Sleep diary interval transformation
+Similar to what was done for the wearlog intervals, we now turn the state changes of the sleep diary to an interval
 ```{r}
-#Similar to what was done for the wearlog intervals, we now turn the state changes of the sleep diary to an interval
 sleep_int <- sleepdiary_df %>%
-  sc2interval() %>%
+  LightLogR::sc2interval() %>%
   filter(!is.na(State))
+```
+
+#Plotting 
+As part of the sanity check, we want to plot the distribution of sleep and wake for visualisation.
+```{r}
+#First, while all participants took part in the experiment for 7 days, they started at different times, and so it is important not just to approximate to 7 days (168 hours), but to calculate the specific 100% of "participation time" for each participant. For this, we first need to calculate the n of hours that each participant spends in the experiment.
+exp_duration <- filtered_time %>%
+  mutate(id_int = lubridate::interval(start, end),
+         id_duration = lubridate::int_length(id_int) %>% as_hms()) %>% #tot hours of participation for each participant
+  select(Id, id_duration)
 
 #Calculate the amount of time spent in each state (either awake or alseep), for each participant across the whole experiment duration
 int_duration_sleep <- sleep_int %>%
@@ -161,7 +173,7 @@ second_x_axis_sleep <- ggplot(data = int_duration_sleep_clean, aes(x = tot_intle
 sleep_dist_2axis <- sleep_wake_dist / second_x_axis_sleep 
 ```
 
-###Save plots above
+## Save plots above
 ```{r}
 ggsave(filename = "sleep_wake_dist.png",
        plot = sleep_wake_dist ,
