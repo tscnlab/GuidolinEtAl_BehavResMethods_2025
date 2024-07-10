@@ -2,9 +2,9 @@
 The aim is to describe and compare strategies for tracking non-wear time of wearable light loggers used in ambulatory light exposure studies. This can help other researchers to plan their experiments and choose a non-wear time strategy which fits their research requirements. 
 
 ## Dataset description
-Participants N = 26
-Duration: 7 full days (Monday to Monday)
-Wearable device: ActLumus with 10 seconds sampling period, worn on spectacles ("light glasses")
+- Participants N = 26
+- Duration: 7 full days (Monday to Monday)
+- Wearable device: ActLumus with 10 seconds sampling period, worn centrally on non-prescription spectacles ("light glasses")
 
 Non-wear time information is given by three sources:  
 1. Wear log completed by the participant with following information: 
