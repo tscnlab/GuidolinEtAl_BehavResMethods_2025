@@ -26,7 +26,7 @@ These functions (find_clusters_funs, loaded in separately) identify clusters of 
 #In order to build a PRC, we need to test the performance of our algorithm by changing the input parameters. Here, we modifiy the threshold for "low activity", i.e. the PIM value. 
 
 #Create a sequenc of PIM thresholds at 5 unit steps
-pimthresholds <- seq(5, 50, by = 5)
+pimthresholds <- seq(5, 500, by = 50)
 
 #Empty list to store classification results
 prc_pim_list <- list()
@@ -106,6 +106,19 @@ prcurve_pim <- bind_rows(prc_pim_list)
 prcurve_pim$threshold <- as.numeric(prcurve_pim$threshold)
 
 ```
+
+
+```{r}
+prcurve_pim_f1 <- prcurve_pim %>%
+  mutate(f1_score = ((1+b^2) * PPV * TPR)/((b^2 * PPV) + TPR))
+
+#Again, precision is low (PPV), indicating that there are instances where our classifier labels non-wear but actually the participant was wearing it. 
+
+# Recall also saturates, meaning that the proportion of non-wear that our classifier can detect does not change with different activity levels. Meaning no matter the activity that participant has, our model does not change performance based on.
+
+#If we increase our range of thresholds of PIM (5 to 500), the recall gets better with increasing activity threshold. Meaning that there are probably instances when the participants are walking around with it in a bag. 
+```
+
 
 # Identifying clusters of low light levels (mEDI)
 ```{r}
@@ -190,6 +203,21 @@ prcurve_medi <- bind_rows(prc_medi_list)
 prc_medi_list$threshold <- as.numeric(prc_medi_list$threshold)
 ```
 
+#Calculate F1 score to understand the agreement between my precision and recall
+```{r}
+b = 1 #set beta as 1
+
+prcurve_medi_f1 <- prcurve_medi %>%
+  mutate(f1_score = ((1+b^2) * PPV * TPR)/((b^2 * PPV) + TPR))
+
+##With increasing medi levels, the recall (TPR) remains virtually identical, suggesting that the proportion of all non-wear identified correctly does not change (proportion of true non-wear compared to all non-wear) -> meaning that we are capturing all the non-wear that our classifier can capture, and changing on threshold in not changing 
+
+#However, the precision (PPV) - proportion of non-wear labels was actually non-wear, gets worse, meaning we get more false positives because we are being more liberal in what we label as non-wear state.
+
+#
+```
+
+
 # Visualisation of the precision recall curves for activity and light
 ```{r}
 
@@ -267,6 +295,19 @@ ggsave(filename = "precision_recall_3.svg",
        bg = "white",
        path= "G:/cyepi/code/outputs")
 ```
+
+# The point about combining light and activity
+Combining light and activity would help us to identify cases where:
+- Activity is low (e.g. participant sitting), but light exposure is high -> as wear time
+
+
+
+
+
+
+
+
+
 # Old code
 From this pint onwads, the code was not used for the analysis
 
