@@ -21,6 +21,19 @@ These functions (find_clusters_funs, loaded in separately) identify clusters of 
 2) minimum length of the clusters
 3) max interrpution length for the cluster to still be identified as such 
 
+
+#Befre identifying clusters of low activity (PIM), we need to understand: what is low activity?
+```{r}
+pim_stats <- dataset.LL.wrlg %>%
+  filter(!State == "sleep") %>%
+  group_by(Id) %>%
+  summarise(mean = mean(PIM),
+            median = median(PIM), 
+            min = min(PIM),
+            max = max(PIM))
+```
+
+
 #Identifying clusters of low activity (PIM)
 ```{r}
 #In order to build a PRC, we need to test the performance of our algorithm by changing the input parameters. Here, we modifiy the threshold for "low activity", i.e. the PIM value. 
@@ -300,6 +313,43 @@ ggsave(filename = "precision_recall_3.svg",
 Combining light and activity would help us to identify cases where:
 - Activity is low (e.g. participant sitting), but light exposure is high -> as wear time
 
+
+
+#New visualisation: plotting the classification outcome as a timeseries
+We will do this initially for just one participant
+```{r}
+#Define PIM clusters
+
+threshold = 100 
+
+pim_clusters <- dataset.LL.wrlg %>%
+  ungroup() %>%
+  filter(!State == "sleep") %>%
+  # Replace `low_activity` by the (logical) variable for which the clusters 
+  # should be found.
+  mutate(low_pim = PIM < threshold) %>% 
+  # Nest by groups, e.g., participant, period. Replace with grouping variables 
+  # in your data, such that the function is applied separately per consecutive 
+  # timeseries (e.g., from one subject during one period).
+  nest_by(Id) %>% 
+  mutate(
+    # Replace `low_activity` by the (logical) variable for which the clusters 
+    # should be found.
+    data = list(
+      data_find_clusters(
+        data, 
+        low_pim, 
+        min_length = "2 mins", 
+        max_interrupt = "1 mins", 
+        cluster_name = "low_pim_cluster"
+      )
+    )
+  ) %>%
+  unnest(cols = data) %>%
+  ungroup()
+
+
+```
 
 
 
