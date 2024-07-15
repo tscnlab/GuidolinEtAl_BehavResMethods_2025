@@ -24,6 +24,7 @@ dataset.LL.wrlg$PIM[dataset.LL.wrlg$PIM == 0] <- 0.00001
 #To be able to visually observe how light and activity relate to each other in our dataset, we cannot plot all our data points (too many). So, we take median values of each Id, for each State (off/on/sleep)
 
 median.LL.wrlg <- dataset.LL.wrlg %>%
+  filter(!State == "sleep") %>%
   group_by(Id, State) %>%
   summarise(median_medi = median(log10(MEDI), na.rm = TRUE),
             median_pim = median(log10(PIM), na.rm = TRUE),
@@ -41,9 +42,13 @@ median_scatter <-
  # xlim(-5, 2.5) +
  # ylim(0, 750) +
   scale_fill_manual(
-    values = c("off" = "#16439C", "on" = "palegreen4", "sleep" = "darkgoldenrod2")) +
+    values = c("off" = "darkred", "on" = "#0072B2" 
+               #"sleep" = "darkgoldenrod2"
+               )) +
   scale_color_manual(
-    values = c("off" = "#16439C", "on" = "palegreen4", "sleep" = "darkgoldenrod2")) +
+    values = c("off" = "darkred", "on" = "#0072B2"
+               #"sleep" = "darkgoldenrod2"
+               )) +
   labs(title = "Relationship between light and activity", x = "mEDI", y = "PIM") +
   geom_errorbar(aes(ymin = qr1_pim, ymax = qr3_pim)) +
   geom_errorbarh(aes(xmin = qr1_medi, xmax = qr3_medi)) +
@@ -110,6 +115,79 @@ ggsave(filename = "plot_marginal.svg",
        bg = "white",
        path= "G:/cyepi/code/outputs")
 
+```
+
+
+
+# Creating and hexagon plot to visualise light and activity 
+```{r}
+#First, we test this with one participant only 
+selected_id <- "216"
+
+subset_df <- dataset.LL.wrlg %>%
+  filter(Id == selected_id) %>%
+  mutate(PIMlog = log10(PIM),
+         MEDIlog = log10(MEDI)) %>%
+  select(Id, Datetime, PIMlog, MEDIlog, State, PIM, MEDI) %>%  
+  filter(State == "off") 
+  
+
+ggplot(data = subset_df, 
+       aes(x = MEDI, y = PIM)) +
+  geom_hex(bins = 74) +
+  scale_y_continuous(trans = "symlog",
+                     breaks = c(-10^(5:0), 0, 10^(0:5)),
+                     labels = function(x) format(x, scientific = FALSE, big.mark = " ")) +
+  scale_x_continuous(trans = "symlog",
+                     breaks = c(-10^(5:0), 0, 10^(0:5)),
+                     labels = function(x) format(x, scientific = FALSE, big.mark = " "))
+
+```
+#Spelling out the problem
+What we see here for participant 2016 is that
+- They barely remove the light glasses
+- When they do, they place it in the black bag 
+- When it is in the bag, the level of activity ranges from 5 lux to very high 
+- Although the visual inspection of light across the week (performed in visual_insp) suggests that they always put it in the black bag, we still have datapoints that fall in these high activity high light part of the plot. There are not may, but we suspect that they indicate moments in which the participant is placing the device in the black bag 
+
+
+#Building on plot above - we do this for all participants
+This allows us to compare light and activity across the whole week - this can be done for on, off and sleep states alike
+```{r}
+##List of all unique participant Ids
+par_ids <- unique(dataset.LL.wrlg$Id)
+
+for (participant in par_ids) {
+  subset_df = dataset.LL.wrlg %>%
+    filter(Id == participant) %>%
+    filter(State == "sleep") %>%
+    select(Id, State, PIM, MEDI)
+  
+  plot <- ggplot(data = subset_df, 
+          aes(x = MEDI, y = PIM)) +
+    geom_hex(bins = 74)  +
+    scale_fill_gradient(low = "lightgreen", high = "darkgreen") +
+    scale_y_continuous(trans = "symlog",
+                     breaks = c(-10^(5:0), 0, 10^(0:5)),
+                     labels = function(x) format(x, scientific = FALSE, big.mark = " ")) +
+    scale_x_continuous(trans = "symlog",
+                     breaks = c(-10^(5:0), 0, 10^(0:5)),
+                     labels = function(x) format(x, scientific = FALSE, big.mark = " ")) +
+    labs(title = paste0(participant, " light and activity")) +
+ #   coord_fixed(ratio = 1) +
+    theme_bw()
+  
+  filename <- paste0("p", participant, "_pim_medi.png")
+  
+  ggsave(filename = filename,
+         plot = plot,
+         width = 8,
+         height = 8,
+         dpi = 600,
+         bg = "white",
+         path= "G:/cyepi/code/outputs/visualinspection/hexagonalplots/sleep")
+    
+} 
 ```
 
 
