@@ -1,0 +1,152 @@
+---
+title: "wrist_eye_corrs"
+author: "Carolina Guidolin"
+date: "2024-07-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##NOTE: to be run after import_ll and import_activity 
+```{r}
+dataset.LL.all.1 <- dataset.LL.all %>%
+  filter(!(Id == "202") & !(Id == "204")) %>% #eliminate these two Ids because files from acttrust are missing 
+  rename(timestamp = Datetime) #rename Datetime column so we do not get confused between the two files
+
+data.table::setDT(dataset.LL.all.1)[, join_date := timestamp] #convert to data.table and append original column that we want to keep
+data.table::setDT(dataset.acttrust.clean)[, join_date := Datetime] #convert to data.table and append original column that we want to keep
+
+
+#For each ActTrust file, find the nearest (in time) ActLumus Datetime
+acttrust_lumus_join <- dataset.LL.all.1[dataset.acttrust.clean, on = .(Id, join_date), roll = "nearest"] %>% #Perform a left join of the two datasets using data.table
+  rename(actlumus_PIM = i.PIM, acttrust_PIM = PIM,actlumus_MEDI = MEDI, acttrust_light = i.LIGHT) 
+
+#Because we will plot in log10, we need to eliminate any 0 values from both PIM and light
+acttrust_lumus_join$actlumus_MEDI[acttrust_lumus_join$actlumus_MEDI == 0] <- 0.00001
+acttrust_lumus_join$actlumus_PIM[acttrust_lumus_join$actlumus_PIM == 0] <- 0.00001
+acttrust_lumus_join$acttrust_PIM[acttrust_lumus_join$acttrust_PIM == 0] <- 0.00001
+acttrust_lumus_join$acttrust_light[acttrust_lumus_join$acttrust_light == 0] <- 0.00001
+  
+#See the concordance between wrist and eye level activity for each Id using a for loop
+
+part_ids <- unique(acttrust_lumus_join$Id)
+
+for (id in part_ids) {
+  
+  #Filter data for current id
+  indiv_dataset <- subset(acttrust_lumus_join, Id == id)
+  
+  p <- ggplot(indiv_dataset, aes(x = actlumus_PIM, y = acttrust_PIM)) +
+    geom_point() +
+    labs(x = "Eye-level activity (PIM)", y = "Wrist-level activity (PIM)", title = paste0("PID_", id, "_activity")) +
+    stat_cor(method = "pearson") +
+    scale_y_continuous(trans = "symlog",
+                       breaks = c(-10^(5:0), 0, 10^(0:5)),
+                       labels = function(x) format(x, scientific = FALSE, big.mark = " "),
+                       limits = c(0, 10^5)) +
+    scale_x_continuous(trans = "symlog",
+                       breaks = c(-10^(5:0), 0, 10^(0:5)),
+                       labels = function(x) format(x, scientific = FALSE, big.mark = " "),
+                       limits = c(0, 10^5)) +
+    coord_fixed(ratio = 1) +
+    theme_bw()
+  
+  print(p)
+}
+  
+```
+
+#See the concordance between wrist and eye level light for each Id using a for loop 
+```{r}
+
+
+part_ids <- unique(acttrust_lumus_join$Id)
+
+for (id in part_ids) {
+  
+  #Filter data for current id
+  indiv_dataset <- subset(acttrust_lumus_join, Id == id)
+  
+  p <- ggplot(indiv_dataset, aes(x = actlumus_MEDI, y = acttrust_light)) +
+    geom_point(size = 1, colour = "darkblue", alpha = 0.7) +
+    labs(x = "Eye-level light (mEDI)", y = "Wrist-level light", title = paste0("PID_", id, "_light")) +
+    stat_cor(method = "pearson") +
+    scale_y_continuous(trans = "symlog",
+                       breaks = c(-10^(5:0), 0, 10^(0:5)),
+                       labels = function(x) format(x, scientific = FALSE, big.mark = " "),
+                       limits = c(0, 10^5)) +
+    scale_x_continuous(trans = "symlog",
+                       breaks = c(-10^(5:0), 0, 10^(0:5)),
+                       labels = function(x) format(x, scientific = FALSE, big.mark = " "),
+                       limits = c(0, 10^5)) +
+    coord_fixed(ratio = 1) +
+    theme_bw()
+  
+  print(p)
+}
+
+```
+
+#Now, create a multi-panel lot where all of the individual plots are shown 
+1) Illuminance
+```{r}
+light_corr <-
+ggplot(acttrust_lumus_join, aes(x = actlumus_MEDI, y = acttrust_light)) +
+    geom_point(size = 0.7, colour = "#fad47c", alpha = 0.7) +
+    labs(x = "Eye-level illuminance (mEDI) [lx]", y = "Wrist-level illuminance [lx]", title = "Relationship between wrist- and eye-level illuminance") +
+    stat_cor(method = "pearson", aes(label = after_stat(r.label))) +
+    scale_y_continuous(trans = "symlog",
+                       breaks = c(-10^(5:0), 0, 10^(0:5)),
+                       labels = function(x) format(x, scientific = FALSE, big.mark = " "),
+                       limits = c(0, 10^5)) +
+    scale_x_continuous(trans = "symlog",
+                       breaks = c(-10^(5:0), 0, 10^(0:5)),
+                       labels = function(x) format(x, scientific = FALSE, big.mark = " "),
+                       limits = c(0, 10^5)) +
+  theme(plot.title = element_text(hjust = 0.5)) +
+    coord_fixed(ratio = 1) +
+    theme_bw() +
+  facet_wrap(~Id,
+             ncol = 6)
+
+ggsave("light_corr.pdf",
+       plot = light_corr,
+       height = 8,
+       width = 8,
+       dpi = 600,
+       path = "G:/cyepi/code/outputs/visualinspection/wrist_eye_corrs")
+
+```
+
+2) Do the same for activity
+```{r}
+activity_corr <-
+ggplot(acttrust_lumus_join, aes(x = actlumus_PIM, y = acttrust_PIM)) +
+    geom_point(size = 0.7, colour = "#2A5B84", alpha = 0.7) +
+    labs(x = "Eye-level activity [PIM]", y = "Wrist-level activity [PIM]", title = "Relationship between wrist- and eye-level activity") +
+    stat_cor(method = "pearson", aes(label = after_stat(r.label))) +
+    scale_y_continuous(trans = "symlog",
+                       breaks = c(-10^(5:0), 0, 10^(0:5)),
+                       labels = function(x) format(x, scientific = FALSE, big.mark = " "),
+                       limits = c(0, 10^5)) +
+    scale_x_continuous(trans = "symlog",
+                       breaks = c(-10^(5:0), 0, 10^(0:5)),
+                       labels = function(x) format(x, scientific = FALSE, big.mark = " "),
+                       limits = c(0, 10^5)) +
+  theme(plot.title = element_text(hjust = 0.5)) +
+    coord_fixed(ratio = 1) +
+    theme_bw() +
+  facet_wrap(~Id,
+             ncol = 6)
+
+ggsave("activity_corr.pdf",
+       plot = activity_corr,
+       height = 8,
+       width = 8,
+       dpi = 600,
+       path = "G:/cyepi/code/outputs/visualinspection/wrist_eye_corrs")
+```
+
+#
