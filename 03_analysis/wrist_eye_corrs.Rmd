@@ -12,7 +12,6 @@ knitr::opts_chunk$set(echo = TRUE)
 ##NOTE: to be run after import_ll and import_activity 
 ```{r}
 dataset.LL.all.1 <- dataset.LL.all %>%
-  filter(!(Id == "202") & !(Id == "204")) %>% #eliminate these two Ids because files from acttrust are missing 
   rename(timestamp = Datetime) #rename Datetime column so we do not get confused between the two files
 
 data.table::setDT(dataset.LL.all.1)[, join_date := timestamp] #convert to data.table and append original column that we want to keep
@@ -149,4 +148,3 @@ ggsave("activity_corr.pdf",
        path = "G:/cyepi/code/outputs/visualinspection/wrist_eye_corrs")
 ```
 
-#
