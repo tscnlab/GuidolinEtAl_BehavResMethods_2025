@@ -15,7 +15,7 @@ path <- here("G:/cyepi/code/pre-processing/nonwear_detection/acttrust2")
 tz <- "Europe/Berlin"
 
 files <- list.files(path, full.names = TRUE)
-#show how many files are listes
+#show how many files are listed
 length(files)
 
 pattern <- "^(\\d{3})"
