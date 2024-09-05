@@ -20,7 +20,7 @@ data.table::setDT(dataset.acttrust.clean)[, join_date := Datetime] #convert to d
 
 #For each ActTrust file, find the nearest (in time) ActLumus Datetime
 acttrust_lumus_join <- dataset.LL.all.1[dataset.acttrust.clean, on = .(Id, join_date), roll = "nearest"] %>% #Perform a left join of the two datasets using data.table
-  rename(actlumus_PIM = i.PIM, acttrust_PIM = PIM,actlumus_MEDI = MEDI, acttrust_light = i.LIGHT) 
+  rename(actlumus_PIM = PIM, acttrust_PIM = i.PIM, actlumus_MEDI = MEDI, acttrust_light = i.LIGHT) 
 
 #Because we will plot in log10, we need to eliminate any 0 values from both PIM and light
 acttrust_lumus_join$actlumus_MEDI[acttrust_lumus_join$actlumus_MEDI == 0] <- 0.00001
@@ -146,5 +146,81 @@ ggsave("activity_corr.pdf",
        width = 8,
        dpi = 600,
        path = "G:/cyepi/code/outputs/visualinspection/wrist_eye_corrs")
+```
+
+## Once we have run the correlations, we want to visualise the distrubution of light exposure over the distribution of activity, for each participant.
+We can do this using a qq plot. For each participant, you calculate the quantiles: 1%, 5%, 10% and so on. These give you a PIM or mEDI value below which 1%, 5% or 10% of the data is. You then plot the obtained values on two separate axes for each participant.
+```{r}
+#Creating an empty dataframe for later
+all_quantiles_df <- data.frame()
+
+#Creating a sequence for the probabilities we are interested in
+probabilities <- seq(0.1, 1, length.out = 10) 
+
+for (id in part_ids) {
+  
+  #Subsetting for that ID
+  indiv_dataset <- subset(acttrust_lumus_join, Id == id)
+  
+  #Calculate the quantiles of mEDI and PIM
+  quantiles_light <- quantile(indiv_dataset$actlumus_MEDI, probs = probabilities)
+  quantiles_PIM <- quantile(indiv_dataset$acttrust_PIM, probs = probabilities)
+
+  #Place this into a df
+  quantiles_df <- data.frame(light = quantiles_light,
+                             activity = quantiles_PIM,
+                             quantile_index = seq_along(probabilities)*10)
+  
+  #Add a column for PID
+  quantiles_df$id <- id
+  
+  #Print
+  print(quantiles_df)
+  
+  #Append to bigger df 
+ all_quantiles_df <- rbind(all_quantiles_df, quantiles_df)
+ 
+ # Reset row numbers in the final dataframe to avoid having the index as percentages
+  rownames(all_quantiles_df) <- NULL
+  
+}
+
+```
+
+Now that we have the df, we create a scatterplot of mEDI and PIM for each participant and visualise this as a multi plot with ~facet_wrap
+```{r}
+library(ggrepel)
+
+quantiles_plot <- 
+  ggplot(all_quantiles_df, aes(x=light, y=activity)) +
+  geom_jitter(size=1.5) +
+  labs(x="Eye-level illuminance (mEDI)", y="Wrist-level activity (PIM)", title = "Distribution of light and activity across participants") +
+  scale_y_continuous(trans = "symlog",
+                       breaks = c(-10^(5:0), 0, 10^(0:5)),
+                       labels = function(x) format(x, scientific = FALSE, big.mark = " "),
+                       limits = c(0, 10^5)) +
+    scale_x_continuous(trans = "symlog",
+                       breaks = c(-10^(5:0), 0, 10^(0:5)),
+                       labels = function(x) format(x, scientific = FALSE, big.mark = " "),
+                       limits = c(0, 10^5)) +
+  geom_text_repel(aes(label = ifelse(
+    quantile_index == "10" | quantile_index == "50" | quantile_index == "100", quantile_index,"")), #only added some of the labels, as adding all would make the plot too messy
+            size= 3,
+            hjust=-0.5,
+            vjust = 0.5) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  coord_fixed(ratio=1) +
+  facet_wrap(~id,
+             ncol=6)
+
+ggsave("quantiles_plot.pdf",
+       plot = quantiles_plot,
+       height = 10,
+       width = 10,
+       dpi = 600,
+       path = "G:/cyepi/code/outputs/visualinspection/wrist_eye_corrs")
+
+
 ```
 
