@@ -9,14 +9,30 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Note: run this script after import_LL and import_wearlog
+# Note: run this script after import_LL, import_wearlog and import_bag
 
-# Performing quality checks for the Wear log dataset 
+# Joining of two datasets: wear log and bag data sets
+Now we have a dataframe wearlog_bag_clean that contains timestamps for when the black bag was used or not used. We'd like to join this with the dataframe that contains the Wear log entries, i.e. wearlog_int_clean. Afterwards, we will move on to perform quality checks on this combined df. 
+
+```{r pressure, echo=FALSE}
+
+##First, we need to do some renaming 
+bag_df <- wearlog_bag_clean %>%
+  rename(Id = record_id, Datetime = timestamp_combined, bag = bag_combined) %>%
+  mutate(Id = as.factor(Id),
+         Datetime = dmy_hm(Datetime, tz = "Europe/Berlin"))
+  
+
+#Now, we want to use left_join to merge the two dataframes 
+joined_df <- left_join(wearlog_entries_raw, bag_df, by = c("Datetime", "Id")) %>%
+    mutate(bag = ifelse(is.na(bag), 2, bag)) #all the "on" and "sleep" intervals have bag = NA (since no bag was used here), so we give it a value of 2 
+
+```
+
+# Performing quality checks for the Wear log and bag dataset 
 In this script, we perform 2 quality checks on the Wear log dataset.
 1. Identifying identical consecutive timestamps 
 2. Identifying identical consecutive states 
-
-Note: this script should be run after the import_LL and import_wearlog have been run.
 
 ## Quality check 1a: Identifying consecutive datetimes
 The first thing that we want to check is for identical consecutive timestamps, i.e. identical and consecutive Datetime values. These should not occur, but it is possible that something went "wrong" from the participants' side. If this is the case, it should be corrected. 
