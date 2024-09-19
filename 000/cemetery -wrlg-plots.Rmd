@@ -1,0 +1,133 @@
+---
+title: "cemetery-wrlg-plots"
+author: "Carolina Guidolin"
+date: "2024-09-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Cemetery of old code to generate Wearl log plots
+
+This script contains code chunks to generate plots alternative to the ones of wrlg_plots
+
+
+```{r}
+#Extra plot 1: Same plot as states_dist_jitter, but without jitter and boxplot, just with distribution
+  states_dist_histo <- ggplot(data = int_duration, aes(x=id_duration_per, y = State, fill = State)) +
+  xlim(NA,100) +
+  ggdist::stat_halfeye(
+    aes(colour = State,
+        fill = State),
+    adjust = .5,
+    point_color = NA,
+    interval_color = NA
+ #   .width = .7
+    ) +
+  ggdist::stat_dotsinterval(
+    side = "bottom",
+    scale = .3,
+    slab_colour = NA,
+    slab_linewidth = NA) +
+  scale_fill_manual(
+    values = c("off" = "#16439C", "on" = "palegreen4", "sleep" = "darkgoldenrod2")) +
+  scale_y_discrete(labels = c("on" = "On", "off" = "Off", "sleep" = "Off while\nsleeping")) +
+  theme_classic() +
+  ggpubr::rremove("ylab") +
+  ggpubr::rremove("y.ticks") +
+  labs(title = "(Non-)wear time distribution across the week", x = "Percentage of time (%)") +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size = 24),
+        axis.text.x = element_text(size = 16),
+        axis.title = element_text(size = 18),
+        axis.text.y = element_text(size = 16))
+
+
+```
+
+```{r}
+#Extra plot 2: only visualise non-wear time distribution 
+
+tot_nonwear <- int_duration%>%
+  filter(State == "off")
+
+#tot_nonwear$offtime_per <- (tot_nonwear$off_time / (24*7))*100
+
+nonwear_dist_overview <- ggplot(data = int_duration, aes(x = id_duration_per, fill = State))  +
+  xlim(NA, 100) +
+  ggdist::stat_halfeye(
+    aes(colour = State,
+        fill = State),
+    adjust = .5,
+    ) +
+  ggdist::stat_dotsinterval(
+    side = "bottom",
+    scale = .3,
+    slab_colour = NA,
+    slab_linewidth = NA) +
+   scale_fill_manual(values = c("off" = "#16439C")) +
+  theme_classic() +
+  labs(title = "Non-wear time distribution", x = "Non-wear time (%)") +
+  ggpubr::rremove("ylab") +
+  ggpubr::rremove("y.ticks") +
+  ggpubr::rremove("y.text") +
+  theme(plot.title = element_text(hjust = 0.5, size = 24),
+        axis.text.x = element_text(size = 16),
+        axis.title = element_text(size = 18),
+        axis.text.x.top = element_blank(),
+        axis.ticks.x.top = element_blank(),
+        axis.line.x.top = element_blank(),
+        legend.position = "none") +
+  scale_x_break(c(15,99.9),
+                ticklabels = 100)
+
+```
+
+```{r}
+#Extra plot 3: visualing only non-wear time for each day of the week
+
+#Non-wear time can be calculated from the joined_int dataset
+nonwear_time <-wrlg_int %>%
+#filter for intervals on non-wear (State == "off")
+  filter(State == "off") %>% 
+  #calculate the non-wear time through the interval column
+  mutate(off_time = int_length(Interval) %>% as_hms()) %>% 
+  #group by date and summarize daily non-wear time
+  mutate(Date = as.Date(int_end(Interval)), #first, Date and corresponding weekday are calculated
+         day = format(Date, format = "%A", locale="English") %>% 
+           forcats::fct_inorder()) %>%
+  group_by(Id, day, .add = TRUE) %>%
+  summarize(off_time = sum(off_time)) %>%
+  ungroup()
+
+#There are participants who have 0 non-wear time for a day, i.e. they have no State == off, who we still want to display as 0 points in our plot. Since we filtered for State == off above, we need to use complete to fill in days of 0 non-wear with 0 values. 
+off_states <- off_states %>%
+  complete(Id, day, fill = list(off_time = as_hms(0)))
+
+off_states$off_time <- as.numeric(off_states$off_time, "hours")
+
+#plotting the data
+nonwear_duration <- off_states %>% 
+ggplot(aes(x = day, y = off_time)) +
+  geom_violin(alpha = 0.3, aes(fill=day), trim = TRUE) + 
+  geom_dotplot(binaxis = "y",
+               stackdir = "center",
+               dotsize = 0.5,
+               binwidth = 0.1) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 30, face = "plain"),
+        axis.text = element_text(size=18),
+        axis.title = element_text(size=18),
+        axis.title.y = element_text(size = 20),
+        axis.title.x = element_text(size = 20),
+        legend.position = "none") +
+  xlab("Experimental day") + 
+  ylab("Non-wear time (hours)") +
+  scale_y_continuous(breaks = c(0, 2, 4, 6, 8, 10, 12, 14, 16), 
+                     label = c(0, 2, 4, 6, 8, 10, 12, 14, 16), 
+                     expand = c(0,0)) +
+  ggtitle("Self-reported non-wear time entries (Wear log)")
+```
+
