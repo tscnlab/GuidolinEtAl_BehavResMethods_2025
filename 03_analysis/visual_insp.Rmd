@@ -123,7 +123,7 @@ ggsave(filename = filename,
        height = 14,
        dpi = 600,
        bg = "white",
-       path= "G:/cyepi/code/outputs/visualinspection2")
+       path= "G:/cyepi/code/outputs/visual_insp/activity")
 }
 
 
@@ -220,7 +220,7 @@ ggsave(filename = filename,
        height = 14,
        dpi = 600,
        bg = "white",
-       path= "G:/cyepi/code/outputs/visualinspection2/light")
+       path= "G:/cyepi/code/outputs/visual_insp/light")
 }
 
 ```
@@ -321,13 +321,13 @@ p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
         legend.box.background = element_rect(fill = "white", colour = "darkgrey"),
         legend.margin = margin(c(1,1,1,1)))
 
-ggsave(filename = "exemplaryrawreadings_2.svg",
+ggsave(filename = "exemplary_participant.svg",
        plot = p,
        width = 11,
        height = 14,
        dpi = 600,
        bg = "white",
-       path= "G:/cyepi/code/outputs/visualinspection2/light/sltbr")
+       path= "G:/cyepi/code/outputs/visual_insp/example")
 
 ```
 
