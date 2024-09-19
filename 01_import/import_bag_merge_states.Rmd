@@ -14,9 +14,8 @@ knitr::opts_chunk$set(echo = TRUE)
 2) import_activity
 3) import_wearlog
 
-##This script is used to import information about black bag use. It also merges the wearlog dataframe (wearlog_entries_raw from importa_wearlog) together with the bag dataframe. This is a necessary step for fusing the three sources of non-wear.
+##This script is used to import information about black bag use.
 
-# Import information about the black bag use (2nd source of non-wear)
 First, we need to re-adjust the original Wear log file, where the black bag information is contained.
 ```{r pressure, echo=FALSE}
 #First, turn it into a dataframe
@@ -46,24 +45,6 @@ wearlog_bag_clean <- wearlog_bag_clean %>%
                                                      NA ~ wearlog_past_bag, #if wearlog_bag is NA, wearlog_past_bag is taken
                                                      .default = wearlog_bag))%>%
                     select(record_id, timestamp_combined, bag_combined) #select columns of interest
-
-```
-
-
-# Joining of the two datasets 
-Now we have a dataframe wearlog_bag_clean that contains timestamps for when the black bag was used or not used. We'd like to join this with the dataframe that contains the Wear log entries, i.e. wearlog_int_clean
-```{r pressure, echo=FALSE}
-
-##First, we need to do some renaming 
-bag_df <- wearlog_bag_clean %>%
-  rename(Id = record_id, Datetime = timestamp_combined, bag = bag_combined) %>%
-  mutate(Id = as.factor(Id),
-         Datetime = dmy_hm(Datetime, tz = "Europe/Berlin"))
-  
-
-#Now, we want to use left_join to merge the two dataframes 
-joined_df <- left_join(wearlog_entries_raw, bag_df, by = c("Datetime", "Id")) %>%
-    mutate(bag = ifelse(is.na(bag), 2, bag)) #all the "on" and "sleep" intervals have bag = NA (since no bag was used here), so we give it a value of 2 
 
 ```
 
