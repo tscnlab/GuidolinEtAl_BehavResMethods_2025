@@ -21,7 +21,7 @@ wrlg_states <- wrlg_entries_clean %>%
       State == 2 & (lead(State) == 1) ~ "sleep", #if sleep and next one is on, then it's sleep
       .default = NA_character_)) 
 
-#To check that the State coding into on, off and sleep worked, we want to see where NA values where assigned. We expect NA values for participant's first entry, as the previous entry is absent, and so defaulted to NA-character as specified by case_when() in the step above
+#To check that the State coding into on, off and sleep worked, we want to see where NA values where assigned. We expect NA values for participant's first entry, as the previous entry is absent, and so defaulted to NA character as specified by case_when() in the step above
 
 first_tmp_int <- wrlg_states %>%
   group_by(Id) %>%
@@ -41,7 +41,8 @@ last_tmp_int <- wrlg_states %>%
 newrow_225 <- data.frame(
   Id = as.factor(225),
   State = as.character(2),
-  Datetime = as.POSIXct("2023-11-05 22:29:00", tz = tz)
+  Datetime = as.POSIXct("2023-11-05 22:29:00", tz = tz),
+  bag = as.numeric(2)
 )
 
 wrlg_entries_clean_1 <- bind_rows(wrlg_entries_clean, newrow_225) %>%
@@ -92,6 +93,7 @@ wrlg_int <- wrlg_states %>%
   
 #Now that the joined_df is ready, we are ready to merge it to the light logger dataset
 dataset.LL.wrlg <- dataset.LL.all %>% 
-  LightLogR::interval2state(wrlg_int) 
+  LightLogR::interval2state(wrlg_int) %>%
+  LightLogR::interval2state(wrlg_int, State.colname = bag)
 ```
 
