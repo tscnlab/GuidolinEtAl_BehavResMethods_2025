@@ -9,6 +9,13 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## Note: to be run after 
+1) import_LL
+2) import_activity
+3) import_wearlog
+
+##This script is used to import information about black bag use. It also merges the wearlog dataframe (wearlog_entries_raw from importa_wearlog) together with the bag dataframe. This is a necessary step for fusing the three sources of non-wear.
+
 # Import information about the black bag use (2nd source of non-wear)
 First, we need to re-adjust the original Wear log file, where the black bag information is contained.
 ```{r pressure, echo=FALSE}
@@ -55,52 +62,9 @@ bag_df <- wearlog_bag_clean %>%
   
 
 #Now, we want to use left_join to merge the two dataframes 
-joined_df <- left_join(wrlg_int_states, bag_df, by = c("Datetime", "Id")) %>%
+joined_df <- left_join(wearlog_entries_raw, bag_df, by = c("Datetime", "Id")) %>%
     mutate(bag = ifelse(is.na(bag), 2, bag)) #all the "on" and "sleep" intervals have bag = NA (since no bag was used here), so we give it a value of 2 
 
-#Using the sc2interval function, we can turn the Datetime column of joined_df into an interval of time
-joined_int <- joined_df %>%
-  group_by(Id) %>% #need to do this to prevent that Datetime from 2 different participants get merged into the same interval
-  LightLogR::sc2interval(full = TRUE, length.restriction = 7 * (60*60*24)) %>%
-  ungroup()
-
-#NOTE: By setting full sc2interval(full = TRUE) we ensure that the last interval for each participant end on Sunday at 00:00, which is the last day. But there is also now a new NA interval for the first participation day, up until when participants come in the lab. This will be ignored when using interval2state in the next lines
-  
-#Now that the joined_df is ready, we are ready to merge it to the light logger dataset
-dataset.LL.joined <- dataset.LL.all %>% 
-  LightLogR::interval2state(joined_int) %>%
-  #note that only the State (not bag) will be carried over from the original dataset, so we re-apply the function to include the bag
-  LightLogR::interval2state(joined_int, State.colname = bag)
-
 ```
 
-### Quality checks
-Because of the work-around in the code chunk above, I would like to double check that the coding of State and bag was integrated correctly
-```{r}
-perform_quality_checks <- function(df) {
-  for (i in 1:nrow(df)) {
-    if (df$State[i] == 'on' || df$State[i] == 'sleep') {
-      if (df$bag[i] != 2) {
-        stop(paste("Quality check failed at index", i, ": State is", df$State[i], "but bag is not 2"))
-      }
-    } else if (df$State[i] == 'off') {
-      if (df$bag[i] != 0 && df$bag[i] != 1) {
-        stop(paste("Quality check failed at index", i, ": State is off but bag is neither 0 nor 1"))
-      }
-    } else {
-      stop(paste("Invalid State value '", df$State[i], "' at index", i, ". State should be either 'on', 'off', or 'sleep'"))
-    }
-  }
-}
 
-tryCatch({
-  perform_quality_checks(dataset.LL.joined)
-  print("Quality checks passed successfully")
-}, error = function(e) {
-  print(e)
-})
-
-```
-
-## Why this code is problematic:
-This code must be revisited: we have now changed some entries in the wearlog files, e.g. we have deleted some entries or altered them (changed an on entry to an off entry). How to adjust the bag entries based on these changes?
