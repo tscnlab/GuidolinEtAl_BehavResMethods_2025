@@ -16,15 +16,15 @@ This script should be run after 01_import and 02_datapreparation scripts.
 Aim: Here we analyse data from black bag use (low illuminance [mEDI] values). The first thing that we want to do is a visual inspection of the data to check how light and activity compare, for each State of the Wear log. Low activity is also often used as a way to understand non-wear time in field studies. Since we have both information (light and activity), we want to know how these two source compare to each other. 
 
 ```{r}
-#We will be plotting using log10 transformation, so we want to replace 0 values for mEDI (light) and PIM (activity) to very low values
+#We will be plotting using log10 transformation, so we cannot have 0 values in our data set. For this reason, we add 1 to each value in MEDI and PIM
 
-dataset.LL.wrlg$MEDI[dataset.LL.wrlg$MEDI == 0] <- 0.00001
-dataset.LL.wrlg$PIM[dataset.LL.wrlg$PIM == 0] <- 0.00001
+dataset.LL.wrlg$MEDI <- dataset.LL.wrlg$MEDI + 1
+dataset.LL.wrlg$PIM <- dataset.LL.wrlg$PIM + 1
 
-#To be able to visually observe how light and activity relate to each other in our dataset, we cannot plot all our data points (too many). So, we take median values of each Id, for each State (off/on/sleep)
+#To be able to visually observe how light and activity relate to each other in our data set, we cannot plot all our data points (too many). So, we take median values of each Id, for each State (off/on/sleep)
 
 median.LL.wrlg <- dataset.LL.wrlg %>%
-  filter(!State == "sleep") %>%
+#  filter(!State == "sleep") %>%
   group_by(Id, State) %>%
   summarise(median_medi = median(log10(MEDI), na.rm = TRUE),
             median_pim = median(log10(PIM), na.rm = TRUE),
@@ -59,7 +59,7 @@ median_scatter <-
 
 ```
 ## Improving visualisation above
-To improve the visualisation above, we can create a simple scatterplot without error bars, and add boxplots as marginal plots
+To improve the visualisation above, we can create a simple scatterplot without error bars, and add boxplots as marginal plots.
 ```{r}
 scatter <- ggplot(median.LL.wrlg, aes(x = median_medi, y = median_pim)) + 
   geom_jitter(aes(fill = State, color = State), size = 2.5, alpha = 0.6,
@@ -73,17 +73,17 @@ scatter <- ggplot(median.LL.wrlg, aes(x = median_medi, y = median_pim)) +
     values = c("off" = "darkred", "on" = "#0072B2", "sleep" = "darkgoldenrod2"),
     labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
   scale_x_continuous(
-    breaks = c(-5, -3, -1, 1, 3), 
-    labels = c(expression(10^-5), expression(10^-3), expression(10^-1), expression(10^1), expression(10^3)), #ensure that the log expression is labelled correctly 
-    limits = c(-5.5, 3)
+    breaks = c(-1, 1,3), 
+    labels = c(expression(10^-1), expression(10^1), expression(10^3)), #ensure that the log expression is labelled correctly 
+    limits = c(-1, 4)
   ) +
   scale_y_continuous(
-    breaks = c(-5, -3, -1, 1, 3),
-    labels = c(expression(10^-5), expression(10^-3), expression(10^-1), expression(10^1), expression(10^3)), #ensure that the log expression is labelled correctly 
-    limits = c(-5.5, 3)
+    breaks = c(-1, 1, 3),
+    labels = c(expression(10^-1), expression(10^1), expression(10^3)), #ensure that the log expression is labelled correctly 
+    limits = c(-1, 4)
   ) +
-  labs(x = "Median illuminance (mEDI, lx)",
-       y = "Activity (PIM)") +
+  labs(x = "Median of log illuminance (mEDI, lx)",
+       y = "Median of log activity (PIM)") +
   coord_fixed(ratio=1) + #make sure plot is a square
   theme_bw() + 
   theme(plot.title = element_text(hjust = 0.5, size = 20),
@@ -107,51 +107,16 @@ plot_marginal <- annotate_figure(marginal,
                                                             face = "plain",
                                                             size = 18))
 # Saving the plot
-ggsave(filename = "plot_marginal.svg",
+ggsave(filename = "plot_marginal.png",
        plot = plot_marginal ,
        width = 5,
        height = 6.5,
        dpi = 600,
        bg = "white",
-       path= "G:/cyepi/code/outputs")
+       path= "G:/cyepi/code/outputs/light_activity_prc")
 
 ```
-
-
-
-# Creating and hexagon plot to visualise light and activity 
-```{r}
-#First, we test this with one participant only 
-selected_id <- "216"
-
-subset_df <- dataset.LL.wrlg %>%
-  filter(Id == selected_id) %>%
-  mutate(PIMlog = log10(PIM),
-         MEDIlog = log10(MEDI)) %>%
-  select(Id, Datetime, PIMlog, MEDIlog, State, PIM, MEDI) %>%  
-  filter(State == "off") 
-  
-
-ggplot(data = subset_df, 
-       aes(x = MEDI, y = PIM)) +
-  geom_hex(bins = 74) +
-  scale_y_continuous(trans = "symlog",
-                     breaks = c(-10^(5:0), 0, 10^(0:5)),
-                     labels = function(x) format(x, scientific = FALSE, big.mark = " ")) +
-  scale_x_continuous(trans = "symlog",
-                     breaks = c(-10^(5:0), 0, 10^(0:5)),
-                     labels = function(x) format(x, scientific = FALSE, big.mark = " "))
-
-```
-#Spelling out the problem
-What we see here for participant 2016 is that
-- They barely remove the light glasses
-- When they do, they place it in the black bag 
-- When it is in the bag, the level of activity ranges from 5 lux to very high 
-- Although the visual inspection of light across the week (performed in visual_insp) suggests that they always put it in the black bag, we still have datapoints that fall in these high activity high light part of the plot. There are not may, but we suspect that they indicate moments in which the participant is placing the device in the black bag 
-
-
-#Building on plot above - we do this for all participants
+#Hexagonal plots across states for all participants
 This allows us to compare light and activity across the whole week - this can be done for on, off and sleep states alike
 ```{r}
 ##List of all unique participant Ids
@@ -160,7 +125,7 @@ par_ids <- unique(dataset.LL.wrlg$Id)
 for (participant in par_ids) {
   subset_df = dataset.LL.wrlg %>%
     filter(Id == participant) %>%
-    filter(State == "sleep") %>%
+    filter(State == "on") %>%
     select(Id, State, PIM, MEDI)
   
   plot <- ggplot(data = subset_df, 
@@ -185,11 +150,10 @@ for (participant in par_ids) {
          height = 8,
          dpi = 600,
          bg = "white",
-         path= "G:/cyepi/code/outputs/visualinspection/hexagonalplots/sleep")
+         path= "G:/cyepi/code/outputs/light_activity_prc/hexagonalplots/on")
     
 } 
 ```
-
 
 ## Final, alternative plot
 Another alternative visualisation would be to simply plot mEDI, without activity, across the Wear log states
