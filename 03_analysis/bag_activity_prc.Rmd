@@ -39,7 +39,7 @@ pim_stats <- dataset.LL.wrlg %>%
 #In order to build a PRC, we need to test the performance of our algorithm by changing the input parameters. Here, we modifiy the threshold for "low activity", i.e. the PIM value. 
 
 #Create a sequence of PIM thresholds at 5 unit steps
-pimthresholds <- seq(5, 50, by = 5)
+pimthresholds <- c(5,10, 15, 20, 25, 30, 35, 40, 45, 50)
 
 #Empty list to store classification results
 prc_pim_list <- list()
@@ -75,7 +75,7 @@ prc_pim_list <- list()
 
 
   pimclusters_clean <- pim_clusters %>%
-   select(Id, Datetime, State, is_low_pim_cluster) %>%
+   select(Id, Datetime, State, bag, is_low_pim_cluster) %>%
     mutate(
       State = case_when(
       State == "on" ~ 1, 
@@ -100,8 +100,8 @@ prc_pim_list <- list()
      .default = NA_character_))
 
   prc_pim <- pimclusters_clean %>%
-    group_by(Id, classification) %>%
-   summarise(count = n()) %>%
+    group_by(Id, classification) %>% ##!!If you want to visualise info per participatn, you also have to group_by Id. Else, only by classification
+   summarise(count = n())  %>%
    pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
     mutate(TPR = TP/(TP+FN), #this is the formula for TPR (true positive rate)
            FPR = FP/(FP+TN), #this is the formula for the FPR (false positive rate)
@@ -120,6 +120,7 @@ prcurve_pim <- bind_rows(prc_pim_list)
 prcurve_pim$threshold <- as.numeric(prcurve_pim$threshold)
 
 ```
+
 
 
 ```{r}
@@ -197,13 +198,13 @@ mediclusters_clean <- mediclusters_clean %>%
     .default = NA_character_))
 
 prc_medi <- mediclusters_clean %>%
-  group_by(Id, classification) %>%
+  group_by(Id, classification) %>% #!! if you want to visualise individual PRC, then you have to group_by(Id, classification). Else, only group_by(classification)
   summarise(count = n()) %>%
   pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
   mutate(TPR = TP/(TP+FN), #true positive rate
          FPR = FP/(FP+TN), #false positive rate
          PPV = TP/(TP+FP), #positive predictive value
-         NPV = TN/(FN+TN), #negative predictive values
+         NPV = TN/(FN+TN), #negative predictive value
          threshold = threshold)  #adding manually which threshold I am considering here 
 
  #Add the result to the list
@@ -309,7 +310,34 @@ ggsave(filename = "precision_recall_3.svg",
        bg = "white",
        path= "G:/cyepi/code/outputs")
 ```
-##Visualisation of activity and light prc for each participant
+##Visualisation of activity and light prc for each participant in a multiplot
+This is helpful to know whether the prc performs differently in each participant. We also want to know: if our algorithm performs poorly, is it because the participants were not compliant with using the black bag? So, the first step is actually to calculate how often the bag was actually used when logging and off event. 
+
+### Calculating % usage of black bag 
+```{r}
+ bag_use <- dataset.LL.wrlg %>%
+  group_by(Id) %>%
+   mutate(bag_use = case_when(
+     State == "off" & bag == 0 ~ "notused", #when State is 0ff and bag is 0, it was not used
+     State == "off" & bag == 1 ~ "used", #when state is off and bag is 1, it was used
+     .default = NA_character_)) %>%
+  ungroup()
+
+per_bag_use <- bag_use %>%
+  group_by(Id, bag_use) %>% 
+  summarise(count = n()) %>% #calculating how many used and notused per participant
+  filter(!is.na(bag_use)) %>% #eliminate NAs which correspond to when State is on or sleep
+  complete(bag_use = c("used", "notused"), fill = list(count = 0)) %>% #if participant does not have values for "used" or "notused" because they wither never used the bag, or always used it, we replace that with 0
+  mutate(total = sum(count), #counting total entries per participant
+         compliance_per = if_else(bag_use == "used", (count*100)/total, NA), #calculating % of "used" over total entries
+         compliance_per = round(compliance_per, 1)) %>% #rounding the percentage value to 1 decimal point
+  filter(!is.na(compliance_per)) #eliminate the NA that comes from the ifelse
+
+
+```
+
+###Plotting the PRC for each participant and labelling % compliance of bag use 
+
 ```{r}
 prc_multiplot <- ggplot() +
    xlim(0,1) + 
@@ -323,10 +351,6 @@ prc_multiplot <- ggplot() +
      limits= c(5,50),
     guide = guide_colorbar(title.position = "top",
                            title.hjust = 0.5)) +
-  scale_x_continuous(
-    breaks = c(0, 1.50, 1.0),
-    labels = c(0, 1.50, 1.00)
-  ) +
   facet_wrap(~ Id) +
   ggnewscale::new_scale_color() +
   #Second plot: light
@@ -336,11 +360,16 @@ prc_multiplot <- ggplot() +
      low = "red", high = "orange",
      limits= c(1,10),
      guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  scale_x_continuous(
+    breaks = c(0, 1.50, 1.0),
+    labels = c(0, 1.50, 1.00)
+  ) +
   facet_wrap(~Id) +
+#  geom_text(data = per_bag_use, aes(x = 0.5, y = 0.95, label = paste("Bag use:",compliance_per,"%")), size = 4.2) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
        title = "Precision-recall curve for detection of \nnon-wear intervals based on activity \nand illuminance thresholds") +
-  theme_bw() +
+   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5, size = 16),
         axis.text = element_text(size = 14),
         axis.title = element_text(size = 14),
@@ -349,18 +378,20 @@ prc_multiplot <- ggplot() +
         legend.key.size = unit(4, "mm"),
         legend.position = "bottom",
         legend.box = "horizontal") +
-  coord_fixed(ratio = 1) 
+   coord_fixed(ratio = 1)
 
 #Save the plot
-ggsave(filename = "prc-multiplot-raw.png",
+ggsave(filename = "prc-multiplot-raw-unlabelled.png",
        plot = prc_multiplot,
-       height = 9, 
-       width = 9,
+       height = 10, 
+       width = 10,
        dpi = 600,
        bg = "white",
        path= "G:/cyepi/code/outputs/light_activity_prc")
 
 ```
+
+
 
 
 
@@ -405,8 +436,6 @@ pim_clusters <- dataset.LL.wrlg %>%
 
 
 ```
-
-
 
 
 

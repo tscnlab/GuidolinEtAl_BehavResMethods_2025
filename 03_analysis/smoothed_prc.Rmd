@@ -1,0 +1,351 @@
+---
+title: "smoothed_prc"
+author: "Carolina Guidolin"
+date: "2024-09-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Note: this script has to be run after bag_activity_prc.Rmd
+
+## What if we smoothed the data before applying the cluster detection algorithm 
+1) Apply a log transformation to raw data
+2) Calculate sliding median window 10 minutes 
+3) Normalise to max per dataset 
+4) Apply cluster detection algorithm (suggested parameters: 10min periods with 2min interruptions of activity < 0.1)
+
+##Step 1: Apply log transformation
+```{r}
+#Before we transform into log, we replace 0 values with low numbers
+dataset.LL.wrlg$MEDI[dataset.LL.wrlg$MEDI == 0] <- 0.0001
+dataset.LL.wrlg$PIM[dataset.LL.wrlg$PIM == 0] <- 0.0001
+
+#Take log10 of both MEDI and PIM
+log.LL.wrlg <- dataset.LL.wrlg %>%
+  select(Id, Datetime, PIM, MEDI, State, bag) %>%
+  mutate(log.PIM = log10(PIM),
+         log.MEDI = log10(MEDI))
+```
+
+##Step 2: Calculate sliding median window of 10 minutes
+```{r}
+library(zoo)
+
+rolled.df <- log.LL.wrlg %>%
+  group_by(Id) %>%
+  mutate(rolled_median_MEDI = zoo::rollapplyr(log.MEDI, width = 60, FUN = median, fill = NA, align = "center"),
+         rolled_median_PIM = zoo::rollapplyr(log.PIM, width = 60, FUN = median, fill = NA, align = "center")) %>%
+  ungroup()
+
+```
+
+##Step 3: Maximise to max per dataset
+For now, we do it without this step
+
+##Step 4a: Apply cluster detection for low activity
+```{r}
+#Create a sequence of PIM thresholds at 5 unit steps
+pimthresholds <- c(5,10, 15, 20, 25, 30, 35, 40, 45, 50)
+
+log_thr_pim <- log10(pimthresholds)
+
+#Empty list to store classification results
+prc_pim_list <- list()
+  
+  for (threshold in log_thr_pim) {
+
+  pim_clusters <- rolled.df %>%
+    ungroup() %>%
+   # filter(Id == "201") %>%
+   filter(!State == "sleep") %>%
+   # Replace `low_activity` by the (logical) variable for which the clusters 
+   # should be found.
+   mutate(low_pim = rolled_median_PIM < threshold) %>% 
+   # Nest by groups, e.g., participant, period. Replace with grouping variables 
+   # in your data, such that the function is applied separately per consecutive 
+   # timeseries (e.g., from one subject during one period).
+    nest_by(Id) %>% 
+   mutate(
+    # Replace `low_activity` by the (logical) variable for which the clusters 
+    # should be found.
+    data = list(
+      data_find_clusters(
+        data, 
+        low_pim, 
+        min_length = "10 mins", 
+        max_interrupt = "2 mins", 
+        cluster_name = "low_pim_cluster"
+      )
+    )
+  ) %>%
+  unnest(cols = data) %>%
+  ungroup() %>%
+    filter(!is.na(rolled_median_PIM)) #account for the start and end of the rolling median, which has NAs
+
+
+  pimclusters_clean <- pim_clusters %>%
+   select(Datetime, State, bag, is_low_pim_cluster) %>%
+    mutate(
+      State = case_when(
+      State == "on" ~ 1, 
+      State == "off" ~ 0),
+    is_low_pim_cluster = case_when(
+      is_low_pim_cluster == TRUE ~ 0,
+      is_low_pim_cluster == FALSE ~ 1
+    )) 
+
+#We want to build a precision recall curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
+#1) State = 0, cluster = 0 -> true positive
+#2) State = 0, cluster = 1 -> false negative
+#3) State = 1, cluster = 1 -> false positive
+#4) State = 1, cluster = 0 -> true negative
+
+  pimclusters_clean <- pimclusters_clean %>%
+   mutate(classification = case_when(
+      State == 0 & is_low_pim_cluster == 0 ~ "TP",
+      State == 0 & is_low_pim_cluster == 1 ~ "FN",
+      State == 1 & is_low_pim_cluster == 0 ~ "FP",
+      State == 1 & is_low_pim_cluster == 1 ~ "TN",
+     .default = NA_character_))
+
+  prc_pim <- pimclusters_clean %>%
+    group_by(classification) %>%
+   summarise(count = n())  %>%
+   pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
+    mutate(TPR = TP/(TP+FN), #this is the formula for TPR (true positive rate)
+           FPR = FP/(FP+TN), #this is the formula for the FPR (false positive rate)
+           PPV = TP/(TP+FP), #positive predictive value
+           NPV = TN/(FN+TN), #negative predictive value
+           threshold = threshold)  #adding manually which threshold I am considering here 
+
+  #Add the result to the list
+   prc_pim_list[[as.character(threshold)]] <- prc_pim
+  }
+
+#Turn the list with the results into a df 
+prcurve_pim.smoothed <- bind_rows(prc_pim_list)
+
+#Turn thresholds from character to factor for plotting
+prcurve_pim.smoothed$threshold <- as.numeric(prcurve_pim.smoothed$threshold)
+```
+
+#Step4b: Apply cluster detection for low mEDI
+```{r}
+#Define threholds for cluser detection algorithm
+medithresholds <- c(1,2,3,4,5,6,7,8,9,10)
+log_thr_medi <-log10(medithresholds)
+
+#Empty list to store classification results
+prc_medi_list <- list()
+
+for (threshold in log_thr_medi) {
+
+medi_clusters <- rolled.df %>%
+  ungroup() %>%
+  filter(!State == "sleep") %>%
+  # Replace `low_activity` by the (logical) variable for which the clusters 
+  # should be found.
+  mutate(low_medi = rolled_median_MEDI < threshold) %>% 
+  # Nest by groups, e.g., participant, period. Replace with grouping variables 
+  # in your data, such that the function is applied separately per consecutive 
+  # timeseries (e.g., from one subject during one period).
+  nest_by(Id) %>% 
+  mutate(
+    # Replace `low_activity` by the (logical) variable for which the clusters 
+    # should be found.
+    data = list(
+      data_find_clusters(
+        data, 
+        low_medi, 
+        min_length = "10 mins", 
+        max_interrupt = "2 mins", 
+        cluster_name = "low_medi_cluster"
+      )
+    )
+  ) %>%
+  unnest(cols = data) %>%
+  ungroup() %>%
+  filter(!is.na(rolled_median_MEDI)) #account for the start and end of the rolling median, which has NAs
+
+
+mediclusters_clean <- medi_clusters %>%
+  select(Id, Datetime, State, is_low_medi_cluster) %>%
+  mutate(
+    State = case_when(
+      State == "on" ~ 1, 
+      State == "off" ~ 0),
+    is_low_medi_cluster = case_when(
+      is_low_medi_cluster == TRUE ~ 0,
+      is_low_medi_cluster == FALSE ~ 1
+    )) 
+
+#We want to build a precision recall curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
+#1) State = 0, cluster = 0 -> true positive
+#2) State = 0, cluster = 1 -> false negative
+#3) State = 1, cluster = 1 -> false positive
+#4) State = 1, cluster = 0 -> true negative
+
+mediclusters_clean <- mediclusters_clean %>%
+  mutate(classification = case_when(
+    State == 0 & is_low_medi_cluster == 0 ~ "TP",
+    State == 0 & is_low_medi_cluster == 1 ~ "FN",
+    State == 1 & is_low_medi_cluster == 0 ~ "FP",
+    State == 1 & is_low_medi_cluster == 1 ~ "TN",
+    .default = NA_character_))
+
+prc_medi <- mediclusters_clean %>%
+  group_by(classification) %>%
+  summarise(count = n()) %>%
+  pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
+  mutate(TPR = TP/(TP+FN), #true positive rate
+         FPR = FP/(FP+TN), #false positive rate
+         PPV = TP/(TP+FP), #positive predictive value
+         NPV = TN/(FN+TN), #negative predictive value
+         threshold = threshold)  #adding manually which threshold I am considering here 
+
+ #Add the result to the list
+  prc_medi_list[[as.character(threshold)]] <- prc_medi
+}
+
+#Turn the list with the results into a df 
+prcurve_medi.smoothed <- bind_rows(prc_medi_list)
+
+#Turn thresholds from character to factor for plotting
+prcurve_medi.smoothed$threshold <- as.numeric(prcurve_medi.smoothed$threshold)
+```
+
+##Let's start to see how the cluster detection works on the group smoothed data, i.e. for all participants 
+```{r}
+prc_smoothed <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  #First plot: activity
+  geom_point(data = prcurve_pim.smoothed, aes(x = TPR, y = PPV, color = threshold)) +
+   scale_color_gradient(
+     name = "Activity threshold (PIM)",
+     limits= c(log10(5),log10(50)),
+    guide = guide_colorbar(title.position = "top",
+                           title.hjust = 0.5))  +
+  ggnewscale::new_scale_color() + #need this to reset the color scale for the next plot
+  #Adding the arrow to show directionality (for illuminance)
+  geom_segment(aes(x = 0.6,
+                   y = 0.54,
+                   xend = 0.63,
+                   yend = 0.27),
+               arrow = arrow(length=unit(.2, "cm")), lwd = 0.8) +
+  #Second plot: light
+  geom_point(data = prcurve_medi.smoothed, aes(x = TPR, y = PPV, colour = threshold)) +
+   scale_colour_gradient(
+     name = "mEDI threshold (lx)",
+     low = "red", high = "orange",
+     limits= c(log10(1),log10(10)),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  #Adding the arrow to show directionality (for activity)
+  geom_segment(aes(x = 0.49,
+                   y = 0.165,
+                   xend = 0.57,
+                   yend = 0.115),
+               arrow = arrow(length=unit(.2, "cm")), lwd = 0.8) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Precision-recall curve for detection of \nnon-wear intervals based on activity \nand illuminance thresholds") +
+  #Adding the symbols for the arrows as text and the label
+  annotate("text",
+           x = 0.64,
+           y = 0.45,
+           label = sprintf('\u2191')) + #arrow pointing upwards for Illuminance
+  geom_text(aes(x= 0.80,
+                y = 0.445,
+                label = "Illuminance")) + #label of illuminance
+  annotate("text",
+           x = 0.28,
+           y = 0.14,
+           label = sprintf('\u2191')) + #arrow pointing upwards for activity
+  geom_text(aes(x = 0.39,
+                y = 0.135,
+                label = "Activity")) + #label for activity
+  geom_text(aes(x=0.215,
+                y = 0.535,
+                label = "Baseline classifier"),
+            color = "darkgrey",
+            size = 3.8) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 16),
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal") +
+  coord_fixed(ratio = 1) 
+
+#Save the plot
+ggsave(filename = "prc_smoothed_grouped.png",
+       plot = prc_smoothed,
+       height = 5.5, 
+       width = 5,
+       dpi = 600,
+       bg = "white",
+       path= "G:/cyepi/code/outputs/light_activity_prc")
+```
+
+##Now let's plot the smoothed prc for each individual
+```{r}
+prc_multiplot <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  #First plot: activity
+  geom_point(data = prcurve_pim, aes(x = TPR, y = PPV, color = threshold)) +
+   scale_color_gradient(
+     name = "Activity threshold (PIM)",
+     low = "blue", high = "lightblue",
+     limits= c(5,50),
+    guide = guide_colorbar(title.position = "top",
+                           title.hjust = 0.5)) +
+  facet_wrap(~ Id) +
+  ggnewscale::new_scale_color() +
+  #Second plot: light
+  geom_point(data = prcurve_medi, aes(x = TPR, y = PPV, colour = threshold)) +
+   scale_colour_gradient(
+     name = "mEDI threshold (lx)",
+     low = "red", high = "orange",
+     limits= c(1,10),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  scale_x_continuous(
+    breaks = c(0, 1.50, 1.0),
+    labels = c(0, 1.50, 1.00)
+  ) +
+  facet_wrap(~Id) +
+#  geom_text(data = per_bag_use, aes(x = 0.5, y = 0.95, label = paste("Bag use:",compliance_per,"%")), size = 4.2) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Precision-recall curve for detection of \nnon-wear intervals based on activity \nand illuminance thresholds") +
+   theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 16),
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal") +
+   coord_fixed(ratio = 1)
+
+#Save the plot
+ggsave(filename = "prc-multiplot-raw-unlabelled.png",
+       plot = prc_multiplot,
+       height = 10, 
+       width = 10,
+       dpi = 600,
+       bg = "white",
+       path= "G:/cyepi/code/outputs/light_activity_prc")
+
+```
+```
+
