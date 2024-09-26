@@ -64,7 +64,7 @@ prc_pim_list <- list()
       data_find_clusters(
         data, 
         low_pim, 
-        min_length = "10 mins", 
+        min_length = "2 mins", 
         max_interrupt = "1 mins", 
         cluster_name = "low_pim_cluster"
       )
@@ -265,33 +265,35 @@ prc_combined <- ggplot() +
   geom_segment(aes(x = 0.49,
                    y = 0.165,
                    xend = 0.57,
-                   yend = 0.115),
+                 yend = 0.115),
                arrow = arrow(length=unit(.2, "cm")), lwd = 0.8) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
-       title = "Precision-recall curve for detection of \nnon-wear intervals based on activity \nand illuminance thresholds") +
+       title = "Precision-recall curve for detection of \nnon-wear intervals based on activity \nand illuminance thresholds",
+       subtitle = "Min. length = 2 min, max. interruption = 1 min") +
   #Adding the symbols for the arrows as text and the label
-#  annotate("text",
- #          x = 0.64,
-  #         y = 0.45,
-   #        label = sprintf('\u2191')) + #arrow pointing upwards for Illuminance
-  #geom_text(aes(x= 0.80,
-   #             y = 0.445,
-    #            label = "Illuminance")) + #label of illuminance
-  #annotate("text",
-   #        x = 0.28,
-    #       y = 0.14,
-     #      label = sprintf('\u2191')) + #arrow pointing upwards for activity
-  #geom_text(aes(x = 0.39,
-   #             y = 0.135,
-    #            label = "Activity")) + #label for activity
-  #geom_text(aes(x=0.215,
-   #             y = 0.535,
-    #            label = "Baseline classifier"),
-     #       color = "darkgrey",
-      #      size = 3.8) +
+  annotate("text",
+           x = 0.64,
+           y = 0.45,
+           label = sprintf('\u2191')) + #arrow pointing upwards for Illuminance
+  geom_text(aes(x= 0.80,
+                y = 0.445,
+                label = "Illuminance")) + #label of illuminance
+  annotate("text",
+           x = 0.28,
+           y = 0.14,
+           label = sprintf('\u2191')) + #arrow pointing upwards for activity
+  geom_text(aes(x = 0.39,
+                y = 0.135,
+                label = "Activity")) + #label for activity
+  geom_text(aes(x=0.215,
+                y = 0.535,
+                label = "Baseline classifier"),
+            color = "darkgrey",
+            size = 3.8) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5, size = 16),
+        plot.subtitle = element_text(hjust = 0.5, size = 14, colour = "grey33"),
         axis.text = element_text(size = 14),
         axis.title = element_text(size = 14),
         legend.title = element_text(size = 12),
@@ -302,13 +304,13 @@ prc_combined <- ggplot() +
   coord_fixed(ratio = 1) 
 
 #Save the plot
-ggsave(filename = "precision-recall-10mins.png",
+ggsave(filename = "prc_thresholds_2min.png",
        plot = prc_combined,
        height = 5.5, 
        width = 5,
        dpi = 600,
        bg = "white",
-       path= "D:/cyepi/code/outputs/light_activity_prc")
+       path= "D:/cyepi/code/outputs/light_activity_prc/raw")
 ```
 ##Visualisation of activity and light prc for each participant in a multiplot
 This is helpful to know whether the prc performs differently in each participant. We also want to know: if our algorithm performs poorly, is it because the participants were not compliant with using the black bag? So, the first step is actually to calculate how often the bag was actually used when logging and off event. 
@@ -393,181 +395,187 @@ ggsave(filename = "10min-prc-multiplot-raw-labelled.png",
 ## Step 1: vary mEDI thresholds
 ```{r}
 
-#Not sure about wrapping this into a function actually
 medithresholds <- seq(1, 10, by = 1)
 
 #Empty list to store classification results
-prc_medi_list <- list()
+prc_m_list <- list()
 
 for (threshold in medithresholds) {
-prc_medi <- generate_prc_medi(
-  dataset = dataset.LL.wrlg,
-  low_medi_var = "MEDI",
-  min_length = "10 mins",
-  max_interrupt = "1 mins",
-  medi_threshold = threshold
-)
+  
+  prc_m_list[[threshold]] <- generate_prc_medi(
+    dataset = dataset.LL.wrlg,
+    low_medi_var = "MEDI",
+    min_length = "10 mins",
+    max_interrupt = "1 mins",
+    medi_threshold = threshold
+  )
 }
 
-#Turn the list with the results into a df 
-prc_medi_df <- bind_rows(prc_medi_list)
+prc_medi_1 <- bind_rows(prc_m_list, .id = "threshold")
+#Turn threshold to factor for plotting
+prc_medi_1$threshold <- as.numeric(prc_medi_1$threshold)
 
-#Turn thresholds from character to factor for plotting
-prc_medi_df$threshold <- as.numeric(prc_medi_df$threshold)
+#Let's plot to see what the result looks like
 
+prc_medi_thresholds <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  geom_point(data = prc_medi_1, aes(x = TPR, y = PPV, colour = threshold)) +
+  scale_colour_gradient(
+     name = "mEDI threshold (lx)",
+     low = "red", high = "orange",
+     limits= c(1,10),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Precision-recall curve for detection of \nnon-wear intervals based on illuminance thresholds",
+       subtitle = "Min. length = 10 min, max. interrupt = 1 min") +
+   theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 16),
+        plot.subtitle = element_text(hjust = 0.5, size = 14, color = "grey33"),
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal") +
+   coord_fixed(ratio = 1)
+
+ggsave(filename = "prc_medi_thresholds.png",
+       plot = prc_medi_thresholds,
+       height = 5.5, 
+       width = 6,
+       dpi = 600,
+       bg = "white",
+       path= "D:/cyepi/code/outputs/light_activity_prc/raw")
 
 ```
 
 ## Step 2: vary length of interval 
 ```{r}
-min_lengths <- paste0(seq(1, 10, by = 1), " min")
-
-prc_minlength_medi <- list()
-
+#We create min_length ranging from 2 to 11
+min_lengths <- paste0(seq(2, 11, by = 1), " min")
+#From the previous plot, we know that lower mEDI thresholds are better so we keep it to 2
 medi_threshold = 2
+#We keep the max_interrupt at 1 minute
 max_interrupt = "1 min"
 
-for (length in min_lengths) {
 
-medi_clusters <- dataset.LL.wrlg %>%
-  ungroup() %>%
-  filter(!State == "sleep") %>%
-  # Replace `low_activity` by the (logical) variable for which the clusters 
-  # should be found.
-  mutate(low_medi = MEDI < threshold) %>% 
-  # Nest by groups, e.g., participant, period. Replace with grouping variables 
-  # in your data, such that the function is applied separately per consecutive 
-  # timeseries (e.g., from one subject during one period).
-  nest_by(Id) %>% 
-  mutate(
-    # Replace `low_activity` by the (logical) variable for which the clusters 
-    # should be found.
-    data = list(
-      data_find_clusters(
-        data, 
-        low_medi, 
-        min_length = "10 mins", 
-        max_interrupt = "1 mins", 
-        cluster_name = "low_medi_cluster"
-      )
-    )
-  ) %>%
-  unnest(cols = data) %>%
-  ungroup()
+#Empty list to store classification results
+prc_m_list <- list()
 
-
-mediclusters_clean <- medi_clusters %>%
-  select(Id, Datetime, State, is_low_medi_cluster) %>%
-  mutate(
-    State = case_when(
-      State == "on" ~ 1, 
-      State == "off" ~ 0),
-    is_low_medi_cluster = case_when(
-      is_low_medi_cluster == TRUE ~ 0,
-      is_low_medi_cluster == FALSE ~ 1
-    )) 
-
-#We want to build a precision recall curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
-#1) State = 0, cluster = 0 -> true positive
-#2) State = 0, cluster = 1 -> false negative
-#3) State = 1, cluster = 1 -> false positive
-#4) State = 1, cluster = 0 -> true negative
-
-mediclusters_clean <- mediclusters_clean %>%
-  mutate(classification = case_when(
-    State == 0 & is_low_medi_cluster == 0 ~ "TP",
-    State == 0 & is_low_medi_cluster == 1 ~ "FN",
-    State == 1 & is_low_medi_cluster == 0 ~ "FP",
-    State == 1 & is_low_medi_cluster == 1 ~ "TN",
-    .default = NA_character_))
-
-prc_medi <- mediclusters_clean %>%
-  group_by(classification) %>% #!! if you want to visualise individual PRC, then you have to group_by(Id, classification). Else, only group_by(classification)
-  summarise(count = n()) %>%
-  pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
-  mutate(TPR = TP/(TP+FN), #true positive rate
-         FPR = FP/(FP+TN), #false positive rate
-         PPV = TP/(TP+FP), #positive predictive value
-         NPV = TN/(FN+TN), #negative predictive value
-         threshold = threshold)  #adding manually which threshold I am considering here 
-
- #Add the result to the list
-  prc_medi_list[[as.character(threshold)]] <- prc_medi
+for (min_length in min_lengths) {
+  
+  prc_m_list[[min_length]] <- generate_prc_medi(
+    dataset = dataset.LL.wrlg,
+    low_medi_var = "MEDI",
+    min_length = min_length,
+    max_interrupt = max_interrupt,
+    medi_threshold = medi_threshold
+  )
 }
 
-#Turn the list with the results into a df 
-prcurve_medi <- bind_rows(prc_medi_list)
+prc_medi_2 <- bind_rows(prc_m_list, .id = "min_length")
+#Turning min_length into a factor for plotting
+prc_medi_2$min_length <- gsub(" min", "", prc_medi_2$min_length) #first, eliminate the "min"
+prc_medi_2$min_length <- as.factor(prc_medi_2$min_length) 
 
-#Turn thresholds from character to factor for plotting
-prcurve_medi$threshold <- as.numeric(prcurve_medi$threshold)
-
-names(roc_minlength) <- min_lengths
-roc_minlength <- bind_rows(roc_minlength)
-
-roc_minlength$min_length <- gsub(" min", "", roc_minlength$min_length)
-roc_minlength$min_length <- as.factor(roc_minlength$min_length)
-
-min_length <- ggplot(roc_minlength, aes(x = TPR , y = PPV)) +
-  geom_point(aes(color = min_length)) +
-  xlim(0,1) + 
-  ylim(0,1) +
-  scale_color_discrete(
-    name = "Minimum length (mins)") +
-  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a 45 degree line 
+#Let's plot to see the results
+prc_medi_length <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  geom_point(data = prc_medi_2, aes(x = TPR, y = PPV, colour = min_length)) +
+  scale_colour_discrete(
+     name = "Min. length (min)") +
   labs(x="True positive rate (recall)",
-       y = "Positive predictive value (precision)",
-       title = "Precision recall curve for detection \nof non-wear interval based on interval length")  +
-  theme(plot.title = element_text(hjust=0.5)) +
-  theme_bw() +
-  coord_fixed(ratio = 1)
+       y = "Positive predictive value \n(precision)",
+       title = "Precision-recall curve for detection of \nnon-wear intervals based on min. length",
+       subtitle = "mEDI threshold = 2 lux, max. interrupt = 1 min") +
+   theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 16),
+        plot.subtitle = element_text(hjust = 0.5, size = 14, color = "grey33"),
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal") +
+   coord_fixed(ratio = 1)
 
-ggsave(filename = "min_length.png",
-       plot = min_length,
-       height = 6, 
+ggsave(filename = "prc_medi_length.png",
+       plot = prc_medi_length,
+       height = 5.5, 
        width = 6,
        dpi = 600,
        bg = "white",
-       path= "D:/cyepi/code/outputs")
+       path= "D:/cyepi/code/outputs/light_activity_prc/raw")
+
 ```
 
 ## Step 3: vary max interruption length 
 ```{r}
-max_interrupt <- paste0(seq(1, 10, by = 1), " min")
-roc_max_interrupt<- map(max_interrupt, ~ generate_roc_medi(
-  dataset = dataset.LL.wrlg,
-  low_medi_var = "MEDI",
-  min_length = "2 mins",
-  max_interrupt = .x,
-  medi_threshold = 4
-))
+#Create a max_interrupt ranging from 0.5 to 9
+max_interrupts <- paste0(seq(0, 9, by = 1), " min")
+#From the previous plot, we know that lower mEDI thresholds are better so we keep it to 2
+medi_threshold = 2
+#We know also know that we shoudl keep the min_lenght to 10 minutes 
+min_length = "10 min"
 
-names(roc_max_interrupt) <- max_interrupt
-roc_max_interrupt <- bind_rows(roc_max_interrupt)
 
-roc_max_interrupt$max_interrupt <- gsub(" min", "", roc_max_interrupt$max_interrupt)
-roc_max_interrupt$max_interrupt <- as.factor(roc_max_interrupt$max_interrupt)
+#Empty list to store classification results
+prc_m_list <- list()
 
-max_interrupt <- ggplot(roc_max_interrupt, aes(x = TPR, y = PPV )) +
-  geom_point(aes(color = max_interrupt)) +
-  xlim(0,1) + 
-  ylim(0,1) +
- scale_color_discrete(
-    name = "Maximum interruption (mins)") +
-  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line 
+for (max_interrupt in max_interrupts) {
+  
+  prc_m_list[[max_interrupt]] <- generate_prc_medi(
+    dataset = dataset.LL.wrlg,
+    low_medi_var = "MEDI",
+    min_length = min_length,
+    max_interrupt = max_interrupt,
+    medi_threshold = medi_threshold
+  )
+}
+
+prc_medi_3 <- bind_rows(prc_m_list, .id = "max_interrupt")
+#Turning max_interrupt into a factor for plotting
+prc_medi_3$max_interrupt <- gsub(" min", "", prc_medi_3$max_interrupt) #first, eliminate the "min"
+prc_medi_3$max_interrupt <- as.factor(prc_medi_3$max_interrupt) 
+
+#Let's plot to see the results
+prc_medi_interrupt <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  geom_point(data = prc_medi_3, aes(x = TPR, y = PPV, colour = max_interrupt)) +
+  scale_colour_discrete(
+     name = "Max. interrupt (min)") +
   labs(x="True positive rate (recall)",
-       y = "Positive predictive value (precision)",
-       title = "Precision recall curve for detection \nof non-wear interval based on interruption length")  +
-  theme(plot.title = element_text(hjust=0.5)) +
-  theme_bw() +
-  coord_fixed(ratio = 1)
+       y = "Positive predictive value \n(precision)",
+       title = "Precision-recall curve for detection of \nnon-wear intervals based on max. interruption",
+       subtitle = "mEDI threshold = 2 lux, min. length = 10 min") +
+   theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 16),
+        plot.subtitle = element_text(hjust = 0.5, size = 14, color = "grey33"),
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal") +
+   coord_fixed(ratio = 1)
 
-ggsave(filename = "max_interrupt.png",
-       plot = max_interrupt,
-       height = 6, 
-       width = 6,
+ggsave(filename = "prc_medi_interrupt.png",
+       plot = prc_medi_interrupt,
+       height = 5.5, 
+       width = 6.3,
        dpi = 600,
        bg = "white",
-       path= "D:/cyepi/code/outputs")
+       path= "D:/cyepi/code/outputs/light_activity_prc/raw")
 
 ```
 
@@ -576,20 +584,20 @@ ggsave(filename = "max_interrupt.png",
 ```{r}
 
 library(cowplot)
-library(ggnewscale)
 
-multiplot <- cowplot::plot_grid(medi_thresholds, min_length, max_interrupt,
-                               ncol = 3,
-                               nrow = 1,
-                               align = "hv")
+multiplot <- cowplot::plot_grid(prc_medi_length, prc_medi_thresholds, prc_medi_interrupt,
+                                labels = c("A", "B", "C"),
+                                ncol = 3,
+                                nrow = 1,
+                                align = "hv")
 
-ggsave(filename = "PCR_multiplot.png",
+ggsave(filename = "prc_parameters_multiplot.png",
        plot = multiplot,
-       width = 16, 
+       width = 16.5, 
        height = 5,
        dpi = 600, 
        bg = "white",
-       path = "D:/cyepi/code/outputs")
+       path = "D:/cyepi/code/outputs/light_activity_prc/raw")
 
 
 ggplot() +

@@ -3,7 +3,7 @@ generate_prc_medi <- function(dataset, low_medi_var, min_length, max_interrupt, 
   medi_clusters <- dataset %>%
     ungroup() %>%
     filter(!State == "sleep") %>%
-    mutate(low_medi = !!sym(low_medi_var) < medi_threshold) %>%
+    mutate(low_medi = MEDI < medi_threshold) %>%
     nest_by(Id) %>%
     mutate(
       data = list(
@@ -54,6 +54,5 @@ generate_prc_medi <- function(dataset, low_medi_var, min_length, max_interrupt, 
            NPV = TN/(FN+TN), #negative predictive value
            threshold = threshold)  #adding manually which threshold I am considering here 
   
-  #Add the result to the list
-  prc_medi_list[[as.character(threshold)]] <- prc_medi
+  return(prc_medi)
 }
