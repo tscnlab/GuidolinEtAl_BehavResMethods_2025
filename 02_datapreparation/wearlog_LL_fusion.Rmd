@@ -97,3 +97,8 @@ dataset.LL.wrlg <- dataset.LL.all %>%
   LightLogR::interval2state(wrlg_int, State.colname = bag)
 ```
 
+## Saving the file as RDS
+```{r}
+saveRDS(dataset.LL.wrlg, file = "G:/cyepi/code/pre-processing/nonwear_detection/clean_data.rds")
+```
+
