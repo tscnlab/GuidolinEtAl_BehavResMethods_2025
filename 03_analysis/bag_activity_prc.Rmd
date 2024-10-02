@@ -21,6 +21,11 @@ These functions (find_clusters_funs, loaded in separately) identify clusters of 
 2) minimum length of the clusters
 3) max interrpution length for the cluster to still be identified as such 
 
+### Loading in the data, if not already there
+```{r}
+clean.LL.wrlg <- readRDS("clean_data.rds")
+```
+
 
 #[This might be eliminated] Before identifying clusters of low activity (PIM), we need to understand: what is low activity?
 ```{r}
@@ -46,9 +51,8 @@ prc_pim_list <- list()
   
   for (threshold in pimthresholds) {
 
-  pim_clusters <- dataset.LL.wrlg %>%
+  pim_clusters <- clean.LL.wrlg %>%
     ungroup() %>%
-   # filter(Id == "201") %>%
    filter(!State == "sleep") %>%
    # Replace `low_activity` by the (logical) variable for which the clusters 
    # should be found.
@@ -64,7 +68,7 @@ prc_pim_list <- list()
       data_find_clusters(
         data, 
         low_pim, 
-        min_length = "2 mins", 
+        min_length = "10 mins", 
         max_interrupt = "1 mins", 
         cluster_name = "low_pim_cluster"
       )
@@ -145,7 +149,7 @@ prc_medi_list <- list()
 
 for (threshold in medithresholds) {
 
-medi_clusters <- dataset.LL.wrlg %>%
+medi_clusters <- clean.LL.wrlg %>%
   ungroup() %>%
   filter(!State == "sleep") %>%
   # Replace `low_activity` by the (logical) variable for which the clusters 
@@ -173,7 +177,7 @@ medi_clusters <- dataset.LL.wrlg %>%
 
 
 mediclusters_clean <- medi_clusters %>%
-  select(Id, Datetime, State, is_low_medi_cluster) %>%
+  select(Id, Datetime, State, MEDI, is_low_medi_cluster) %>%
   mutate(
     State = case_when(
       State == "on" ~ 1, 
@@ -304,20 +308,21 @@ prc_combined <- ggplot() +
   coord_fixed(ratio = 1) 
 
 #Save the plot
-ggsave(filename = "prc_thresholds_2min.png",
+ggsave(filename = "prc_thresholds_2min_1.png",
        plot = prc_combined,
        height = 5.5, 
        width = 5,
        dpi = 600,
        bg = "white",
-       path= "D:/cyepi/code/outputs/light_activity_prc/raw")
+       path= "G:/cyepi/code/outputs/light_activity_prc/raw")
 ```
+
 ##Visualisation of activity and light prc for each participant in a multiplot
 This is helpful to know whether the prc performs differently in each participant. We also want to know: if our algorithm performs poorly, is it because the participants were not compliant with using the black bag? So, the first step is actually to calculate how often the bag was actually used when logging and off event. 
 
 ### Calculating % usage of black bag 
 ```{r}
- bag_use <- dataset.LL.wrlg %>%
+ bag_use <- clean.LL.wrlg %>%
   group_by(Id) %>%
    mutate(bag_use = case_when(
      State == "off" & bag == 0 ~ "notused", #when State is 0ff and bag is 0, it was not used
@@ -627,5 +632,134 @@ ggplot() +
 
 ```
 
+## Visualising where algorithm goes wrong
+```{r}
+##We want to visualise TP, TN, FP and FN for each participant. We will start doing this for the light data (medicluster_clean)
 
+### SOLUTION: just join medicluster_clean with the original dataset.LL.wrlg? 
+
+# We use sc2interveal to turn the changes (in this case changes in algorithm output) into an interval 
+
+filepath = "G:/cyepi/code/pre-processing/nonwear_detection/alg_states.csv"
+
+write.csv(mediclusters_clean, "G:/cyepi/code/pre-processing/nonwear_detection/alg_states.csv")
+
+mediclsuters_import = list.files(filepath, pattern="*.csv")
+
+alg_states <- import_Statechanges(mediclsuters_import,
+                                    path = filepath,
+                                    State.colnames = c("TN", "TP", "FN", "FP"),
+                                    State.encoding = c("TN", "TP", "FN", "FP"))
+  
+  
+  
+  
+  select(-State) %>%
+  group_by(Id) %>%
+  sc2interval(Datetime.colname = Datetime,
+              Statechange.colname = classification,
+              Datetime.keep = TRUE
+              ) %>%
+  ungroup()
+
+algor_int_pim <- pimclusters_clean %>%
+  group_by(Id) %>%
+  
+
+algor_LL_wrlg <- clean.LL.wrlg %>%
+  interval2state(algor_int, State.colname = classification)
+
+
+sleepstate <- algor_LL_wrlg %>%
+   filter(State == "sleep")
+
+participant_ids <- unique(clean.LL.wrlg$Id)
+
+selected_id <- "201"
+##Create a for loop to generate a plot for each participant 
+for (selected_id in participant_ids) {
+subset_df <- clean.LL.wrlg %>%
+  filter(Id == selected_id) %>%
+  select(-State)
+
+
+##Calculate the limits of the shaded areas according to the Wear Log
+state.times <- algor_int %>%
+  filter(Id == selected_id & !is.na(classification)) %>%
+  filter(row_number() != n()) %>%
+  mutate(xmin = int_start(Interval),
+         xmax = int_end(Interval),
+         Day.data.min = xmin %>% format(format = "%a"), #lower limit of the shaded area, needed for geom_rect
+         Day.data.max = xmax %>% format(format = "%a"), #upper limit of shaded area, needed for geom_rect
+         xmin = xmin %>% hms::as_hms(), #transform xmin to time (currently Datetime)
+         xmax = xmax %>% hms::as_hms(), #transform xmax to time (currently Datetime)
+         Day.data.min = factor(Day.data.min, levels = unique(Day.data.min)),
+         Day.data.max = factor(Day.data.max, levels = unique(Day.data.max)))
+
+##Some intervals on the Wear log that we want to plot cross day boundaries. We thus need to split them in 2 intervals, since we plot each day on a different facet of the plot 
+
+#Step 1: collect the part of the data that does not cross day boundaries
+state.times1 <-
+  state.times %>%
+  filter(Day.data.min == Day.data.max)
+
+#Step 2: Collect part of the data that does cross bounderies and split it by day, i.e. at midnight. 
+state.times2 <-
+state.times %>% filter(Day.data.min != Day.data.max) %>%
+  rowwise() %>%
+  mutate(
+    new_entry = list(
+      tibble(
+        xmin=c(xmin, hms::as_hms("00:00:00")),
+        xmax=c(hms::as_hms("23:59:59"), xmax),
+        Day.min=c(Day.data.min, Day.data.max),
+        Day.max=c(Day.data.min, Day.data.max)
+      )
+    )
+  ) %>%
+  select(Id, State, classification, new_entry) %>%
+  unnest(new_entry)
+
+#Step 3: Combine the two again in a single df
+states.combined <- 
+  bind_rows(state.times1 %>% rename(Day.min = Day.data.min),
+          state.times2) %>%
+  select(-Day.max) %>%
+  rename(Day.data = Day.min) 
+
+
+#Create the plot wit activity (PIM), button presses (eventpoint) and wearlog intervals (State)
+
+states.combined$State <- factor(states.combined$State) #turn State into factor
+
+p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
+            linewidth = 0.05, 
+            color = "black", 
+            geom = "line",
+            format.day = "%a",
+            x.axis.label = "Time", 
+            y.axis.label = "Illuminance (mEDI, lx)",
+            title = paste("p", selected_id, "light exposure and non-wear time")) +
+  geom_point(aes(y = eventpoint), #adding button press as points
+             color = "red", 
+             size = 0.8) +
+  geom_rect(data=states.combined, aes(xmin= xmin, xmax = xmax, ymin =0, ymax = Inf, fill = State), #adding wear log
+                    inherit.aes = FALSE,
+                    alpha = 0.15) +
+   scale_fill_manual(
+     name = "State",
+     values = c("on" = "#0072B2", "off" = "darkred", "sleep" = "darkgoldenrod2"),
+     labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+filename <- paste0("p", selected_id, "_light.png")
+ggsave(filename = filename,
+       plot = p,
+       width = 10,
+       height = 14,
+       dpi = 600,
+       bg = "white",
+       path= "G:/cyepi/code/outputs/visual_insp/light")
+}
+```
 

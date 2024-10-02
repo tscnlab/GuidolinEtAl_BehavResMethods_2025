@@ -10,20 +10,27 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 #Note
-This script should be run after 01_import and 02_datapreparation scripts. 
+This script should be run after 01_import and 02_datapreparation scripts. We make use of the save rds file to load in the clean dataset.
 
 ## Use of black bag (low illuminance values) to detect non-wear time
 Aim: Here we analyse data from black bag use (low illuminance [mEDI] values). The first thing that we want to do is a visual inspection of the data to check how light and activity compare, for each State of the Wear log. Low activity is also often used as a way to understand non-wear time in field studies. Since we have both information (light and activity), we want to know how these two source compare to each other. 
 
 ```{r}
+clean.LL.wrlg <- readRDS("clean_data.rds")
+```
+
+
+```{r}
 #We will be plotting using log10 transformation, so we cannot have 0 values in our data set. For this reason, we add 1 to each value in MEDI and PIM
 
-dataset.LL.wrlg$MEDI <- dataset.LL.wrlg$MEDI + 1
-dataset.LL.wrlg$PIM <- dataset.LL.wrlg$PIM + 1
+vis.LL.wrlg <- clean.LL.wrlg
+
+vis.LL.wrlg$MEDI <- vis.LL.wrlg$MEDI + 1
+vis.LL.wrlg$PIM <- vis.LL.wrlg$PIM + 1
 
 #To be able to visually observe how light and activity relate to each other in our data set, we cannot plot all our data points (too many). So, we take median values of each Id, for each State (off/on/sleep)
 
-median.LL.wrlg <- dataset.LL.wrlg %>%
+median.LL.wrlg <- vis.LL.wrlg %>%
 #  filter(!State == "sleep") %>%
   group_by(Id, State) %>%
   summarise(median_medi = median(log10(MEDI), na.rm = TRUE),
@@ -61,6 +68,9 @@ median_scatter <-
 ## Improving visualisation above
 To improve the visualisation above, we can create a simple scatterplot without error bars, and add boxplots as marginal plots.
 ```{r}
+
+set.seed(1) #we will use geom_jitter, which uses random sampling. For reproducibility we need to set.seed(1) so that running the script multiple times will lead to the same plot
+
 scatter <- ggplot(median.LL.wrlg, aes(x = median_medi, y = median_pim)) + 
   geom_jitter(aes(fill = State, color = State), size = 2.5, alpha = 0.6,
               position = position_jitter(width = .3, height = .3)) + #adjust position of points to avoid overlap
@@ -107,7 +117,7 @@ plot_marginal <- annotate_figure(marginal,
                                                             face = "plain",
                                                             size = 18))
 # Saving the plot
-ggsave(filename = "plot_marginal.png",
+ggsave(filename = "plot_marginal_v5.png",
        plot = plot_marginal ,
        width = 5,
        height = 6.5,
