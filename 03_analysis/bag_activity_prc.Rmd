@@ -146,7 +146,7 @@ medithresholds <- seq(1, 10, by = 1)
 
 #Empty list to store classification results
 prc_medi_list <- list()
-
+threshold = 2
 for (threshold in medithresholds) {
 
 medi_clusters <- clean.LL.wrlg %>%
@@ -633,58 +633,42 @@ ggplot() +
 ```
 
 ## Visualising where algorithm goes wrong
+Input values: 10 mins, 1 min interruption, 2 lux 
 ```{r}
 ##We want to visualise TP, TN, FP and FN for each participant. We will start doing this for the light data (medicluster_clean)
 
-### SOLUTION: just join medicluster_clean with the original dataset.LL.wrlg? 
-
-# We use sc2interveal to turn the changes (in this case changes in algorithm output) into an interval 
-
-filepath = "G:/cyepi/code/pre-processing/nonwear_detection/alg_states.csv"
-
-write.csv(mediclusters_clean, "G:/cyepi/code/pre-processing/nonwear_detection/alg_states.csv")
-
-mediclsuters_import = list.files(filepath, pattern="*.csv")
-
-alg_states <- import_Statechanges(mediclsuters_import,
-                                    path = filepath,
-                                    State.colnames = c("TN", "TP", "FN", "FP"),
-                                    State.encoding = c("TN", "TP", "FN", "FP"))
-  
-  
-  
-  
-  select(-State) %>%
+#First, we need to create state changes from the mediclusters_clean data frame
+medi_sc <- mediclusters_clean %>%
   group_by(Id) %>%
-  sc2interval(Datetime.colname = Datetime,
-              Statechange.colname = classification,
-              Datetime.keep = TRUE
-              ) %>%
-  ungroup()
+  mutate(change = classification != lag(classification, #stores whether classification has changes in a "change" column
+                                        default = first(classification))) %>% #need to set default for first value 
+  mutate(interval_group =cumsum(change)) %>% #assigns a new interval group every time classification change occurs 
+  group_by(Id, interval_group) %>%
+  summarise(classification = first(classification), #keep only first value for each Id and interval_group
+            start = first(Datetime),
+            end = last(Datetime)) %>%
+  ungroup() %>%
+  select(-c(interval_group, end)) %>%
+  rename(Datetime = start) #need to transform start to Datetime for next step (sc2interval)
 
-algor_int_pim <- pimclusters_clean %>%
+#Now, we want to convert the state changes into intervals. We need this to be able to plot the classification output.
+medi_int <- medi_sc %>%
   group_by(Id) %>%
+  sc2interval(Statechange.colname = classification) # We use sc2interval to turn the changes (in this case changes in algorithm output) into an interval 
   
-
-algor_LL_wrlg <- clean.LL.wrlg %>%
-  interval2state(algor_int, State.colname = classification)
-
-
-sleepstate <- algor_LL_wrlg %>%
-   filter(State == "sleep")
 
 participant_ids <- unique(clean.LL.wrlg$Id)
 
-selected_id <- "201"
+
 ##Create a for loop to generate a plot for each participant 
 for (selected_id in participant_ids) {
 subset_df <- clean.LL.wrlg %>%
   filter(Id == selected_id) %>%
-  select(-State)
+  filter(!State == "sleep") 
 
 
 ##Calculate the limits of the shaded areas according to the Wear Log
-state.times <- algor_int %>%
+alg.times <- medi_int %>%
   filter(Id == selected_id & !is.na(classification)) %>%
   filter(row_number() != n()) %>%
   mutate(xmin = int_start(Interval),
@@ -699,13 +683,13 @@ state.times <- algor_int %>%
 ##Some intervals on the Wear log that we want to plot cross day boundaries. We thus need to split them in 2 intervals, since we plot each day on a different facet of the plot 
 
 #Step 1: collect the part of the data that does not cross day boundaries
-state.times1 <-
-  state.times %>%
+alg.times1 <-
+  alg.times %>%
   filter(Day.data.min == Day.data.max)
 
 #Step 2: Collect part of the data that does cross bounderies and split it by day, i.e. at midnight. 
-state.times2 <-
-state.times %>% filter(Day.data.min != Day.data.max) %>%
+alg.times2 <-
+alg.times %>% filter(Day.data.min != Day.data.max) %>%
   rowwise() %>%
   mutate(
     new_entry = list(
@@ -717,49 +701,56 @@ state.times %>% filter(Day.data.min != Day.data.max) %>%
       )
     )
   ) %>%
-  select(Id, State, classification, new_entry) %>%
+  select(Id, classification, new_entry) %>%
   unnest(new_entry)
 
 #Step 3: Combine the two again in a single df
-states.combined <- 
-  bind_rows(state.times1 %>% rename(Day.min = Day.data.min),
-          state.times2) %>%
+alg.combined <- 
+  bind_rows(alg.times1 %>% rename(Day.min = Day.data.min),
+            alg.times2) %>%
   select(-Day.max) %>%
-  rename(Day.data = Day.min) 
+  rename(Day.data = Day.min) %>%
+  filter(!is.na(State))
 
 
 #Create the plot wit activity (PIM), button presses (eventpoint) and wearlog intervals (State)
 
-states.combined$State <- factor(states.combined$State) #turn State into factor
+alg.combined$State <- factor(alg.combined$State, levels = c("TP", "TN", "FP", "FN")) #turn State into factor
+
 
 p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
             linewidth = 0.05, 
             color = "black", 
             geom = "line",
             format.day = "%a",
+            group = date(Datetime),
             x.axis.label = "Time", 
             y.axis.label = "Illuminance (mEDI, lx)",
-            title = paste("p", selected_id, "light exposure and non-wear time")) +
-  geom_point(aes(y = eventpoint), #adding button press as points
-             color = "red", 
-             size = 0.8) +
-  geom_rect(data=states.combined, aes(xmin= xmin, xmax = xmax, ymin =0, ymax = Inf, fill = State), #adding wear log
+            title = paste("p", selected_id, "light levels and algorithm performance")) +
+  geom_rect(data=alg.combined, aes(xmin= xmin, xmax = xmax, ymin =0, ymax = Inf, fill = State), #adding classification output
                     inherit.aes = FALSE,
                     alpha = 0.15) +
-   scale_fill_manual(
-     name = "State",
-     values = c("on" = "#0072B2", "off" = "darkred", "sleep" = "darkgoldenrod2"),
-     labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
-  theme(plot.title = element_text(hjust = 0.5)) 
+    scale_fill_manual(
+     name = "Algorithm classification",
+     values = c("TP" = "darkgreen",
+                "TN" = "#0072B2",
+                "FP" = "darkred",
+                "FN" = "darkgoldenrod2")) +
+  theme(plot.title = element_text(hjust = 0.5, size = 24, face = "plain"),
+        axis.text.x = element_text(size = 16),
+        axis.title = element_text(size = 18),
+        axis.text.y = element_text(size = 16),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 14))
 
-filename <- paste0("p", selected_id, "_light.png")
+filename <- paste0("p", selected_id, "algorithm performance (light).png")
 ggsave(filename = filename,
        plot = p,
        width = 10,
        height = 14,
        dpi = 600,
        bg = "white",
-       path= "G:/cyepi/code/outputs/visual_insp/light")
+       path= "G:/cyepi/code/outputs/light_activity_prc/raw/medi_alg_perf")
 }
 ```
-
+## Comments on above graph: it kind of works, but for some reason the shading of intervals that corss midnight does not work. Need to check again how this is done 
