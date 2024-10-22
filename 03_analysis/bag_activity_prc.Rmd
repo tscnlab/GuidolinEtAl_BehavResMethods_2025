@@ -137,10 +137,11 @@ prc_medi_list <- list()
 threshold = 2
 for (threshold in medithresholds) {
 
+  #First, we need to convert all sleep values to NAs, since we do not want to use these for our classification 
 medi_clusters <- dataset.LL.wrlg %>%
-  filter(Id == "204") %>%
+  filter(Id == "204") %>% #eliminate, this is just trying out with only 1 participant
   ungroup() %>%
-  filter(!State == "sleep") %>%
+  mutate(State = if_else(State == "sleep", "NA", State)) %>% 
   # Replace `low_activity` by the (logical) variable for which the clusters 
   # should be found.
   mutate(low_medi = MEDI < threshold) %>% 
@@ -170,7 +171,8 @@ mediclusters_clean <- medi_clusters %>%
   mutate(
     State = case_when(
       State == "on" ~ 1, 
-      State == "off" ~ 0),
+      State == "off" ~ 0,
+      is.na(State) ~ NA_real_), # keep sleep states as NA 
     is_low_medi_cluster = case_when(
       is_low_medi_cluster == TRUE ~ 0,
       is_low_medi_cluster == FALSE ~ 1
@@ -626,19 +628,10 @@ Input values: 10 mins lenght, 1 min max. interruption, 2 lux max mEDI value
 ```{r}
 ##We want to visualise TP, TN, FP and FN for each participant. We will start doing this for the light data (medicluster_clean)
 
-#Finding gaps of time (which correspond to sleep)
-mediclusters_gaps <- mediclusters_clean %>%
-  gap_handler(Datetime.colname = Datetime,
-              behavior = "gaps")
-
-
-
 #First, we need to create state changes from the mediclusters_clean data frame
 medi_sc <- mediclusters_clean %>%
  # group_by(Id) %>%
-  mutate(change = classification != lag(classification, #stores whether classification has changed in a "change" column
-                                        default = first(classification))) %>% #need to set default for first value 
-  mutate(interval_group =cumsum(change)) %>% #assigns a new interval group every time classification change occurs 
+ mutate(interval_group = consecutive_id(classification)) %>% #need to set default for first value 
   group_by(interval_group) %>%
   summarise(classification = first(classification), #keep only first value for each Id and interval_group
             xmin = first(Datetime),
@@ -652,13 +645,12 @@ selected_id = 204
 ##Create a for loop to generate a plot for each participant 
 
 subset_df <- dataset.LL.wrlg %>%
-  filter(Id == selected_id) %>%
-  filter(!State == "sleep") 
+  filter(Id == selected_id)
 
 
 ##Calculate the limits of the shaded areas according to the Wear Log
 alg.times <- medi_sc %>%
-  filter(Id == selected_id & !is.na(classification)) %>%
+ # filter(Id == selected_id & !is.na(classification)) %>%
   mutate(xmax = (xmax + lubridate::seconds(10)), #need to add 10 seconds to match next start time
          Day.data.min = xmin %>% format(format = "%a"), #lower limit of the shaded area, needed for geom_rect
          Day.data.max = xmax %>% format(format = "%a"), #upper limit of shaded area, needed for geom_rect
@@ -688,7 +680,7 @@ alg.times %>% filter(Day.data.min != Day.data.max) %>%
       )
     )
   ) %>%
-  select(Id, classification, new_entry) %>%
+  select(classification, new_entry) %>%
   unnest(new_entry)
 
 #Step 3: Combine the two again in a single df
@@ -700,13 +692,17 @@ alg.combined <-
 
 
 #Create the plot wit activity (PIM), button presses (eventpoint) and wearlog intervals (State)
+dataset.LL.on.off <- subset_df %>%
+  mutate(State = if_else(State == "sleep", "NA", State)) %>%
+  gap_finder()
 
-alg.combined$classification <- factor(alg.combined$classification, levels = c("TP", "TN", "FP", "FN")) #turn State into factor
+alg.combined$classification <- factor(alg.combined$classification, levels = c("TP", "TN", "FP", "FN", "NA")) #turn State into factor
 
+#Our dataset contains gaps
 
 p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
             linewidth = 0.05, 
-            color = "black", 
+            aes_col = State, 
             geom = "line",
             format.day = "%a",
             x.axis.label = "Time", 
@@ -720,7 +716,8 @@ p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
      values = c("TP" = "darkgreen",
                 "TN" = "#0072B2",
                 "FP" = "darkred",
-                "FN" = "darkgoldenrod2")) +
+                "FN" = "darkgoldenrod2"),
+                na.value = "white") +
   theme(plot.title = element_text(hjust = 0.5, size = 24, face = "plain"),
         axis.text.x = element_text(size = 16),
         axis.title = element_text(size = 18),
