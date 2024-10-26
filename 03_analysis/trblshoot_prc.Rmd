@@ -1,0 +1,247 @@
+---
+title: "trblshoot_prc"
+output: html_document
+date: "2024-10-26"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+## Varying the other 2 input parameters of the cluster detection function 
+
+## Step 1: vary mEDI thresholds
+```{r}
+
+medithresholds <- seq(1, 10, by = 1)
+
+#Empty list to store classification results
+prc_m_list <- list()
+
+for (threshold in medithresholds) {
+  
+  prc_m_list[[threshold]] <- generate_prc_medi(
+    dataset = dataset.LL.wrlg,
+    low_medi_var = "MEDI",
+    min_length = "10 mins",
+    max_interrupt = "1 mins",
+    medi_threshold = threshold
+  )
+}
+
+prc_medi_1 <- bind_rows(prc_m_list, .id = "threshold")
+#Turn threshold to factor for plotting
+prc_medi_1$threshold <- as.numeric(prc_medi_1$threshold)
+
+#Let's plot to see what the result looks like
+
+prc_medi_thresholds <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  geom_point(data = prc_medi_1, aes(x = TPR, y = PPV, colour = threshold)) +
+  scale_colour_gradient(
+     name = "mEDI threshold (lx)",
+     low = "red", high = "orange",
+     limits= c(1,10),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Precision-recall curve for detection of \nnon-wear intervals based on illuminance thresholds",
+       subtitle = "Min. length = 10 min, max. interrupt = 1 min") +
+   theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 16),
+        plot.subtitle = element_text(hjust = 0.5, size = 14, color = "grey33"),
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal") +
+   coord_fixed(ratio = 1)
+
+ggsave(filename = "prc_medi_thresholds.png",
+       plot = prc_medi_thresholds,
+       height = 5.5, 
+       width = 6,
+       dpi = 600,
+       bg = "white",
+       path= "D:/cyepi/code/outputs/light_activity_prc/raw")
+
+```
+
+## Step 2: vary length of interval 
+```{r}
+#We create min_length ranging from 2 to 11
+min_lengths <- paste0(seq(2, 11, by = 1), " min")
+#From the previous plot, we know that lower mEDI thresholds are better so we keep it to 2
+medi_threshold = 2
+#We keep the max_interrupt at 1 minute
+max_interrupt = "1 min"
+
+
+#Empty list to store classification results
+prc_m_list <- list()
+
+for (min_length in min_lengths) {
+  
+  prc_m_list[[min_length]] <- generate_prc_medi(
+    dataset = dataset.LL.wrlg,
+    low_medi_var = "MEDI",
+    min_length = min_length,
+    max_interrupt = max_interrupt,
+    medi_threshold = medi_threshold
+  )
+}
+
+prc_medi_2 <- bind_rows(prc_m_list, .id = "min_length")
+#Turning min_length into a factor for plotting
+prc_medi_2$min_length <- gsub(" min", "", prc_medi_2$min_length) #first, eliminate the "min"
+prc_medi_2$min_length <- as.factor(prc_medi_2$min_length) 
+
+#Let's plot to see the results
+prc_medi_length <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  geom_point(data = prc_medi_2, aes(x = TPR, y = PPV, colour = min_length)) +
+  scale_colour_discrete(
+     name = "Min. length (min)") +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Precision-recall curve for detection of \nnon-wear intervals based on min. length",
+       subtitle = "mEDI threshold = 2 lux, max. interrupt = 1 min") +
+   theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 16),
+        plot.subtitle = element_text(hjust = 0.5, size = 14, color = "grey33"),
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal") +
+   coord_fixed(ratio = 1)
+
+ggsave(filename = "prc_medi_length.png",
+       plot = prc_medi_length,
+       height = 5.5, 
+       width = 6,
+       dpi = 600,
+       bg = "white",
+       path= "D:/cyepi/code/outputs/light_activity_prc/raw")
+
+```
+
+## Step 3: vary max interruption length 
+```{r}
+#Create a max_interrupt ranging from 0.5 to 9
+max_interrupts <- paste0(seq(0, 9, by = 1), " min")
+#From the previous plot, we know that lower mEDI thresholds are better so we keep it to 2
+medi_threshold = 2
+#We know also know that we shoudl keep the min_lenght to 10 minutes 
+min_length = "10 min"
+
+
+#Empty list to store classification results
+prc_m_list <- list()
+
+for (max_interrupt in max_interrupts) {
+  
+  prc_m_list[[max_interrupt]] <- generate_prc_medi(
+    dataset = dataset.LL.wrlg,
+    low_medi_var = "MEDI",
+    min_length = min_length,
+    max_interrupt = max_interrupt,
+    medi_threshold = medi_threshold
+  )
+}
+
+prc_medi_3 <- bind_rows(prc_m_list, .id = "max_interrupt")
+#Turning max_interrupt into a factor for plotting
+prc_medi_3$max_interrupt <- gsub(" min", "", prc_medi_3$max_interrupt) #first, eliminate the "min"
+prc_medi_3$max_interrupt <- as.factor(prc_medi_3$max_interrupt) 
+
+#Let's plot to see the results
+prc_medi_interrupt <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  geom_point(data = prc_medi_3, aes(x = TPR, y = PPV, colour = max_interrupt)) +
+  scale_colour_discrete(
+     name = "Max. interrupt (min)") +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Precision-recall curve for detection of \nnon-wear intervals based on max. interruption",
+       subtitle = "mEDI threshold = 2 lux, min. length = 10 min") +
+   theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 16),
+        plot.subtitle = element_text(hjust = 0.5, size = 14, color = "grey33"),
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal") +
+   coord_fixed(ratio = 1)
+
+ggsave(filename = "prc_medi_interrupt.png",
+       plot = prc_medi_interrupt,
+       height = 5.5, 
+       width = 6.3,
+       dpi = 600,
+       bg = "white",
+       path= "D:/cyepi/code/outputs/light_activity_prc/raw")
+
+```
+
+
+## One plot with all the three curves 
+```{r}
+
+library(cowplot)
+
+multiplot <- cowplot::plot_grid(prc_medi_length, prc_medi_thresholds, prc_medi_interrupt,
+                                labels = c("A", "B", "C"),
+                                ncol = 3,
+                                nrow = 1,
+                                align = "hv")
+
+ggsave(filename = "prc_parameters_multiplot.png",
+       plot = multiplot,
+       width = 16.5, 
+       height = 5,
+       dpi = 600, 
+       bg = "white",
+       path = "D:/cyepi/code/outputs/light_activity_prc/raw")
+
+
+ggplot() +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line 
+  xlim(0,1) + 
+  ylim(0,1) +
+  #plot 1 
+  geom_point(data = roc_medi, aes(x = TPR, y = PPV, color = threshold)) + 
+   scale_color_continuous(
+    limits= c(1,10), breaks = c(2, 4, 6, 8, 10)
+  ) +
+  ggnewscale::new_scale_colour() + #resets scale for next geom
+  #plot 2 
+  geom_point(data = roc_minlength, aes(x = TPR, y = PPV, color = min_lengths)) + 
+  
+  geom_point(data = roc_max_interrupt, aes(x = TPR, y = PPV, color = max_interrupt)) +
+  +
+ 
+  
+ # scale_color_continuous(
+  #limits= c(1,10), breaks = c(2, 4, 6, 8, 10)) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line 
+  labs(x="True positive rate",
+       y = "Positive predictive value",
+       title = "ROC curve for automatic detection \nof non-wear based on different mEDI thresholds")
+
+
+```
