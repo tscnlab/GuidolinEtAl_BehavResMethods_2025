@@ -134,13 +134,16 @@ medithresholds <- seq(1, 10, by = 1)
 
 #Empty list to store classification results
 prc_medi_list <- list()
+min_length = 60 #10 minutes of observation, with sampling interval of 10 seconds -> 60 rows
+max_interrupt = 6
+
 threshold = 2
-min_length = "2 mins"
+
 for (threshold in medithresholds) {
 
-  #First, we need to convert all sleep values to NAs, since we do not want to use these for our classification 
+#First, we need to convert all sleep values to NAs, since we do not want to use these for our classification 
 medi_clusters <- dataset.LL.wrlg %>%
-  filter(Id == "208") %>% #eliminate, this is just trying out with only 1 participant
+#  filter(Id == "208") %>% #eliminate, this is just trying out with only 1 participant
   ungroup() %>%
   mutate(State = if_else(State == "sleep", "NA", State)) %>% 
   # Replace `low_activity` by the (logical) variable for which the clusters 
@@ -158,7 +161,7 @@ medi_clusters <- dataset.LL.wrlg %>%
         data, 
         low_medi, 
         min_length = min_length, 
-        max_interrupt = "1 mins", 
+        max_interrupt = max_interrupt, #1 minute of observations, with sampling interval being 10 seconds
         cluster_name = "low_medi_cluster"
       )
     )
@@ -212,29 +215,8 @@ prcurve_medi <- bind_rows(prc_medi_list)
 
 #Turn thresholds from character to factor for plotting
 prcurve_medi$threshold <- as.numeric(prcurve_medi$threshold)
-```
-
-## Visualising the low medi clusters to ensure the min length is indeed X minutes
-```{r}
-cluster_dur_2 <- medi_clusters %>%
-  mutate(grp = consecutive_id(is_low_medi_cluster)) %>%
-  group_by(grp) %>%
-  slice(1) %>% # keep first row
-  ungroup %>%  # don't need grouping anymore
-  mutate(cluster_length = difftime(Datetime, lag(Datetime), units="mins")) %>% #calculate the differences between a row and previous one (lag(n=1))
-  filter(is_low_medi_cluster == TRUE) 
-
-#Checking whether there are clusters that are less than 10 mins 
-check_dur <- cluster_dur_2 %>%
-  filter(cluster_length < "2 mins")
-
-#Visualising this in an histogram
-ggplot(check_dur, aes(cluster_length)) +
-  geom_histogram(bins = 50)
-
 
 ```
-
 
 
 #Calculate F1 score to understand the agreement between my precision and recall
@@ -249,6 +231,47 @@ prcurve_medi_f1 <- prcurve_medi %>%
 #However, the precision (PPV) - proportion of non-wear labels was actually non-wear, gets worse, meaning we get more false positives because we are being more liberal in what we label as non-wear state.
 
 #
+```
+
+
+#Visualisation of prc for light only
+```{r}
+prc_all_ids <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  geom_point(data = prcurve_medi, aes(x = TPR, y = PPV, colour = threshold)) +
+   scale_colour_gradient(
+     name = "mEDI threshold (lx)",
+     low = "red", high = "orange",
+     limits= c(1,10),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Precision-recall curve for detection of \nnon-wear intervals based on illuminance thresholds",
+       subtitle = "Min. length = 10 min, max. interruption = 1 min") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 16),
+        plot.subtitle = element_text(hjust = 0.5, size = 14, colour = "grey33"),
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal") +
+  coord_fixed(ratio = 1) 
+
+#Save the plot
+ggsave(filename = "10min-index-prc-multiplot-raw-labelled.png",
+       plot = prc_all_ids,
+       height = 11, 
+       width = 11,
+       dpi = 600,
+       bg = "white",
+       path= "G:/cyepi/code/outputs/light_activity_prc/raw")
+
+
 ```
 
 
@@ -418,27 +441,28 @@ Input values: 10 mins lenght, 1 min max. interruption, 2 lux max mEDI value
 
 #First, we need to create state changes from the mediclusters_clean data frame
 medi_sc <- mediclusters_clean %>%
- # group_by(Id) %>%
+ group_by(Id) %>%
  mutate(interval_group = consecutive_id(classification)) %>% #need to set default for first value 
-  group_by(interval_group) %>%
+  group_by(Id, interval_group) %>%
   summarise(classification = first(classification), #keep only first value for each Id and interval_group
             xmin = first(Datetime),
             xmax = last(Datetime)) %>%
   ungroup() 
 
 
-#participant_ids <- unique(clean.LL.wrlg$Id)
+##List of all unique participant IDs
+participant_ids <- unique(dataset.LL.wrlg$Id)
 
-selected_id = 208
 ##Create a for loop to generate a plot for each participant 
-
-subset_df <- dataset.LL.wrlg %>%
+for (selected_id in participant_ids) {
+  
+ subset_df <- dataset.LL.wrlg %>%
   filter(Id == selected_id)
 
 
 ##Calculate the limits of the shaded areas according to the Wear Log
 alg.times <- medi_sc %>%
- # filter(Id == selected_id & !is.na(classification)) %>%
+  filter(Id == selected_id) %>%
   mutate(xmax = (xmax + lubridate::seconds(10)), #need to add 10 seconds to match next start time
          Day.data.min = xmin %>% format(format = "%a"), #lower limit of the shaded area, needed for geom_rect
          Day.data.max = xmax %>% format(format = "%a"), #upper limit of shaded area, needed for geom_rect
@@ -515,7 +539,7 @@ ggsave(filename = filename,
        height = 14,
        dpi = 600,
        bg = "white",
-       path= "D:/cyepi/code/outputs/light_activity_prc/raw/medi_alg_perf")
+       path= "G:/cyepi/code/outputs/light_activity_prc/raw/medi_alg_perf")
 }
 ```
 ## Comments on above graph: it kind of works, but for some reason the shading of intervals that corss midnight does not work. Need to check again how this is done 
