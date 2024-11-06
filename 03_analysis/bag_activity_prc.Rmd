@@ -31,6 +31,10 @@ clean.LL.wrlg <- readRDS('clean_data.Rds')
 ```{r}
 #In order to build a PRC, we need to test the performance of our algorithm by changing the input parameters. Here, we modifiy the threshold for "low activity", i.e. the PIM value. 
 
+#Parameters fed into the function
+min_length = 60 #10 minutes of observation, with sampling interval of 10 seconds -> 60 rows
+max_interrupt = 6 #1 minute (n of observations)
+
 #Create a sequence of PIM thresholds at 5 unit steps
 pimthresholds <- c(5,10, 15, 20, 25, 30, 35, 40, 45, 50)
 
@@ -41,7 +45,7 @@ prc_pim_list <- list()
 
   pim_clusters <- dataset.LL.wrlg %>%
     ungroup() %>%
-   filter(!State == "sleep") %>%
+   mutate(State = if_else(State == "sleep", "NA", State)) %>%  #converting all sleep values to NAs, since we do not want to use these for our classification 
    # Replace `low_activity` by the (logical) variable for which the clusters 
    # should be found.
    mutate(low_pim = PIM < threshold) %>% 
@@ -56,8 +60,8 @@ prc_pim_list <- list()
       data_find_clusters(
         data, 
         low_pim, 
-        min_length = "10 mins", 
-        max_interrupt = "1 mins", 
+        min_length = min_length, 
+        max_interrupt = max_interrupt, 
         cluster_name = "low_pim_cluster"
       )
     )
@@ -71,7 +75,8 @@ prc_pim_list <- list()
     mutate(
       State = case_when(
       State == "on" ~ 1, 
-      State == "off" ~ 0),
+      State == "off" ~ 0,
+      is.na(State) ~ NA_real_), # keep sleep states as NA,
     is_low_pim_cluster = case_when(
       is_low_pim_cluster == TRUE ~ 0,
       is_low_pim_cluster == FALSE ~ 1
@@ -92,7 +97,7 @@ prc_pim_list <- list()
      .default = NA_character_))
 
   prc_pim <- pimclusters_clean %>%
-    group_by(classification) %>% ##!!If you want to visualise info per participatn, you also have to group_by Id. Else, only by classification
+    group_by(Id, classification) %>% ##!!If you want to visualise info per participatn, you also have to group_by Id. Else, only by classification
    summarise(count = n())  %>%
    pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
     mutate(TPR = TP/(TP+FN), #this is the formula for TPR (true positive rate)
@@ -113,9 +118,51 @@ prcurve_pim$threshold <- as.numeric(prcurve_pim$threshold)
 
 ```
 
-
+## Visualising prc for activity only
 
 ```{r}
+prc_all_ids <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  geom_point(data = prcurve_pim, aes(x = TPR, y = PPV, colour = threshold)) +
+   scale_colour_gradient(
+     name = "PIM threshold (lx)",
+     low = "blue", high = "lightblue",
+     limits= c(5,50),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Precision-recall curve for detection of \nnon-wear intervals based on activity thresholds",
+       subtitle = "Min. length = 10 min, max. interruption = 1 min") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 16),
+        plot.subtitle = element_text(hjust = 0.5, size = 14, colour = "grey33"),
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal") +
+  coord_fixed(ratio = 1) 
+
+#Save the plot
+ggsave(filename = "10min-index-prc-raw.png",
+       plot = prc_all_ids,
+       height = 11, 
+       width = 11,
+       dpi = 600,
+       bg = "white",
+       path= "G:/cyepi/code/outputs/light_activity_prc/raw/general_plots")
+
+
+```
+
+## Calculating F1 score
+```{r}
+b = 1 #set beta as 1
+
 prcurve_pim_f1 <- prcurve_pim %>%
   mutate(f1_score = ((1+b^2) * PPV * TPR)/((b^2 * PPV) + TPR))
 
@@ -137,15 +184,13 @@ prc_medi_list <- list()
 min_length = 60 #10 minutes of observation, with sampling interval of 10 seconds -> 60 rows
 max_interrupt = 6
 
-threshold = 2
+#threshold = 2
 
 for (threshold in medithresholds) {
 
-#First, we need to convert all sleep values to NAs, since we do not want to use these for our classification 
 medi_clusters <- dataset.LL.wrlg %>%
-#  filter(Id == "208") %>% #eliminate, this is just trying out with only 1 participant
   ungroup() %>%
-  mutate(State = if_else(State == "sleep", "NA", State)) %>% 
+  mutate(State = if_else(State == "sleep", "NA", State)) %>% #converting all sleep values to NAs, since we do not want to use these for our classification 
   # Replace `low_activity` by the (logical) variable for which the clusters 
   # should be found.
   mutate(low_medi = MEDI < threshold) %>% 
@@ -197,7 +242,7 @@ mediclusters_clean <- mediclusters_clean %>%
     .default = NA_character_))
 
 prc_medi <- mediclusters_clean %>%
-  group_by(classification) %>% #!! if you want to visualise individual PRC, then you have to group_by(Id, classification). Else, only group_by(classification)
+  group_by(Id, classification) %>% #!! if you want to visualise individual PRC, then you have to group_by(Id, classification). Else, only group_by(classification)
   summarise(count = n()) %>%
   pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
   mutate(TPR = TP/(TP+FN), #true positive rate
@@ -263,13 +308,13 @@ prc_all_ids <- ggplot() +
   coord_fixed(ratio = 1) 
 
 #Save the plot
-ggsave(filename = "10min-index-prc-multiplot-raw-labelled.png",
+ggsave(filename = "10min-index-light-raw.png",
        plot = prc_all_ids,
        height = 11, 
        width = 11,
        dpi = 600,
        bg = "white",
-       path= "G:/cyepi/code/outputs/light_activity_prc/raw")
+       path= "G:/cyepi/code/outputs/light_activity_prc/raw/general_plots")
 
 
 ```
@@ -291,10 +336,10 @@ prc_combined <- ggplot() +
                            title.hjust = 0.5))  +
   ggnewscale::new_scale_color() + #need this to reset the color scale for the next plot
   #Adding the arrow to show directionality (for illuminance)
-  geom_segment(aes(x = 0.6,
-                   y = 0.54,
-                   xend = 0.63,
-                   yend = 0.27),
+  geom_segment(aes(x = 0.87,
+                   y = 0.74,
+                   xend = 0.939,
+                   yend = 0.35),
                arrow = arrow(length=unit(.2, "cm")), lwd = 0.8) +
   #Second plot: light
   geom_point(data = prcurve_medi, aes(x = TPR, y = PPV, colour = threshold)) +
@@ -304,29 +349,29 @@ prc_combined <- ggplot() +
      limits= c(1,10),
      guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
   #Adding the arrow to show directionality (for activity)
-  geom_segment(aes(x = 0.49,
-                   y = 0.165,
-                   xend = 0.57,
-                 yend = 0.115),
+  geom_segment(aes(x = 0.61,
+                   y = 0.41,
+                   xend = 0.74,
+                 yend = 0.33),
                arrow = arrow(length=unit(.2, "cm")), lwd = 0.8) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
        title = "Precision-recall curve for detection of \nnon-wear intervals based on activity \nand illuminance thresholds",
-       subtitle = "Min. length = 2 min, max. interruption = 1 min") +
+       subtitle = "Min. length = 10 min, max. interruption = 1 min") +
   #Adding the symbols for the arrows as text and the label
   annotate("text",
-           x = 0.64,
-           y = 0.45,
+           x = 0.63,
+           y = 0.79,
            label = sprintf('\u2191')) + #arrow pointing upwards for Illuminance
   geom_text(aes(x= 0.80,
-                y = 0.445,
+                y = 0.78,
                 label = "Illuminance")) + #label of illuminance
   annotate("text",
-           x = 0.28,
-           y = 0.14,
+           x = 0.389,
+           y = 0.44,
            label = sprintf('\u2191')) + #arrow pointing upwards for activity
-  geom_text(aes(x = 0.39,
-                y = 0.135,
+  geom_text(aes(x = 0.50,
+                y = 0.43,
                 label = "Activity")) + #label for activity
   geom_text(aes(x=0.215,
                 y = 0.535,
@@ -346,13 +391,13 @@ prc_combined <- ggplot() +
   coord_fixed(ratio = 1) 
 
 #Save the plot
-ggsave(filename = "prc_thresholds_2min_1.png",
+ggsave(filename = "prc_thresholds_light_pim.png",
        plot = prc_combined,
        height = 5.5, 
        width = 5,
        dpi = 600,
        bg = "white",
-       path= "G:/cyepi/code/outputs/light_activity_prc/raw")
+       path= "G:/cyepi/code/outputs/light_activity_prc/raw/general_plots")
 ```
 
 ##Visualisation of activity and light prc for each participant in a multiplot
@@ -363,7 +408,7 @@ This is helpful to know whether the prc performs differently in each participant
  bag_use <- dataset.LL.wrlg %>%
   group_by(Id) %>%
    mutate(bag_use = case_when(
-     State == "off" & bag == 0 ~ "notused", #when State is 0ff and bag is 0, it was not used
+     State == "off" & bag == 0 ~ "notused", #when State is off and bag is 0, it was not used
      State == "off" & bag == 1 ~ "used", #when state is off and bag is 1, it was used
      .default = NA_character_)) %>%
   ungroup()
@@ -372,12 +417,11 @@ per_bag_use <- bag_use %>%
   group_by(Id, bag_use) %>% 
   summarise(count = n()) %>% #calculating how many used and notused per participant
   filter(!is.na(bag_use)) %>% #eliminate NAs which correspond to when State is on or sleep
-  complete(bag_use = c("used", "notused"), fill = list(count = 0)) %>% #if participant does not have values for "used" or "notused" because they wither never used the bag, or always used it, we replace that with 0
+  complete(bag_use = c("used", "notused"), fill = list(count = 0)) %>% #if participant does not have values for "used" or "notused" because they either never used the bag, or always used it, we replace that with 0
   mutate(total = sum(count), #counting total entries per participant
          compliance_per = if_else(bag_use == "used", (count*100)/total, NA), #calculating % of "used" over total entries
          compliance_per = round(compliance_per, 1)) %>% #rounding the percentage value to 1 decimal point
   filter(!is.na(compliance_per)) #eliminate the NA that comes from the ifelse
-
 
 ```
 
@@ -407,10 +451,11 @@ prc_multiplot <- ggplot() +
      limits= c(1,10),
      guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
   facet_wrap(~Id) +
-  geom_text(data = per_bag_use, aes(x = 0.5, y = 0.95, label = paste("Bag use:",compliance_per,"%")), size = 4.2) +
+  geom_text(data = per_bag_use, aes(x = 0.15, y = 0.90, label = paste("Bag use:\n",compliance_per,"%")), size = 3.2) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
-       title = "Precision-recall curve for detection of \nnon-wear intervals based on activity \nand illuminance thresholds") +
+       title = "Precision-recall curve for detection of non-wear intervals based on activity \nand illuminance thresholds",
+       subtitle = "Min. length = 10 min, max. interruption = 1 min") +
    theme_bw() +
   theme(plot.title = element_text(hjust = 0.5, size = 16),
         axis.text = element_text(size = 14),
@@ -423,13 +468,13 @@ prc_multiplot <- ggplot() +
    coord_fixed(ratio = 1)
 
 #Save the plot
-ggsave(filename = "10min-prc-multiplot-raw-labelled.png",
+ggsave(filename = "10min-multiplot.png",
        plot = prc_multiplot,
        height = 11, 
        width = 11,
        dpi = 600,
        bg = "white",
-       path= "D:/cyepi/code/outputs/light_activity_prc")
+       path= "G:/cyepi/code/outputs/light_activity_prc/raw/general_plots")
 
 ```
 
