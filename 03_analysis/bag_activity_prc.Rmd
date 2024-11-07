@@ -45,7 +45,7 @@ prc_pim_list <- list()
 
   pim_clusters <- dataset.LL.wrlg %>%
     ungroup() %>%
-   mutate(State = if_else(State == "sleep", "NA", State)) %>%  #converting all sleep values to NAs, since we do not want to use these for our classification 
+   mutate(State = if_else(State == "sleep", NA_real_, State)) %>%  #converting all sleep values to NAs, since we do not want to use these for our classification 
    # Replace `low_activity` by the (logical) variable for which the clusters 
    # should be found.
    mutate(low_pim = PIM < threshold) %>% 
@@ -181,16 +181,17 @@ medithresholds <- seq(1, 10, by = 1)
 
 #Empty list to store classification results
 prc_medi_list <- list()
-min_length = 60 #10 minutes of observation, with sampling interval of 10 seconds -> 60 rows
-max_interrupt = 6
+min_length = 6 #10 minutes of observation, with sampling interval of 10 seconds -> 60 rows
+max_interrupt = 0 #1 minute of observations, with sampling interval being 10 seconds
 
-#threshold = 2
+threshold = 1
+
 
 for (threshold in medithresholds) {
 
 medi_clusters <- dataset.LL.wrlg %>%
   ungroup() %>%
-  mutate(State = if_else(State == "sleep", "NA", State)) %>% #converting all sleep values to NAs, since we do not want to use these for our classification 
+  mutate(State = if_else(State == "sleep", NA_character_, State)) %>% #converting all sleep values to NAs, since we do not want to use these for our classification 
   # Replace `low_activity` by the (logical) variable for which the clusters 
   # should be found.
   mutate(low_medi = MEDI < threshold) %>% 
@@ -206,7 +207,7 @@ medi_clusters <- dataset.LL.wrlg %>%
         data, 
         low_medi, 
         min_length = min_length, 
-        max_interrupt = max_interrupt, #1 minute of observations, with sampling interval being 10 seconds
+        max_interrupt = max_interrupt, 
         cluster_name = "low_medi_cluster"
       )
     )
@@ -242,7 +243,7 @@ mediclusters_clean <- mediclusters_clean %>%
     .default = NA_character_))
 
 prc_medi <- mediclusters_clean %>%
-  group_by(Id, classification) %>% #!! if you want to visualise individual PRC, then you have to group_by(Id, classification). Else, only group_by(classification)
+  group_by(classification) %>% #!! if you want to visualise individual PRC, then you have to group_by(Id, classification). Else, only group_by(classification)
   summarise(count = n()) %>%
   pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
   mutate(TPR = TP/(TP+FN), #true positive rate
@@ -294,7 +295,7 @@ prc_all_ids <- ggplot() +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
        title = "Precision-recall curve for detection of \nnon-wear intervals based on illuminance thresholds",
-       subtitle = "Min. length = 10 min, max. interruption = 1 min") +
+       subtitle = "Min. length = 1 min, max. interruption = 0 min") +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5, size = 16),
         plot.subtitle = element_text(hjust = 0.5, size = 14, colour = "grey33"),

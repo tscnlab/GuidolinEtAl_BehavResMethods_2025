@@ -24,14 +24,14 @@ for (threshold in medithresholds) {
   prc_m_list[[threshold]] <- generate_prc_medi(
     dataset = dataset.LL.wrlg,
     low_medi_var = "MEDI",
-    min_length = 60, #10 minutes (n of observations)
-    max_interrupt = 6, #1 minute (n of observations)
+    min_length = 6, #10 minutes (n of observations)
+    max_interrupt = 0, #1 minute (n of observations)
     medi_threshold = threshold
   )
 }
 
 prc_medi_1 <- bind_rows(prc_m_list, .id = "threshold")
-#Turn threshold to factor for plotting
+#Turn threshold to numeric for plotting
 prc_medi_1$threshold <- as.numeric(prc_medi_1$threshold)
 
 #Let's plot to see what the result looks like
@@ -49,7 +49,7 @@ prc_medi_thresholds <- ggplot() +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
        title = "Precision-recall curve for detection of \nnon-wear intervals based on illuminance thresholds",
-       subtitle = "Min. length = 10 min, max. interrupt = 1 min") +
+       subtitle = "Min. length = 2 min, max. interrupt = 0 min") +
    theme_bw() +
   theme(plot.title = element_text(hjust = 0.5, size = 16),
         plot.subtitle = element_text(hjust = 0.5, size = 14, color = "grey33"),
@@ -75,11 +75,11 @@ ggsave(filename = "prc_medi_thresholds.png",
 ## Step 2: vary length of interval 
 ```{r}
 #We create min_length ranging from 2 to 11 minutes
-min_lengths <- paste0(seq(12, 66, by = 6))
+min_lengths <- seq(6, 66, by = 6)
 #From the previous plot, we know that lower mEDI thresholds are better so we keep it to 1
 medi_threshold = 1
-#We keep the max_interrupt at 1 minute
-max_interrupt = 6 # 1 minute
+#We keep the max_interrupt at 0 minutes
+max_interrupt = 0 # 1 minute
 
 
 #Empty list to store classification results
@@ -89,16 +89,17 @@ for (min_length in min_lengths) {
   
   prc_m_list[[min_length]] <- generate_prc_medi(
     dataset = dataset.LL.wrlg,
-    low_medi_var = "MEDI",
+    low_var = "MEDI",
     min_length = min_length,
     max_interrupt = max_interrupt,
     medi_threshold = medi_threshold
   )
 }
 
+#Turning this into a df 
 prc_medi_2 <- bind_rows(prc_m_list, .id = "min_length")
+
 #Turning min_length into a factor for plotting
-prc_medi_2$min_length <- gsub(" min", "", prc_medi_2$min_length) #first, eliminate the "min"
 prc_medi_2$min_length <- as.factor(prc_medi_2$min_length) 
 
 #Let's plot to see the results
@@ -109,11 +110,11 @@ prc_medi_length <- ggplot() +
   geom_point(data = prc_medi_2, aes(x = TPR, y = PPV, colour = min_length)) +
   scale_colour_discrete(
      name = "Min. length (min)",
-     labels = c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)) +
+     labels = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
        title = "Precision-recall curve for detection of \nnon-wear intervals based on min. length",
-       subtitle = "mEDI threshold = 1 lux, max. interrupt = 1 min") +
+       subtitle = "mEDI threshold = 1 lux, max. interrupt = 0 min") +
    theme_bw() +
   theme(plot.title = element_text(hjust = 0.5, size = 16),
         plot.subtitle = element_text(hjust = 0.5, size = 14, color = "grey33"),
@@ -138,8 +139,8 @@ ggsave(filename = "prc_medi_length.png",
 
 ## Step 3: vary max interruption length 
 ```{r}
-#Create a max_interrupt ranging from 0.5 to 9
-max_interrupts <- paste0(seq(6, 54, by = 6))
+#Create a max_interrupt ranging from 0 to 9
+max_interrupts <- paste0(seq(0, 54, by = 6))
 #From the previous plot, we know that lower mEDI thresholds are better so we keep it to 2
 medi_threshold = 1
 #We know also know that we shoudl keep the min_lenght to 10 minutes 
@@ -173,7 +174,7 @@ prc_medi_interrupt <- ggplot() +
   geom_point(data = prc_medi_3, aes(x = TPR, y = PPV, colour = max_interrupt)) +
   scale_colour_discrete(
      name = "Max. interrupt (min)",
-     labels = c(1, 2, 3, 4, 5, 6, 7, 8, 9)) +
+     labels = c(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
        title = "Precision-recall curve for detection of \nnon-wear intervals based on max. interruption",

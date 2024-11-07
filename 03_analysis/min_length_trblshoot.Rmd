@@ -1,0 +1,128 @@
+---
+title: "test_prc"
+author: "Carolina Guidolin"
+date: "2024-11-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Identifying clusters of low light levels (mEDI)
+```{r}
+#Similarly to above, we create a series of thresholds that will be fed into the function and be used to build the prc 
+min_lengths <- seq(6, 66, by = 6)
+
+#Empty list to store classification results
+prc_medi_list <- list()
+medi_threshold = 1 
+max_interrupt = 0 
+
+
+for (length in min_lengths) {
+
+medi_clusters <- dataset.LL.wrlg %>%
+  ungroup() %>%
+  mutate(State = if_else(State == "sleep", "NA", State)) %>% #converting all sleep values to NAs, since we do not want to use these for our classification 
+  # Replace `low_activity` by the (logical) variable for which the clusters 
+  # should be found.
+  mutate(low_medi = MEDI < medi_threshold) %>% 
+  # Nest by groups, e.g., participant, period. Replace with grouping variables 
+  # in your data, such that the function is applied separately per consecutive 
+  # timeseries (e.g., from one subject during one period).
+  nest_by(Id) %>% 
+  mutate(
+    # Replace `low_activity` by the (logical) variable for which the clusters 
+    # should be found.
+    data = list(
+      data_find_clusters(
+        data, 
+        low_medi, 
+        min_length = length, 
+        max_interrupt = max_interrupt, 
+        cluster_name = "low_medi_cluster"
+      )
+    )
+  ) %>%
+  unnest(cols = data) %>%
+  ungroup()
+
+
+mediclusters_clean <- medi_clusters %>%
+  select(Id, Datetime, State, MEDI, is_low_medi_cluster) %>%
+  mutate(
+    State = case_when(
+      State == "on" ~ 1, 
+      State == "off" ~ 0,
+      is.na(State) ~ NA_real_), # keep sleep states as NA 
+    is_low_medi_cluster = case_when(
+      is_low_medi_cluster == TRUE ~ 0,
+      is_low_medi_cluster == FALSE ~ 1
+    )) 
+
+#We want to build a precision recall curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
+#1) State = 0, cluster = 0 -> true positive
+#2) State = 0, cluster = 1 -> false negative
+#3) State = 1, cluster = 1 -> false positive
+#4) State = 1, cluster = 0 -> true negative
+
+mediclusters_clean <- mediclusters_clean %>%
+  mutate(classification = case_when(
+    State == 0 & is_low_medi_cluster == 0 ~ "TP",
+    State == 0 & is_low_medi_cluster == 1 ~ "FN",
+    State == 1 & is_low_medi_cluster == 0 ~ "FP",
+    State == 1 & is_low_medi_cluster == 1 ~ "TN",
+    .default = NA_character_))
+
+prc_medi <- mediclusters_clean %>%
+  group_by(classification) %>% #!! if you want to visualise individual PRC, then you have to group_by(Id, classification). Else, only group_by(classification)
+  summarise(count = n()) %>%
+  pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
+  mutate(TPR = TP/(TP+FN), #true positive rate
+         FPR = FP/(FP+TN), #false positive rate
+         PPV = TP/(TP+FP), #positive predictive value
+         NPV = TN/(FN+TN), #negative predictive value
+         length = length)  #adding manually which threshold I am considering here 
+
+ #Add the result to the list
+  prc_medi_list[[as.character(length)]] <- prc_medi
+}
+
+#Turn the list with the results into a df 
+prcurve_medi <- bind_rows(prc_medi_list)
+
+#Turn thresholds from character to factor for plotting
+prcurve_medi$length <- as.charcater(prcurve_medi$length)
+
+```
+
+
+```{r}
+ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  geom_point(data = prcurve_medi, aes(x = TPR, y = PPV, colour = length)) +
+  scale_colour_discrete(
+     name = "Min. length (min)",
+    # values = c(6, 12, 18, 24, 30, 26, 42, 48, 54, 60, 66),
+     labels = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Precision-recall curve for detection of \nnon-wear intervals based on min. length",
+       subtitle = "mEDI threshold = 1 lux, max. interrupt = 0 min") +
+   theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 16),
+        plot.subtitle = element_text(hjust = 0.5, size = 14, color = "grey33"),
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal") +
+   coord_fixed(ratio = 1)
+```
+
