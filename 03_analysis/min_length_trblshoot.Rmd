@@ -21,14 +21,14 @@ medi_threshold = 1
 max_interrupt = 0 
 
 
-for (length in min_lengths) {
+for (min_length in min_lengths) {
 
 medi_clusters <- dataset.LL.wrlg %>%
   ungroup() %>%
-  mutate(State = if_else(State == "sleep", "NA", State)) %>% #converting all sleep values to NAs, since we do not want to use these for our classification 
+  mutate(State = if_else(State == "sleep", NA_character_, State)) %>% #converting all sleep values to NAs, since we do not want to use these for our classification 
   # Replace `low_activity` by the (logical) variable for which the clusters 
   # should be found.
-  mutate(low_medi = MEDI < medi_threshold) %>% 
+  mutate(low_medi= MEDI < medi_threshold) %>% 
   # Nest by groups, e.g., participant, period. Replace with grouping variables 
   # in your data, such that the function is applied separately per consecutive 
   # timeseries (e.g., from one subject during one period).
@@ -40,7 +40,7 @@ medi_clusters <- dataset.LL.wrlg %>%
       data_find_clusters(
         data, 
         low_medi, 
-        min_length = length, 
+        min_length = min_length, 
         max_interrupt = max_interrupt, 
         cluster_name = "low_medi_cluster"
       )
@@ -84,17 +84,17 @@ prc_medi <- mediclusters_clean %>%
          FPR = FP/(FP+TN), #false positive rate
          PPV = TP/(TP+FP), #positive predictive value
          NPV = TN/(FN+TN), #negative predictive value
-         length = length)  #adding manually which threshold I am considering here 
+         min_length = min_length)  #adding manually which threshold I am considering here 
 
  #Add the result to the list
-  prc_medi_list[[as.character(length)]] <- prc_medi
+  prc_medi_list[[min_length]] <- prc_medi
 }
 
 #Turn the list with the results into a df 
 prcurve_medi <- bind_rows(prc_medi_list)
 
 #Turn thresholds from character to factor for plotting
-prcurve_medi$length <- as.charcater(prcurve_medi$length)
+prcurve_medi$min_length <- as.factor(prcurve_medi$min_length)
 
 ```
 
@@ -104,7 +104,7 @@ ggplot() +
    xlim(0,1) + 
    ylim(0,1) +
   geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
-  geom_point(data = prcurve_medi, aes(x = TPR, y = PPV, colour = length)) +
+  geom_point(data = prcurve_medi, aes(x = TPR, y = PPV, colour = min_length)) +
   scale_colour_discrete(
      name = "Min. length (min)",
     # values = c(6, 12, 18, 24, 30, 26, 42, 48, 54, 60, 66),
@@ -124,5 +124,11 @@ ggplot() +
         legend.position = "bottom",
         legend.box = "horizontal") +
    coord_fixed(ratio = 1)
+```
+```{r}
+library(arsenal)
+
+summary(arsenal::comparedf(prcurve_medi, prc_medi_2, by = "min_length"))
+
 ```
 

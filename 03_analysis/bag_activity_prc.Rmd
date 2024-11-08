@@ -33,7 +33,7 @@ clean.LL.wrlg <- readRDS('clean_data.Rds')
 
 #Parameters fed into the function
 min_length = 60 #10 minutes of observation, with sampling interval of 10 seconds -> 60 rows
-max_interrupt = 6 #1 minute (n of observations)
+max_interrupt = 0 #0 minute (n of observations)
 
 #Create a sequence of PIM thresholds at 5 unit steps
 pimthresholds <- c(5,10, 15, 20, 25, 30, 35, 40, 45, 50)
@@ -45,7 +45,7 @@ prc_pim_list <- list()
 
   pim_clusters <- dataset.LL.wrlg %>%
     ungroup() %>%
-   mutate(State = if_else(State == "sleep", NA_real_, State)) %>%  #converting all sleep values to NAs, since we do not want to use these for our classification 
+   mutate(State = if_else(State == "sleep", NA_character_, State)) %>%  #converting all sleep values to NAs, since we do not want to use these for our classification 
    # Replace `low_activity` by the (logical) variable for which the clusters 
    # should be found.
    mutate(low_pim = PIM < threshold) %>% 
@@ -97,7 +97,7 @@ prc_pim_list <- list()
      .default = NA_character_))
 
   prc_pim <- pimclusters_clean %>%
-    group_by(Id, classification) %>% ##!!If you want to visualise info per participatn, you also have to group_by Id. Else, only by classification
+    group_by(classification) %>% ##!!If you want to visualise info per participatn, you also have to group_by Id. Else, only by classification
    summarise(count = n())  %>%
    pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
     mutate(TPR = TP/(TP+FN), #this is the formula for TPR (true positive rate)
@@ -107,13 +107,13 @@ prc_pim_list <- list()
            threshold = threshold)  #adding manually which threshold I am considering here 
 
   #Add the result to the list
-   prc_pim_list[[as.character(threshold)]] <- prc_pim
+   prc_pim_list[[threshold]] <- prc_pim
   }
 
 #Turn the list with the results into a df 
 prcurve_pim <- bind_rows(prc_pim_list)
 
-#Turn thresholds from character to factor for plotting
+#Turn thresholds from character to numeric for plotting
 prcurve_pim$threshold <- as.numeric(prcurve_pim$threshold)
 
 ```
@@ -150,11 +150,11 @@ prc_all_ids <- ggplot() +
 #Save the plot
 ggsave(filename = "10min-index-prc-raw.png",
        plot = prc_all_ids,
-       height = 11, 
-       width = 11,
+       height = 5.5, 
+       width = 6,
        dpi = 600,
        bg = "white",
-       path= "G:/cyepi/code/outputs/light_activity_prc/raw/general_plots")
+       path= "D:/cyepi/code/outputs/light_activity_prc/raw/trblshoot_parameters")
 
 
 ```
@@ -181,10 +181,9 @@ medithresholds <- seq(1, 10, by = 1)
 
 #Empty list to store classification results
 prc_medi_list <- list()
-min_length = 6 #10 minutes of observation, with sampling interval of 10 seconds -> 60 rows
+min_length = 60 #1 minutes of observation, with sampling interval of 10 seconds -> 60 rows
 max_interrupt = 0 #1 minute of observations, with sampling interval being 10 seconds
 
-threshold = 1
 
 
 for (threshold in medithresholds) {
@@ -253,7 +252,7 @@ prc_medi <- mediclusters_clean %>%
          threshold = threshold)  #adding manually which threshold I am considering here 
 
  #Add the result to the list
-  prc_medi_list[[as.character(threshold)]] <- prc_medi
+  prc_medi_list[[threshold]] <- prc_medi
 }
 
 #Turn the list with the results into a df 
@@ -295,7 +294,7 @@ prc_all_ids <- ggplot() +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
        title = "Precision-recall curve for detection of \nnon-wear intervals based on illuminance thresholds",
-       subtitle = "Min. length = 1 min, max. interruption = 0 min") +
+       subtitle = "Min. length = 10 min, max. interruption = 0 min") +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5, size = 16),
         plot.subtitle = element_text(hjust = 0.5, size = 14, colour = "grey33"),
