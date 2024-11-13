@@ -1,5 +1,4 @@
-# Main function to generate PRC metrics for specific parameters
-generate_prc <- function(dataset, low_var, min_length, max_interrupt, threshold) {
+generate_indiv_prc <- function(dataset, low_var, min_length, max_interrupt, threshold) {
   
   #Create a dynamic column names based on the variable from which we want to detect clusters
   low_var_name <- paste0("low_", tolower(low_var))  # e.g., "low_medi" or "low_pim"
@@ -27,7 +26,7 @@ generate_prc <- function(dataset, low_var, min_length, max_interrupt, threshold)
     ungroup()
   
   clusters_clean <- clusters %>%
-    select(Id, Datetime, State, !!sym(cluster_column), MEDI) %>%
+    select(Id, Datetime, State, !!sym(cluster_column)) %>%
     mutate(
       State = case_when(
         State == "on" ~ 1, 
@@ -38,7 +37,7 @@ generate_prc <- function(dataset, low_var, min_length, max_interrupt, threshold)
         !!sym(cluster_column) == FALSE ~ 1
       )) 
   
-  #We want to build a precision recall curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 0), classifies the performance of our algorithm for detecting non-wear as follows:
+  #We want to build a precision recall curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
   #1) State = 0, cluster = 0 -> true positive
   #2) State = 0, cluster = 1 -> false negative
   #3) State = 1, cluster = 1 -> false positive
@@ -53,7 +52,7 @@ generate_prc <- function(dataset, low_var, min_length, max_interrupt, threshold)
       .default = NA_character_))
   
   prc <- clusters_clean %>%
-    group_by(classification) %>% #!! if you want to visualise individual PRC, then you have to group_by(Id, classification). Else, only group_by(classification)
+    group_by(Id, classification) %>% 
     summarise(count = n()) %>%
     pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
     mutate(TPR = TP/(TP+FN), #true positive rate
@@ -63,5 +62,3 @@ generate_prc <- function(dataset, low_var, min_length, max_interrupt, threshold)
   
   return(prc)
 }
-
-

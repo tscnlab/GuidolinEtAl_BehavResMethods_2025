@@ -33,7 +33,7 @@ for (threshold in pimthresholds) {
     dataset = dataset.LL.wrlg,
     low_var = "PIM",
     min_length = 60, #10 minutes (n of observations)
-    max_interrupt = 0, #1 minute (n of observations)
+    max_interrupt = 0, #0 minutes (n of observations)
     threshold = threshold
   )
   
