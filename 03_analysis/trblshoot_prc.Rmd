@@ -1,5 +1,5 @@
 ---
-title: "trblshoot_prc"
+title: "trblshoot_prc_medi"
 output: html_document
 date: "2024-10-26"
 ---
@@ -8,10 +8,16 @@ date: "2024-10-26"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
-## Varying the other 2 input parameters of the cluster detection function 
+# Fine tuning the input parameters for finding clusters of low illuminane
+In this script, we produce precision-recall curves for each input parameter of the data_find_cluster function, in order to understand which parameters will work better to detect clusters of low illuminance. The data_find_cluster function takes three input parameters:
+1. A threshold for the illuminance values (mEDI)
+2. A minimum length of the interval 
+3. A maximum interruption of the interval for values that are above threshold
+
+In the chunks that follow, we vary each of these three parameters while keeping the other constant.
 
 ## Step 1: vary mEDI thresholds
+Minimum interval length and maximum interruption remain constant.
 ```{r}
 
 medithresholds <- seq(1, 10, by = 1)
@@ -33,11 +39,11 @@ for (threshold in medithresholds) {
   prc_result <- prc_result %>%
     mutate(threshold = threshold) # Add threshold column
   
-  prc_m_list[[threshold]] <- prc_result
-  
+  prc_m_list[[as.character(threshold)]] <- prc_result
   
 }
 
+#Turn list into df
 prc_medi_1 <- bind_rows(prc_m_list)
 #Turn threshold to numeric for plotting
 prc_medi_1$threshold <- as.numeric(prc_medi_1$threshold)
@@ -80,7 +86,12 @@ ggsave(filename = "prc_medi_thresholds.png",
 
 ```
 
-## Step 2: vary length of interval 
+## What does this tell us?
+Compared to higher illuminance values of <10 mEDI lux, a lower illuminance value of <1 mEDI lux leads to higher precision (i.e. n of instances that were predicted as non-wear and are actually non-wear): 0.7237623 (1 lux) compared to 0.3404790 (10 lux). This increase in precision comes at a minimal cost for recall (i.e. n of instances correctly identified as non-wear out of all actual non-wear instances): 0.8111686 (1 lux) to 0.8918214 (10 lux). 
+
+
+## Step 2: vary minimum length of interval 
+Illuminance threshold and maximum intteruption remain constant.
 ```{r}
 #We create min_length ranging from 2 to 11 minutes
 min_lengths <- seq(6, 60, by = 6)
@@ -107,7 +118,7 @@ for (min_length in min_lengths) {
   prc_result <- prc_result %>%
     mutate(min_length = min_length) # Add min_length column
   
-  prc_m_list[[min_length]] <- prc_result
+  prc_m_list[[as.character(min_length)]] <- prc_result
 }
 
 #Turning this into a df 
@@ -151,10 +162,14 @@ ggsave(filename = "prc_medi_length.png",
 
 ```
 
+## What does this tell us?
+Compared to low minimum length values (e.g. 1 minute), higher minimum length values of 10 minutes lead to  higher precision (i.e. n of instances that were predicted as non-wear and are actually non-wear): 0.7237623 (10 minutes) compared to 0.5940958 (1 minute). This increase in precision comes at a minor cost for recall: 0.8111686 (10 minutes) compared to 0.8241462 (1 minute). 
+
 ## Step 3: vary max interruption length 
+Illuminance threshold and minimum length remain constant.
 ```{r}
 #Create a max_interrupt ranging from 0 to 9
-max_interrupts <- paste0(seq(0, 54, by = 6))
+max_interrupts <- seq(0, 54, by = 6)
 #From the previous plot, we know that lower mEDI thresholds are better so we keep it to 2
 medi_threshold = 1
 #We know also know that we shoudl keep the min_lenght to 10 minutes 
@@ -164,21 +179,21 @@ min_length = 60 # 10 minutes
 #Empty list to store classification results
 prc_m_list <- list()
 
-for (max_interrupt in max_interrupts) {
+for (max_int in max_interrupts) {
   
   prc_result <- generate_prc(
     dataset = dataset.LL.wrlg,
     low_var = "MEDI",
     min_length = min_length,
-    max_interrupt = max_interrupt,
+    max_interrupt = max_int,
     threshold = medi_threshold
   )
   
   # Add the current max_interrupt as a column in prc_result
   prc_result <- prc_result %>%
-    mutate(max_int = max_interrupt) # Add max_interrupt column
+    mutate(max_int = max_int) # Add max_interrupt column
   
-  prc_m_list[[max_interrupt]] <- prc_result
+  prc_m_list[[as.character(max_int)]] <- prc_result
 }
 
 prc_medi_3 <- bind_rows(prc_m_list)
@@ -221,6 +236,8 @@ ggsave(filename = "prc_medi_interrupt.png",
 
 ```
 
+## What does this tell us?
+Different interruption lengths of the non-wear interval do not affect the precision or the recall of the cluster detection function. 
 
 ## One plot with all the three curves 
 ```{r}
@@ -242,3 +259,8 @@ ggsave(filename = "medi_prc_parameters_multiplot.png",
        path = "D:/cyepi/code/outputs/light_activity_prc/raw/trblshoot_parameters/light")
 
 ```
+## Conclusion
+The values to be used are:
+1. Illuminance threshold: <1 lux
+2. Minimum length: 10 minutes 
+3. Maximum interruption: 0 minutes 

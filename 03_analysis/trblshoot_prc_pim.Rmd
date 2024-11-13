@@ -8,10 +8,16 @@ date: "2024-10-26"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
-## Varying the other 2 input parameters of the cluster detection function 
+# Fine tuning the input parameters for finding clusters of low illuminane
+In this script, we produce precision-recall curves for each input parameter of the data_find_cluster function, in order to understand which parameters will work better to detect clusters of low activity. The data_find_cluster function takes three input parameters:
+1. A threshold for the activity values (PIM)
+2. A minimum length of the interval 
+3. A maximum interruption of the interval for values that are above threshold
+
+In the chunks that follow, we vary each of these three parameters while keeping the other constant.
 
 ## Step 1: vary PIM thresholds
+Minimum interval length and maximum interruption remain constant.
 ```{r}
 
 #Create a sequence of PIM thresholds at 5 unit steps
@@ -20,6 +26,7 @@ pimthresholds <- c(5,10, 15, 20, 25, 30, 35, 40, 45, 50)
 #Empty list to store classification results
 prc_m_list <- list()
 
+#Running a for loop to generate a prc for all selected PIM thresholds 
 for (threshold in pimthresholds) {
   
   prc_result <- generate_prc(
@@ -34,18 +41,17 @@ for (threshold in pimthresholds) {
   prc_result <- prc_result %>%
     mutate(threshold = threshold) # Add threshold column
   
-  prc_m_list[[threshold]] <- prc_result
-  
+  prc_m_list[[as.character(threshold)]] <- prc_result
   
 }
 
+#Turn into a df
 prc_pim_1 <- bind_rows(prc_m_list)
-#Turn threshold to factor for plotting
-# Ensure threshold is numeric with specific levels and labels
+
+#Turn threshold to numeric for plotting
 prc_pim_1$threshold <- as.numeric(prc_pim_1$threshold)
 
 #Let's plot to see what the result looks like
-
 prc_pim_thresholds <- ggplot() +
    xlim(0,1) + 
    ylim(0,1) +
@@ -82,19 +88,26 @@ ggsave(filename = "prc_pim_thresholds.png",
 
 ```
 
-## Step 2: vary length of interval 
+## What does this tell us?
+Compared to higher activity threshold values, lower activity thresholds of 5 (PIM) lead to higher precision (i.e. n of non-wear labels correctly assigned), but lower recall (n of non-wear labels assigned among all the non-wear instances). For example, the recall for PIM = 5 is 0.6399320 compared to 0.7640286 for PIM = 50, but the precision follows the opposite trend (0.4511188 for PIM=5 and 0.3665945 for PIM=50).
+
+## Step 2: vary minimum length of interval 
+Activity threshold and maximum interruption stay the same
 ```{r}
-#We create min_length ranging from 2 to 11 minutes
+#Create min_length ranging from 1 to 10 minutes, with 1 minute steps
 min_lengths <- seq(6, 60, by = 6)
-#From the previous plot, we know that lower mEDI thresholds are better so we keep it to 1
+
+#From the previous plot, we know that lower PIM thresholds are better so we keep it to 5
 pim_threshold = 5
+
 #We keep the max_interrupt at 0 minutes
-max_interrupt = 0 # 0 minute
+max_interrupt = 0 #0 minutes
 
 
 #Empty list to store classification results
 prc_m_list <- list()
 
+#Running a for loop that creates a prc for all selected min_lengths 
 for (min_length in min_lengths) {
   
   prc_result <- generate_prc(
@@ -109,10 +122,10 @@ for (min_length in min_lengths) {
   prc_result <- prc_result %>%
     mutate(min_length = min_length) # Add min_length column
   
-  prc_m_list[[min_length]] <- prc_result
+  prc_m_list[[as.character(min_length)]] <- prc_result
 }
 
-#Turning this into a df 
+#Turning list into a df 
 prc_pim_2 <- bind_rows(prc_m_list)
 
 #Turning min_length into a factor for plotting
@@ -153,39 +166,45 @@ ggsave(filename = "prc_pim_length.png",
 
 ```
 
+## What does this tell us?
+The lower the minimum length, the higher the precision, with the precision values seemingly reaching a plateau at approximately 9 and 10 minutes. Higher precision also comes at a cost of a lower recall values. 
+
 ## Step 3: vary max interruption length 
 ```{r}
-#Create a max_interrupt ranging from 0 to 9
-max_interrupts <- paste0(seq(0, 54, by = 6))
-#From the previous plot, we know that lower mEDI thresholds are better so we keep it to 2
+#Create a max_interrupt ranging from 0 to 9 minutes, with 1-minute steps
+max_interrupts <- seq(0, 54, by = 6) 
+
+#From the first plot, we know that lower PIM thresholds are better so we keep it to 5
 pim_threshold = 5
-#We know also know that we shoudl keep the min_length to 10 minutes 
-min_length = 60 # 10 minutes
+
+#We know also know that we should keep the min_length to 10 minutes 
+min_length = 60 # 10 minutes (n observations)
 
 
 #Empty list to store classification results
 prc_m_list <- list()
 
-for (max_interrupt in max_interrupts) {
+for (max_int in max_interrupts) {
   
   prc_result <- generate_prc(
     dataset = dataset.LL.wrlg,
     low_var = "PIM",
     min_length = min_length,
-    max_interrupt = max_interrupt,
+    max_int = max_int,
     threshold = pim_threshold
   )
   
   # Add the current max_interrupt as a column in prc_result
   prc_result <- prc_result %>%
-    mutate(max_int = max_interrupt) # Add max_interrupt column
+    mutate(max_int = max_int) # Add max_interrupt column
   
-  prc_m_list[[max_interrupt]] <- prc_result
+  prc_m_list[[as.character(max_int)]] <- prc_result
 }
 
+#Turn this list into a df 
 prc_pim_3 <- bind_rows(prc_m_list)
 
-#Turning max_interrupt into a factor for plotting
+#Turning max_int into a factor for plotting
 prc_pim_3$max_int <- as.factor(prc_pim_3$max_int) 
 
 #Let's plot to see the results
@@ -223,6 +242,8 @@ ggsave(filename = "prc_pim_interrupt.png",
 
 ```
 
+## What does this tell us?
+Varying the maximum interval does not seem to change the precision and the recall of the cluster detection function. 
 
 ## One plot with all the three curves 
 ```{r}
