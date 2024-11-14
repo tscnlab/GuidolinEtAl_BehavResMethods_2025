@@ -10,20 +10,22 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
-# Identifying clusters of low light levels (mEDI)
+# Identifying clusters of low light levels (mEDI) "Manually", i.e. wthout using the function
 ```{r}
-#Similarly to above, we create a series of thresholds that will be fed into the function and be used to build the prc 
-min_lengths <- seq(6, 66, by = 6)
 
-#Empty list to store classification results
-prc_medi_list <- list()
 medi_threshold = 1 
 max_interrupt = 0 
+min_length = 60
+
+# Define the buffer period in seconds and convert to rows (each row is 10 seconds)
+buffer_period <- 120  # Buffer period in seconds (e.g., 2 minutes)
+buffer_rows <- buffer_period / 10  # Rows corresponding to buffer period
 
 
-for (min_length in min_lengths) {
+dataset.LL.201 <- dataset.LL.wrlg %>%
+  filter(Id == 201)
 
-medi_clusters <- dataset.LL.wrlg %>%
+medi_clusters <- dataset.LL.201 %>%
   ungroup() %>%
   mutate(State = if_else(State == "sleep", NA_character_, State)) %>% #converting all sleep values to NAs, since we do not want to use these for our classification 
   # Replace `low_activity` by the (logical) variable for which the clusters 
@@ -47,11 +49,11 @@ medi_clusters <- dataset.LL.wrlg %>%
     )
   ) %>%
   unnest(cols = data) %>%
-  ungroup()
+  ungroup() %>%
+  select(Id, Datetime, State, MEDI, low_medi, is_low_medi_cluster)
 
 
 mediclusters_clean <- medi_clusters %>%
-  select(Id, Datetime, State, MEDI, is_low_medi_cluster) %>%
   mutate(
     State = case_when(
       State == "on" ~ 1, 
@@ -60,15 +62,23 @@ mediclusters_clean <- medi_clusters %>%
     is_low_medi_cluster = case_when(
       is_low_medi_cluster == TRUE ~ 0,
       is_low_medi_cluster == FALSE ~ 1
-    )) 
+    )) %>%
+  # Identify transitions between on/off states
+  mutate(state_transition = State != lag(State, default = first(State))) %>%
+  # Apply buffer around transitions
+  mutate(buffered_state = case_when(
+    lag(state_transition, n = buffer_rows, default = FALSE) ~ "lower_limit",
+    lead(state_transition, n = buffer_rows, default = FALSE) ~ "upper_limit",
+    TRUE ~ as.character(State)
+  ))
 
-#We want to build a precision recall curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
+#We want to build a precision recall curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 0), classifies the performance of our algorithm for detecting non-wear as follows:
 #1) State = 0, cluster = 0 -> true positive
 #2) State = 0, cluster = 1 -> false negative
 #3) State = 1, cluster = 1 -> false positive
 #4) State = 1, cluster = 0 -> true negative
 
-mediclusters_clean <- mediclusters_clean %>%
+mediclusters_clean_2 <- mediclusters_clean %>%
   mutate(classification = case_when(
     State == 0 & is_low_medi_cluster == 0 ~ "TP",
     State == 0 & is_low_medi_cluster == 1 ~ "FN",
@@ -86,9 +96,7 @@ prc_medi <- mediclusters_clean %>%
          NPV = TN/(FN+TN), #negative predictive value
          min_length = min_length)  #adding manually which threshold I am considering here 
 
- #Add the result to the list
-  prc_medi_list[[min_length]] <- prc_medi
-}
+
 
 #Turn the list with the results into a df 
 prcurve_medi <- bind_rows(prc_medi_list)
@@ -97,6 +105,25 @@ prcurve_medi <- bind_rows(prc_medi_list)
 prcurve_medi$min_length <- as.factor(prcurve_medi$min_length)
 
 ```
+
+```{r}
+transition_counts <- mediclusters_clean_2 %>%
+  mutate(
+    # Find the indices of the `lower_limit` and `upper_limit` for each transition
+    lower_idx = if_else(buffered_state == "lower_limit", row_number(), NA_integer_),
+    upper_idx = if_else(buffered_state == "upper_limit", row_number(), NA_integer_)
+  ) %>%
+  fill(lower_idx, .direction = "up") %>% # Carry lower_idx forward
+  fill(upper_idx, .direction = "down") %>% # Carry upper_idx backward
+  filter(!is.na(lower_idx) & !is.na(upper_idx)) %>% # Keep only rows between limits
+  # Step 2: Count FPs and FNs in the range for each transition
+  summarise(
+    fp_count = sum(classification == "FP"),
+    fn_count = sum(classification == "FN")
+  ) 
+```
+
+
 
 
 ```{r}
@@ -130,5 +157,34 @@ library(arsenal)
 
 summary(arsenal::comparedf(prcurve_medi, prc_medi_2, by = "min_length"))
 
+```
+
+## Checking that all low_medi_clusters have indeed more than 60 observ
+```{r}
+
+low_medi_clusters <- medi_clusters %>%
+
+  mutate(cluster_id = if_else(is_low_medi_cluster, consecutive_id(is_low_medi_cluster), NA_integer_)) %>%
+  
+  # Step 3: Group by cluster ID and count observations in each cluster
+  group_by(cluster_id) %>%
+  summarise(cluster_size = n(), .groups = "drop") %>%
+  
+  # Step 4: Check that all clusters meet the minimum length requirement
+  mutate(valid_cluster = cluster_size >= min_length)
+
+# Check if any clusters fail to meet the minimum length requirement
+all_clusters_valid <- all(low_medi_clusters$valid_cluster)
+
+# Print the result
+if (all_clusters_valid) {
+  print("All is_low_medi_cluster groups have at least 60 observations.")
+} else {
+  print("Some is_low_medi_cluster groups have fewer than 60 observations.")
+}
+
+# View clusters with fewer than 60 observations, if any
+low_medi_clusters %>%
+  filter(!valid_cluster)
 ```
 

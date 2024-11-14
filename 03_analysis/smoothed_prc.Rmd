@@ -19,12 +19,12 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ##Step 1: Apply log transformation
 ```{r}
-#Before we transform into log, we replace 0 values with low numbers. We will do this on a dataframe called log.trasnf.LL.wrlg to avoid changing the df dataset.LL.wrlg directly
+#Before we transform into log, we replace 0 values with low numbers. We will do this on a dataframe called log.transf.LL.wrlg to avoid changing the df dataset.LL.wrlg directly
 
-log.transf.LL.wrlg <- dataset.LL.wrlg 
+log.transf.LL.wrlg <- dataset.LL.wrlg
 
-log.transf.LL.wrlg$MEDI[dataset.LL.wrlg$MEDI == 0] <- 0.0001
-log.transf.LL.wrlg$PIM[dataset.LL.wrlg$PIM == 0] <- 0.0001
+log.transf.LL.wrlg$MEDI[log.transf.LL.wrlg$MEDI == 0] <- 0.0001
+log.transf.LL.wrlg$PIM[log.transf.LL.wrlg$PIM == 0] <- 0.0001
 
 #Take log10 of both MEDI and PIM
 log.LL.wrlg <- log.transf.LL.wrlg %>%
@@ -39,12 +39,75 @@ We will need the zoo package for this. Since our device measures light every 10 
 library(zoo)
 
 rolled.df <- log.LL.wrlg %>%
-  group_by(Id) %>%
   mutate(rolled_median_MEDI = zoo::rollapplyr(log.MEDI, width = 60, FUN = median, fill = NA, align = "center"),
-         rolled_median_PIM = zoo::rollapplyr(log.PIM, width = 60, FUN = median, fill = NA, align = "center")) %>%
-  ungroup()
+         rolled_median_PIM = zoo::rollapplyr(log.PIM, width = 60, FUN = median, fill = NA, align = "center"))
 
 ```
+
+```{r}
+medithresholds <- seq(1, 10, by = 1)
+log_thr_medi <- log10(medithresholds)
+max_interrupt = 0 
+min_length = 60
+
+
+
+#Empty list to store classification results
+prc_list <- list()
+
+for (threshold in log_thr_medi) {
+
+prc_result <- generate_prc(
+    dataset = rolled.df,
+    low_var = "rolled_median_MEDI",
+    min_length = 60, #10 minutes (n of observations)
+    max_interrupt = 0, #0 minute (n of observations)
+    threshold = threshold
+  )
+  
+  # Add the current threshold as a column in prc_m_result
+  prc_result <- prc_result %>%
+    mutate(threshold = threshold) # Add threshold column
+  
+  prc_list[[as.character(threshold)]] <- prc_result
+  
+}
+
+#Turn list into df
+prcurve_medi_sm <- bind_rows(prc_list)
+#Turn threshold to numeric for plotting
+prcurve_medi_sm$threshold <- as.numeric(prcurve_medi_sm$threshold)
+  
+```
+
+```{r}
+prc_all_ids <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  geom_point(data = prcurve_medi_sm, aes(x = TPR, y = PPV, colour = threshold)) +
+   scale_colour_gradient(
+     name = "mEDI threshold (lx)",
+     low = "red", high = "orange",
+     limits= c(log10(1), log10(10)),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Precision-recall curve for detection of \nnon-wear intervals based on illuminance thresholds",
+       subtitle = "Min. length = 10 min, max. interruption = 0 min") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 16),
+        plot.subtitle = element_text(hjust = 0.5, size = 14, colour = "grey33"),
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal") +
+  coord_fixed(ratio = 1) 
+```
+
 
 
 
@@ -56,6 +119,10 @@ pimthresholds <- c(5,10, 15, 20, 25, 30, 35, 40, 45, 50)
 
 log_thr_pim <- log10(pimthresholds)
 
+#Parameters to feed into function
+min_length = 60 # 10 minutes
+max_interrupt = 6 # 1 minute
+
 #Empty list to store classification results
 prc_pim_list_sm <- list()
   
@@ -63,8 +130,8 @@ prc_pim_list_sm <- list()
 
   pim_clust_sm <- rolled.df %>%
     ungroup() %>%
-    filter(!State == "sleep" ) %>%
-    filter(!is.na(rolled_median_PIM)) %>% #account for the start and end of the rolling median, which has NAs   
+    mutate(State = if_else(State == "sleep", "NA", State)) %>%  #converting all sleep values to NAs, since we do not want to use these for our classification 
+   # filter(!is.na(rolled_median_PIM)) %>% #account for the start and end of the rolling median, which has NAs   
    # Replace `low_activity` by the (logical) variable for which the clusters 
    # should be found.
    mutate(low_pim = rolled_median_PIM < threshold) %>% 
@@ -79,8 +146,8 @@ prc_pim_list_sm <- list()
       data_find_clusters(
         data, 
         low_pim, 
-        min_length = "10 mins", 
-        max_interrupt = "1 mins", 
+        min_length = min_length, 
+        max_interrupt = max_interrupt, 
         cluster_name = "low_pim_cluster"
       )
     )
@@ -94,7 +161,8 @@ prc_pim_list_sm <- list()
     mutate(
       State = case_when(
       State == "on" ~ 1, 
-      State == "off" ~ 0),
+      State == "off" ~ 0,
+      is.na(State) ~ NA_real_), # keep sleep states as NA
     is_low_pim_cluster = case_when(
       is_low_pim_cluster == TRUE ~ 0,
       is_low_pim_cluster == FALSE ~ 1
@@ -115,7 +183,7 @@ prc_pim_list_sm <- list()
      .default = NA_character_))
 
   prc_pim_sm <- pimclusters_clean_sm %>%
-    group_by(Id, classification) %>%
+    group_by(classification) %>%
    summarise(count = n())  %>%
    pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
     mutate(TPR = TP/(TP+FN), #this is the formula for TPR (true positive rate)
@@ -138,21 +206,19 @@ prcurve_pim_sm$threshold <- as.numeric(prcurve_pim_sm$threshold)
 #Step4b: Apply cluster detection for low mEDI
 ```{r}
 #Define threholds for cluser detection algorithm
-medithresholds <- c(1,2,3,4,5,6,7,8,9,10)
-log_thr_medi <-log10(medithresholds)
+medi_threshold = log10(1) 
+max_interrupt = 0 
+min_length = 60
 
 #Empty list to store classification results
-prc_medi_list_sm <- list()
-
-for (threshold in log_thr_medi) {
 
 medi_clusters_sm <- rolled.df %>%
   ungroup() %>%
-  filter(!State == "sleep") %>%
-  filter(!is.na(rolled_median_MEDI)) %>% #account for the start and end of the rolling median, which has NAs
+  mutate(State = if_else(State == "sleep", NA_character_, State)) %>%  #converting all sleep values to NAs, since we do not want to use these for our classification 
+  # filter(!is.na(rolled_median_MEDI)) %>% #account for the start and end of the rolling median, which has NAs
   # Replace `low_activity` by the (logical) variable for which the clusters 
   # should be found.
-  mutate(low_medi = rolled_median_MEDI < threshold) %>% 
+  mutate(low_medi = rolled_median_MEDI < medi_threshold) %>% 
   # Nest by groups, e.g., participant, period. Replace with grouping variables 
   # in your data, such that the function is applied separately per consecutive 
   # timeseries (e.g., from one subject during one period).
@@ -164,14 +230,15 @@ medi_clusters_sm <- rolled.df %>%
       data_find_clusters(
         data, 
         low_medi, 
-        min_length = "10 mins", 
-        max_interrupt = "1 mins", 
+        min_length = min_length, 
+        max_interrupt = max_interrupt, 
         cluster_name = "low_medi_cluster"
       )
     )
   ) %>%
   unnest(cols = data) %>%
-  ungroup() 
+  ungroup() %>%
+  select(Id, Datetime, State, MEDI, low_medi, is_low_medi_cluster)
 
 
 mediclusters_clean_sm <- medi_clusters_sm %>%
@@ -179,7 +246,8 @@ mediclusters_clean_sm <- medi_clusters_sm %>%
   mutate(
     State = case_when(
       State == "on" ~ 1, 
-      State == "off" ~ 0),
+      State == "off" ~ 0,
+      is.na(State) ~ NA_real_), # keep sleep states as NA ),
     is_low_medi_cluster = case_when(
       is_low_medi_cluster == TRUE ~ 0,
       is_low_medi_cluster == FALSE ~ 1
@@ -535,12 +603,111 @@ prcurve_medi_sm<- bind_rows(prc_medi_list_sm)
 #Turn thresholds from character to factor for plotting
 prcurve_medi_sm$threshold <- as.numeric(prcurve_medi_sm$threshold)
 ```
-## To do 
-- The normaliation did not work: leave it aside for one second
-- Plot the individual plots for the smoothed data, labeled and unlabeled 
-- The go back to the normalisation 
+
+## Where does the algorithm go wrong?
+```{r}
+#First, we need to create state changes from the mediclusters_clean data frame
+prcurve_medi_sm <- prcurve_medi_sm %>% filter(threshold == log10(1))
 
 
+medi_sc_sm <- prcurve_medi_sm %>%
+ mutate(interval_group = consecutive_id(classification)) %>% #need to set default for first value 
+  group_by(Id, interval_group) %>%
+  summarise(classification = first(classification), #keep only first value for each Id and interval_group
+            xmin = first(Datetime),
+            xmax = last(Datetime)) %>%
+  ungroup()
 
+
+##List of all unique participant IDs
+participant_ids <- unique(rolled.df$Id)
+
+##Create a for loop to generate a plot for each participant 
+for (selected_id in participant_ids) {
+  
+ subset_df <- rolled.df %>%
+  filter(Id == selected_id)
+
+
+##Calculate the limits of the shaded areas according to the Wear Log
+alg.times <- medi_sc_sm %>%
+  filter(Id == selected_id) %>%
+  mutate(xmax = (xmax + lubridate::seconds(10)), #need to add 10 seconds to match next start time
+         Day.data.min = xmin %>% format(format = "%a"), #lower limit of the shaded area, needed for geom_rect
+         Day.data.max = xmax %>% format(format = "%a"), #upper limit of shaded area, needed for geom_rect
+         xmin = xmin %>% hms::as_hms(), #transform xmin to time (currently Datetime)
+         xmax = xmax %>% hms::as_hms(), #transform xmax to time (currently Datetime)
+         Day.data.min = factor(Day.data.min, levels = unique(Day.data.min)),
+         Day.data.max = factor(Day.data.max, levels = unique(Day.data.max)))
+
+##Some intervals on the Wear log that we want to plot cross day boundaries. We thus need to split them in 2 intervals, since we plot each day on a different facet of the plot 
+
+#Step 1: collect the part of the data that does not cross day boundaries
+alg.times1 <-
+  alg.times %>%
+  filter(Day.data.min == Day.data.max)
+
+#Step 2: Collect part of the data that does cross bounderies and split it by day, i.e. at midnight. 
+alg.times2 <-
+alg.times %>% filter(Day.data.min != Day.data.max) %>%
+  rowwise() %>%
+  mutate(
+    new_entry = list(
+      tibble(
+        xmin=c(xmin, hms::as_hms("00:00:00")),
+        xmax=c(hms::as_hms("23:59:59"), xmax),
+        Day.min=c(Day.data.min, Day.data.max),
+        Day.max=c(Day.data.min, Day.data.max)
+      )
+    )
+  ) %>%
+  select(classification, new_entry) %>%
+  unnest(new_entry)
+
+#Step 3: Combine the two again in a single df
+alg.combined <- 
+  bind_rows(alg.times1 %>% rename(Day.min = Day.data.min),
+            alg.times2) %>%
+  select(-Day.max) %>%
+  rename(Day.data = Day.min) 
+
+alg.combined$classification <- factor(alg.combined$classification, levels = c("TP", "TN", "FP", "FN", "NA")) #turn State into factor
+
+p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
+            linewidth = 0.1, 
+            aes_col = State, 
+            geom = "line",
+            group = date(Datetime),
+            format.day = "%a",
+            x.axis.label = "Time", 
+            y.axis.label = "Illuminance (mEDI, lx)",
+            title = paste("p", selected_id, "light levels and algorithm performance")) +
+  geom_rect(data=alg.combined, aes(xmin= xmin, xmax = xmax, ymin =0, ymax = Inf, fill = classification), #adding classification output
+                    inherit.aes = FALSE,
+                    alpha = 0.15) +
+    scale_fill_manual(
+     name = "Algorithm classification",
+     values = c("TP" = "darkgreen",
+                "TN" = "#0072B2",
+                "FP" = "darkred",
+                "FN" = "darkgoldenrod2"),
+                na.value = "white") +
+  theme(plot.title = element_text(hjust = 0.5, size = 24, face = "plain"),
+        axis.text.x = element_text(size = 16),
+        axis.title = element_text(size = 18),
+        axis.text.y = element_text(size = 16),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 14))
+
+filename <- paste0("p", selected_id, "alg_perfom_sm.png")
+ggsave(filename = filename,
+       plot = p,
+       width = 10,
+       height = 14,
+       dpi = 600,
+       bg = "white",
+       path= "G:/cyepi/code/outputs/light_activity_prc/smoothed/medi_alg_perf")
+}
 ```
+
 

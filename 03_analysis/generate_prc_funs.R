@@ -44,7 +44,7 @@ generate_prc <- function(dataset, low_var, min_length, max_interrupt, threshold)
   #3) State = 1, cluster = 1 -> false positive
   #4) State = 1, cluster = 0 -> true negative
   
-  clusters_clean <- clusters_clean %>%
+  clusters_clean_2 <- clusters_clean %>%
     mutate(classification = case_when(
       State == 0 & !!sym(cluster_column) == 0 ~ "TP",
       State == 0 & !!sym(cluster_column) == 1 ~ "FN",
@@ -52,7 +52,7 @@ generate_prc <- function(dataset, low_var, min_length, max_interrupt, threshold)
       State == 1 & !!sym(cluster_column) == 1 ~ "TN",
       .default = NA_character_))
   
-  prc <- clusters_clean %>%
+  prc <- clusters_clean_2 %>%
     group_by(classification) %>% #!! if you want to visualise individual PRC, then you have to group_by(Id, classification). Else, only group_by(classification)
     summarise(count = n()) %>%
     pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
