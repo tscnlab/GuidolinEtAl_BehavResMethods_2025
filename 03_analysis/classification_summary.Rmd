@@ -1,0 +1,210 @@
+---
+title: "alg_performance"
+author: "Carolina Guidolin"
+date: "2024-11-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Visualisation of where the low mEDI cluster detection algorithm goes wrong 
+First, we identify clusters of low mEDI using the input parameters known to perform best:
+- Low illuminance threshold: 1 mEDI lux 
+- Minimum length of the cluster: 10 minutes 
+- Maximum interruption within cluster: 0 minutes
+
+```{r}
+
+#Empty list to store classification results
+prc_list <- list()
+
+classified_prc_medi <- alg_perf(
+    dataset = dataset.LL.wrlg,
+    low_var = "MEDI",
+    min_length = 60, #10 minutes (n of observations)
+    max_interrupt = 0, #0 minutes (n of observations)
+    threshold = 1 #1 mEDI lux
+  )
+
+```
+
+Second, we need to create intervals for each classification length 
+```{r}
+medi_sc <- classified_prc_medi %>%
+ group_by(Id) %>%
+ mutate(interval_group = consecutive_id(classification)) %>% #need to set default for first value 
+  group_by(Id, interval_group) %>%
+summarise(classification = first(classification), #keep only first value for each Id and interval_group
+            xmin = first(Datetime),
+            xmax = last(Datetime)) %>%
+  ungroup() 
+
+```
+
+## Third, and last, we need to visualise the classification as a time series, i.e. every day of the week, for each participant, with shaded areas for each classification type (TP, TN, FP, FN) and with the line colour of mEDI coding for the Wear log State.
+```{r}
+##List of all unique participant IDs
+participant_ids <- unique(dataset.LL.wrlg$Id)
+
+##Create a for loop to generate a plot for each participant 
+for (selected_id in participant_ids) {
+  
+ subset_df <- dataset.LL.wrlg %>%
+  filter(Id == selected_id)
+
+
+##Calculate the limits of the shaded areas according to the Wear Log
+alg.times <- medi_sc %>%
+  filter(Id == selected_id) %>%
+  mutate(xmax = (xmax + lubridate::seconds(10)), #need to add 10 seconds to match next start time
+         Day.data.min = xmin %>% format(format = "%a"), #lower limit of the shaded area, needed for geom_rect
+         Day.data.max = xmax %>% format(format = "%a"), #upper limit of shaded area, needed for geom_rect
+         xmin = xmin %>% hms::as_hms(), #transform xmin to time (currently Datetime)
+         xmax = xmax %>% hms::as_hms(), #transform xmax to time (currently Datetime)
+         Day.data.min = factor(Day.data.min, levels = unique(Day.data.min)),
+         Day.data.max = factor(Day.data.max, levels = unique(Day.data.max)))
+
+##Some intervals on the Wear log that we want to plot cross day boundaries. We thus need to split them in 2 intervals, since we plot each day on a different facet of the plot 
+
+#Step 1: collect the part of the data that does not cross day boundaries
+alg.times1 <-
+  alg.times %>%
+  filter(Day.data.min == Day.data.max)
+
+#Step 2: Collect part of the data that does cross bounderies and split it by day, i.e. at midnight. 
+alg.times2 <-
+alg.times %>% filter(Day.data.min != Day.data.max) %>%
+  rowwise() %>%
+  mutate(
+    new_entry = list(
+      tibble(
+        xmin=c(xmin, hms::as_hms("00:00:00")),
+        xmax=c(hms::as_hms("23:59:59"), xmax),
+        Day.min=c(Day.data.min, Day.data.max),
+        Day.max=c(Day.data.min, Day.data.max)
+      )
+    )
+  ) %>%
+  select(classification, new_entry) %>%
+  unnest(new_entry)
+
+#Step 3: Combine the two again in a single df
+alg.combined <- 
+  bind_rows(alg.times1 %>% rename(Day.min = Day.data.min),
+            alg.times2) %>%
+  select(-Day.max) %>%
+  rename(Day.data = Day.min) 
+
+alg.combined$classification <- factor(alg.combined$classification, levels = c("TP", "TN", "FP", "FN", "NA")) #turn State into factor, NA represents the sleep period here
+
+
+p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
+            linewidth = 0.05, 
+            aes_col = State, 
+            geom = "line",
+            group = date(Datetime),
+            format.day = "%a",
+            x.axis.label = "Time", 
+            y.axis.label = "Illuminance (mEDI, lx)",
+            title = "Algorithm performance for low mEDI clusters",
+            subtitle = "mEDI threshold = 1 lux, min. length = 10 minutes, max. interruption = 0 minutes") +
+  geom_rect(data=alg.combined, aes(xmin= xmin, xmax = xmax, ymin =0, ymax = Inf, fill = classification), #adding classification output
+                    inherit.aes = FALSE,
+                    alpha = 0.15) +
+    scale_fill_manual(
+     name = "Algorithm classification",
+     values = c("TP" = "darkgreen",
+                "TN" = "#0072B2",
+                "FP" = "darkred",
+                "FN" = "darkgoldenrod2"),
+                na.value = "white") +
+  scale_color_manual(
+    name = "Wear log 'state'",
+    values = c("on" = "#0072B2", "off" = "darkred", "sleep" = "black"),
+    labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
+   guides(
+    color = guide_legend(override.aes = list(linewidth = 2)) # Make lines thicker in Wear log legend
+  ) +
+  guides(linetype = guide_legend(override.aes = list(size = 4))) +
+  theme(plot.title = element_text(hjust = 0.5, size = 24, face = "plain"),
+        plot.subtitle = element_text(hjust = 0.5, size = 16),
+        axis.text.x = element_text(size = 16),
+        axis.title = element_text(size = 18),
+        axis.text.y = element_text(size = 16),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 14))
+
+filename <- paste0("p", selected_id, "alg_perf_mEDI.png")
+ggsave(filename = filename,
+       plot = p,
+       width = 10,
+       height = 14,
+       dpi = 600,
+       bg = "white",
+       path= "D:/cyepi/code/outputs/light_activity_prc/raw/medi_alg_perf")
+}
+```
+## Can we extract information about the misclassified non-wear intervals?
+We would like to identify patterns in the false negative and false positive intervals, to understand what leads to misclassifications of these specific intervals. We want to collect information about this in a table:
+- Was the bag used?
+- What was the average mEDI of these periods?
+- How long were these intervals?
+
+### First, we want to identify these intervals
+```{r}
+classification_int <- classified_prc_medi %>%
+ group_by(Id) %>%
+ mutate(interval_group = consecutive_id(classification)) %>% #need to set default for first value 
+  group_by(Id, interval_group) %>%
+summarise(classification = first(classification), 
+          bag = first(bag), 
+          is_low_medi_cluster = first(is_low_medi_cluster),
+          mean_MEDI = mean(MEDI), #keep only first value for each Id and interval_group
+          xmin = first(Datetime),
+          xmax = (last(Datetime) + lubridate::seconds(10)), #adding 10 seconds to create intervals
+          class_duration = difftime(xmax, xmin, tz= tz, units = "mins")) %>%
+  ungroup() %>%
+  filter(classification == "FN" | classification == "FP") 
+  
+```
+
+### Visual checks 
+```{r}
+# Setting a lux threshold for mEDI
+threshold = 1
+
+# Setting a length threshold for what we define a transition period
+transition_cutoff = as.difftime(3, unit = "mins")
+
+classification_int <- classification_int %>%
+  mutate(
+    reason = case_when(
+      classification == "FN" & bag == 0 & mean_MEDI > threshold & class_duration > transition_cutoff ~ "bag not used, no clusters identified",
+      classification == "FN" & bag == 0 & mean_MEDI > threshold & class_duration <= transition_cutoff ~ "bag not used or transition state",
+      classification == "FN" & bag == 1 & mean_MEDI > threshold & class_duration <= transition_cutoff ~ "likely transition state",
+      classification == "FN" & bag == 1 & mean_MEDI > threshold & class_duration > transition_cutoff ~ "algorithm limitation or bag actually not used",
+      classification == "FN" & bag == 1 & mean_MEDI < threshold & class_duration <= transition_cutoff ~ "likely transition state",
+      classification == "FP" & mean_MEDI <= threshold & class_duration <= transition_cutoff ~ "likely transition state",
+      classification == "FP" & mean_MEDI <= threshold & class_duration > transition_cutoff ~ "low medi, cluster detected",
+      TRUE ~ "visual_check" # Fallback case
+    )
+  )
+
+#Compiling into a summary table
+classification_summary <- classification_int %>%
+  group_by(classification, reason) %>%
+  summarise(count = n())
+```
+
+### Save as csv 
+```{r}
+write.csv(classification_int, "D:/cyepi/code/outputs/light_activity_prc/raw/medi_alg_perf/classification_summary.csv", row.names = FALSE)
+```
+
+### Loading in the excel spreadsheet after the visual inspection 
+```{r}
+class_table <- read.csv("D:/cyepi/code/outputs/light_activity_prc/raw/medi_alg_perf/alg_classification_table.csv")
+```
+
