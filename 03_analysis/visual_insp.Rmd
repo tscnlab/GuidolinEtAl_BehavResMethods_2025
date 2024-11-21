@@ -141,7 +141,7 @@ subset_df <- dataset.LL.wrlg %>%
   filter(Id == selected_id) %>%
   select(Id, Datetime, EVENT, PIM, MEDI, State)
 
-##Create new column for the y-values (PIM) of points where EVENT==1
+##Create new column for the y-values (medi) of points where EVENT==1
 subset_df$eventpoint <- ifelse(subset_df$EVENT == 1, subset_df$MEDI, NA)
 
 ##Calculate the limits of the shaded areas according to the Wear Log
@@ -189,7 +189,7 @@ states.combined <-
   rename(Day.data = Day.min) 
 
 
-#Create the plot wit activity (PIM), button presses (eventpoint) and wearlog intervals (State)
+#Create the plot with light (medi)), button presses (eventpoint) and wearlog intervals (State)
 
 states.combined$State <- factor(states.combined$State) #turn State into factor
 
@@ -220,7 +220,7 @@ ggsave(filename = filename,
        height = 14,
        dpi = 600,
        bg = "white",
-       path= "G:/cyepi/code/outputs/visual_insp/light")
+       path= "D:/cyepi/code/outputs/visual_insp/light")
 }
 
 ```
@@ -288,7 +288,7 @@ states.combined <-
 states.combined$State <- factor(states.combined$State) #turn State into factor
 
 p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
-            linewidth = 0.015, 
+            linewidth = 0.03, 
             color = "black", 
             geom = "line",
             #alpha = 0.7,
@@ -321,13 +321,13 @@ p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
         legend.box.background = element_rect(fill = "white", colour = "darkgrey"),
         legend.margin = margin(c(1,1,1,1)))
 
-ggsave(filename = "exemplary_participant.svg",
+ggsave(filename = "exemplary_participant.png",
        plot = p,
        width = 11,
        height = 14,
        dpi = 600,
        bg = "white",
-       path= "G:/cyepi/code/outputs/visual_insp/example")
+       path= "D:/cyepi/code/outputs/visual_insp/light/example")
 
 ```
 
