@@ -10,7 +10,8 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ## Visualisation of where the low mEDI cluster detection algorithm goes wrong 
-First, we identify clusters of low mEDI using the input parameters known to perform best:
+
+### First, we identify clusters of low mEDI using the input parameters known to perform best:
 - Low illuminance threshold: 1 mEDI lux 
 - Minimum length of the cluster: 10 minutes 
 - Maximum interruption within cluster: 0 minutes
@@ -30,7 +31,7 @@ classified_prc_medi <- alg_perf(
 
 ```
 
-Second, we need to create intervals for each classification length 
+### Second, we need to create intervals for each classification length 
 ```{r}
 medi_sc <- classified_prc_medi %>%
  group_by(Id) %>%
@@ -43,7 +44,7 @@ summarise(classification = first(classification), #keep only first value for eac
 
 ```
 
-## Third, and last, we need to visualise the classification as a time series, i.e. every day of the week, for each participant, with shaded areas for each classification type (TP, TN, FP, FN) and with the line colour of mEDI coding for the Wear log State.
+### Third, and last, we need to visualise the classification as a time series, i.e. every day of the week, for each participant, with shaded areas for each classification type (TP, TN, FP, FN) and with the line colour of mEDI coding for the Wear log State.
 ```{r}
 ##List of all unique participant IDs
 participant_ids <- unique(dataset.LL.wrlg$Id)
@@ -143,12 +144,13 @@ ggsave(filename = filename,
        height = 14,
        dpi = 600,
        bg = "white",
-       path= "D:/cyepi/code/outputs/light_activity_prc/raw/medi_alg_perf")
+       path= "H:/nonwear_detection/preprint_figures/alg_class")
 }
 ```
+
 ## Can we extract information about the misclassified non-wear intervals?
 We would like to identify patterns in the false negative and false positive intervals, to understand what leads to misclassifications of these specific intervals. We want to collect information about this in a table:
-- Was the bag used?
+- Was the bag used, according to what the participant reported?
 - What was the average mEDI of these periods?
 - How long were these intervals?
 
@@ -170,41 +172,120 @@ summarise(classification = first(classification),
   
 ```
 
-### Visual checks 
+### Identifying reasons why these intervals were misclassified
+Given the misclassified interval (false negative, FN, and false positive, FP), the mean MEDI of that interval, and its length (lower or higher than 3 minutes), we will identify the following reasons leading to misclassification:
+
+#### False negatives (FN) intervals
+1. If the bag was reportedly not used, and the mean MEDI > 1 lux, then the interval was misclassified because the bag was not used and so no clusters of low illuminance could be identified.
+2. If the bag was reportedly used, and mean MEDI > 1 lux, and interval length <= 3 minutes, then this is a transition state
+3. If the bag was reportedly used, and mean MEDI > 1 lux, and interval length > 3 minutes, then this is either a limitation of the algorithm (the non-wear interval was lower than 10 minutes), or the bag was actually not used
+4. If the bag was reportedly used, and mean MEDI  <= 1 lux, and interval length <= 3 minutes, then this is a transition state
+
+#### False positives (FP) intervals
+1. If mean MEDI <= 1 lux and interval length <= 3 minutes, then this is a transition state
+2. If mean MEDI <= 1 lux and interval length > 3 minutes, this is a low mdi interval which is hence detected as a cluster
 ```{r}
 # Setting a lux threshold for mEDI
 threshold = 1
 
-# Setting a length threshold for what we define a transition period
+# Setting a length threshold for what we define a transition state
 transition_cutoff = as.difftime(3, unit = "mins")
 
-classification_int <- classification_int %>%
+misclass_reasons <- classification_int %>%
   mutate(
     reason = case_when(
-      classification == "FN" & bag == 0 & mean_MEDI > threshold & class_duration > transition_cutoff ~ "bag not used, no clusters identified",
-      classification == "FN" & bag == 0 & mean_MEDI > threshold & class_duration <= transition_cutoff ~ "bag not used or transition state",
-      classification == "FN" & bag == 1 & mean_MEDI > threshold & class_duration <= transition_cutoff ~ "likely transition state",
+      classification == "FN" & bag == 0 & mean_MEDI > threshold ~ "bag not used, no clusters identified",
+      classification == "FN" & bag == 1 & mean_MEDI > threshold & class_duration <= transition_cutoff ~ "transition state",
       classification == "FN" & bag == 1 & mean_MEDI > threshold & class_duration > transition_cutoff ~ "algorithm limitation or bag actually not used",
-      classification == "FN" & bag == 1 & mean_MEDI < threshold & class_duration <= transition_cutoff ~ "likely transition state",
-      classification == "FP" & mean_MEDI <= threshold & class_duration <= transition_cutoff ~ "likely transition state",
-      classification == "FP" & mean_MEDI <= threshold & class_duration > transition_cutoff ~ "low medi, cluster detected",
+      classification == "FN" & bag == 1 & mean_MEDI <= threshold & class_duration <= transition_cutoff ~ "transition state",
+      classification == "FP" & mean_MEDI <= threshold & class_duration <= transition_cutoff ~ "transition state",
+      classification == "FP" & mean_MEDI <= threshold & class_duration > transition_cutoff ~ "low medi and cluster detected",
       TRUE ~ "visual_check" # Fallback case
     )
   )
 
 #Compiling into a summary table
-classification_summary <- classification_int %>%
+classification_summary <- misclass_reasons %>%
   group_by(classification, reason) %>%
-  summarise(count = n())
+  summarise(count = n()) 
+```
+#### Performing visual checks 
+The classification above led to 4 instances, i.e. intervals, which could no be assigned to any misclassification reasons we reported. Hence, we perform a visual check here to see why these instances were misclassified.
+```{r}
+# Identify the instances 
+vis_chek <- misclass_reasons %>%
+  filter(reason == "visual_check")
+
+# Case 1: The FN intPID 212 from 2023-09-11 21:13:00 to 2023-09-11 21:22:00 reported using the bag, but the mean MEDI is < 1 lux. The interval duration is 9 minutes. From visual inspection, we can see that they did use the bag. Hence, this misclassification is likely due to an algorithm limitation of detecting clusters > 10 minutes. We change this manually. 
+
+misclass_reasons_1 <- misclass_reasons %>%
+  mutate(reason = ifelse(Id == "212" & xmax == as.POSIXct("2023-09-11 21:22:00", tz = tz), "algorithm limitation or bag actually not used", reason))
+
+# Case 2: PID 222 reported not using the bag from 2023-10-26 16:04:02 to 2023-10-26 16:32:02 and mean MEDI <1 lux in this 28 minute interval. Upon visual inspection, we identify that this was not detected as a low illuminance cluster because there are multiple timepoints where MEDI is above threshold (1 lux), even if the average is below threshold. We change this manually and label is as algorithm limitation. 
+
+misclass_reasons_2 <- misclass_reasons_1 %>%
+  mutate(reason = ifelse(Id == "222" & xmax == as.POSIXct("2023-10-26 16:32:02", tz = tz), "algorithm limitation or bag actually not used", reason))
+
+# Case 3: PID 225 reported using the bag from 2023-10-31 05:42:05 to 2023-10-31 05:46:05 (4 minute FN interval). The mean MEDI here is also below threshold. This is an algorithm limitation, as the interval is too short to be detected by our cluster function. We can label it as such manually. 
+
+misclass_reasons_3 <- misclass_reasons_2 %>%
+  mutate(reason = ifelse(Id == "225" & xmax == as.POSIXct("2023-10-31 05:46:05", tz = tz), "algorithm limitation or bag actually not used", reason))
+
+# Case 4: This FN interval for PID 230 lasts between 2023-11-09 10:56:06 and 2023-11-09 11:05:06. The participant reported using the bag and mean MEDI is below threshold. However, by visual inspection, we identify several instances where the mean MEDI was above threshold. Since we allow for no interruptions in our detection, this leads to misclassification. We can change this manually 
+
+misclass_reasons_4 <- misclass_reasons_3 %>%
+  mutate(reason = ifelse(Id == "230" & xmax == as.POSIXct("2023-11-09 11:05:06", tz = tz), "algorithm limitation or bag actually not used", reason))
+
 ```
 
-### Save as csv 
+#### Recoding the reasons for misclassification after visual checks
+We would like to update the classification_summary table based on the changes made to the 4 instances above.
 ```{r}
-write.csv(classification_int, "D:/cyepi/code/outputs/light_activity_prc/raw/medi_alg_perf/classification_summary.csv", row.names = FALSE)
+# Load janitor package for data cleaning
+library(janitor)
+
+# First, let's rename the data frame with a better name
+misclass_reasons_clean <- misclass_reasons_4
+
+# Then, we create the summary table
+misclass_summary <- misclass_reasons_clean %>%
+  group_by(reason) %>%
+  summarise(count = n()) %>%
+  mutate(per_instances = (count/sum(count))*100,
+         per_instances = round(per_instances, digits = 3)) %>%
+  #Adding a row with tot numbers
+  janitor::adorn_totals(where = c("row"))
+
+# As expected and desired, this table has no visual_check instances and the number of reason = "algorithm limitation or bag actually not used" has increased by 4 compared to the table classification_summary
 ```
 
-### Loading in the excel spreadsheet after the visual inspection 
+## Compiling the reasons for misclassification in a table 
+We want to create a table that can be incorporated in the pre-print where the various reasons for misclassification are illustrated, along with the reason we identified leading to the misclassification.
 ```{r}
-class_table <- read.csv("D:/cyepi/code/outputs/light_activity_prc/raw/medi_alg_perf/alg_classification_table.csv")
+# Load gt package to create a publication-ready table
+library(gt)
+
+misclass_table <- misclass_summary %>%
+  dplyr::arrange(count) %>% # Arranging in ascending order
+  gt() %>% # Turning this into a gt object for further editing of the table 
+  gt::tab_header(title = md("**Instances of algorithm misclassification**")) %>%
+  gt::tab_stubhead(label = "reason") %>%
+  #Re-labelling the columns
+  gt::cols_label(reason = "Instance",
+             count = "N",
+             per_instances = "N (%)") %>%
+  #Re-labelling row names
+  gt::text_case_match("bag not used or transition state" ~ "Bag not used or transition state",
+                      "algorithm limitation or bag actually not used" ~ "Algorithm limitation or bag not actually used",
+                      "bag not used, no clusters identified" ~ "Bag not used",
+                      "low medi and cluster detected" ~ "Low illuminance during wear",
+                      "transition state" ~ "Transition state")
+```
+
+#### Saving the table
+```{r}
+gt::gtsave(misclass_table,
+           filename = "results_fig06.png",
+           path = "H:/nonwear_detection/preprint_figures/results")
 ```
 
