@@ -1,0 +1,31 @@
+---
+title: "metrics_comparison"
+author: "Carolina Guidolin"
+date: "2024-11-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Calculating metrics using different datasets
+The aim of this script is to calculate and compare light metrics on three different datasets:
+1. A raw dataset, where non-wear information is ignored (i.e., we include all data regardless of whether it is wear or non-wear)
+2. A dataset where non-wear information is identified using self-reported non-wear time (wear log)
+3. A dataset where non-wear information is identified by detecting clusters of low illuminance
+
+### Creation of the three datasets
+Before performing the comparison, we need to identify these three datasets. 
+```{r}
+# 1. Raw dataset: this is the raw data, i.e. dataset.LL.wrlg
+raw_dataset <- dataset.LL.wrlg
+
+# 2. Non-wear by wear log dataset. We need to create this from dataset.LL.wrlg
+nw_wrlg <- dataset.LL.wrlg %>% 
+  mutate(MEDI = if_else(State == "off", NA, MEDI))
+
+##Think about whether you need to change the function alg_perf and generate_prc for the sleep - since now all the sleep states are labelled as NA. Should this be done outside of the function?
+
+```
+

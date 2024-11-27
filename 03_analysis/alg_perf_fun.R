@@ -52,15 +52,6 @@ alg_perf <- function(dataset, low_var, min_length, max_interrupt, threshold) {
       State == 1 & !!sym(cluster_column) == 1 ~ "TN",
       .default = NA_character_))
   
-  prc <- clusters_clean_2 %>%
-    group_by(classification) %>% #!! if you want to visualise individual PRC, then you have to group_by(Id, classification). Else, only group_by(classification)
-    summarise(count = n()) %>%
-    pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
-    mutate(TPR = TP/(TP+FN), #true positive rate
-           FPR = FP/(FP+TN), #false positive rate
-           PPV = TP/(TP+FP), #positive predictive value
-           NPV = TN/(FN+TN)) #negative predictive value  
-  
   return(clusters_clean_2)
 }
 
