@@ -313,26 +313,17 @@ nonwear_algorithm <- alg_perf(
 ```
 
 ### Step 2: we join the transition states from the "interval df" (i.e. misclass_reasons_clean) to the "continuous" dataset (i.e. nonwear_algorithm)
-For this, we use the package data.tables
+For this, we use full_join() and between to join the two datasets and obtain a df where values of xmin and xmax are joined only if Datetime falls within them
 ```{r}
-library(data.table)
 
-# We turn our data frames into data tables
-data.table::setDT(misclass_reasons_clean)
-data.table::setDT(nonwear_algorithm)
+nw_alg <- full_join(nonwear_algorithm, transitions,
+                    by = join_by(Id, 
+                                 between(Datetime, xmin, xmax)))
 
-# Set keys for efficient range joins. Key are columns that are indexed for fast identification when sorting (next step)
-data.table::setkey(misclass_reasons_clean, xmin, xmax)
-
-# We only want to move the reason = transition state over to the other dataframe (we do not care about the other reasons)
-transitions <- misclass_reasons_clean %>%
-   filter(reason == "transition state")
-
-# Joining the two data.tables
-nw_alg <- nonwear_algorithm[,
-  reason := transitions[on = .(Id, xmin <= Datetime, xmax >= Datetime), # for each Datetime of nonwear_algorithm, it checks all rows in transitions where xmin <= Datetime and xmax >= Datetime (based on Id)
-                        mult = "first", # if multiple intervals match a Datetime, the first matching reason is assigned
-                        reason]] # the reason column is assigned to nonwear_algorithm
+# We have some extra columns in the resulting df, which we would like to get rid off, and then rename
+nw_alg <- nw_alg %>%
+  select(Id, Datetime, is_low_medi_cluster.x, bag.x, classification.x, reason) %>%
+  rename(is_low_medi_cluster = is_low_medi_cluster.x, bag = bag.x, classification = classification.x)
 
 ```
 
