@@ -1,4 +1,5 @@
-# Main function to generate PRC metrics for specific parameters
+# This function is virtually identical to generate_prc(), but it returns the labelled dataset, rather than the PPV and TPR values.
+# This is useful to plot the output of the classification (i.e. TP, TN, FP and FN) as a time series
 alg_perf <- function(dataset, low_var, min_length, max_interrupt, threshold) {
   
   #Create a dynamic column names based on the variable from which we want to detect clusters
@@ -8,7 +9,6 @@ alg_perf <- function(dataset, low_var, min_length, max_interrupt, threshold) {
   
   clusters <- dataset %>%
     ungroup() %>%
-    mutate(State = if_else(State == "sleep", NA_character_, State)) %>% #converting all sleep values to NAs, since we do not want to use these for our classification 
     #Dinamically set the "low variable" flag, so that it can be either low_pim or low_medi
     mutate(!!sym(low_var_name) := !!sym(low_var) < threshold) %>%
     nest_by(Id) %>%

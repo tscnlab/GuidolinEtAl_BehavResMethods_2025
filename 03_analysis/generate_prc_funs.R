@@ -8,7 +8,6 @@ generate_prc <- function(dataset, low_var, min_length, max_interrupt, threshold)
   
   clusters <- dataset %>%
     ungroup() %>%
-    mutate(State = if_else(State == "sleep", NA_character_, State)) %>% #converting all sleep values to NAs, since we do not want to use these for our classification 
     #Dinamically set the "low variable" flag, so that it can be either low_pim or low_medi
     mutate(!!sym(low_var_name) := !!sym(low_var) < threshold) %>%
     nest_by(Id) %>%
