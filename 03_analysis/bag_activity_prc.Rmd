@@ -25,6 +25,15 @@ These functions (find_clusters_funs, loaded in separately) identify clusters of 
 ```{r}
 clean.LL.wrlg <- readRDS('clean_data.Rds')
 ```
+
+### Creating a dataframe without sleep states
+Since we want to classify wear and non-wear based on clusters of low illuminance, we do not care about the time that the participants are sleeping. In other words, the wear and non-wear classification does not apply to this period. To be able to use the dataset.LL.wrlg and run the classification on it, we first need to set all "sleep" values (based on Wear log data) as NA
+```{r}
+df.LL.nosleep <- dataset.LL.wrlg %>%
+  mutate(State = if_else(State == "sleep", NA_character_, State)) 
+```
+
+
 #Identifying clusters of low activity (PIM)
 ```{r}
 
@@ -38,7 +47,7 @@ prc_list <- list()
 for (threshold in pimthresholds) {
   
   prc_result <- generate_prc(
-    dataset = dataset.LL.wrlg,
+    dataset = df.LL.nosleep,
     low_var = "PIM",
     min_length = 60, #10 minutes (n of observations)
     max_interrupt = 0, #0 minute (n of observations)
@@ -82,7 +91,7 @@ prc_list <- list()
 for (threshold in medithresholds) {
   
   prc_result <- generate_prc(
-    dataset = dataset.LL.wrlg,
+    dataset = df.LL.nosleep,
     low_var = "MEDI",
     min_length = 60, #10 minutes (n of observations)
     max_interrupt = 0, #0 minute (n of observations)
@@ -201,7 +210,7 @@ This is helpful to know whether the prc performs differently in each participant
 
 ###Calculating % usage of black bag 
 ```{r}
- bag_use <- dataset.LL.wrlg %>%
+ bag_use <- df.LL.nosleep %>%
   group_by(Id) %>%
    mutate(bag_use = case_when(
      State == "off" & bag == 0 ~ "notused", #when State is off and bag is 0, it was not used
@@ -238,7 +247,7 @@ prc_list <- list()
 for (threshold in pimthresholds) {
   
   prc_result <- generate_indiv_prc(
-    dataset = dataset.LL.wrlg,
+    dataset = df.LL.nosleep,
     low_var = "PIM",
     min_length = 60, #10 minutes (n of observations)
     max_interrupt = 0, #0 minute (n of observations)
@@ -272,7 +281,7 @@ prc_list <- list()
 for (threshold in medithresholds) {
   
   prc_result <- generate_indiv_prc(
-    dataset = dataset.LL.wrlg,
+    dataset = df.LL.nosleep,
     low_var = "MEDI",
     min_length = 60, #10 minutes (n of observations)
     max_interrupt = 0, #0 minute (n of observations)
@@ -307,8 +316,11 @@ prc_multiplot <- ggplot() +
      limits= c(5,50),
     guide = guide_colorbar(title.position = "top",
                            title.hjust = 0.5)) +
-  facet_wrap(~ Id) +
-  coord_fixed(ratio = 1) +
+  scale_x_continuous(breaks = c(0.0, 0.50, 1.0),
+                     labels = c("0", "0.50", "1"),
+                     limits = c(0, 1)) +
+      coord_fixed(ratio = 1) +
+  facet_wrap(~ Id, scales = "fixed") +
   ggnewscale::new_scale_color() +
   #Second plot: light
   geom_point(data = prcurve_medi_indiv, aes(x = TPR, y = PPV, colour = threshold)) +
@@ -317,143 +329,32 @@ prc_multiplot <- ggplot() +
      low = "red", high = "orange",
      limits= c(1,10),
      guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
-  facet_wrap(~Id) +
-  geom_text(data = per_bag_use, aes(x = 0.15, y = 0.90, label = paste("Bag use:\n",compliance_per,"%")), size = 3.2) +
+  facet_wrap(~Id, , scales = "fixed") +
+  geom_text(data = per_bag_use, aes(x = 0.15, y = 0.90, label = paste(compliance_per,"%")), size = 3.3) +
   labs(x="True positive rate (recall)",
-       y = "Positive predictive value \n(precision)",
+       y = "Positive predictive value (precision)",
        title = "Precision-recall curve for detection of non-wear intervals based on activity \nand illuminance thresholds",
        subtitle = "Min. length = 10 min, max. interruption = 1 min") +
    theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5, size = 16),
+  theme(plot.title = element_text(hjust = 0.5, size = 18),
+        plot.subtitle = element_text(hjust = 0.5, size = 16, colour = "grey33"),
         axis.text = element_text(size = 14),
         axis.title = element_text(size = 14),
         legend.title = element_text(size = 12),
         legend.text = element_text(size = 8),
         legend.key.size = unit(4, "mm"),
-        legend.position = "bottom",
+        legend.position = "top",
         legend.box = "horizontal") +
    coord_fixed(ratio = 1)
 
 #Save the plot
-ggsave(filename = "medi_pim_multiplot.png",
+ggsave(filename = "results_fig04.png",
        plot = prc_multiplot,
        height = 11, 
        width = 11,
        dpi = 600,
        bg = "white",
-       path= "D:/cyepi/code/outputs/light_activity_prc/raw/general_plots")
+       path= "Z:/nonwear_detection/preprint_figures/results")
 
 ```
 
-## Visualising where algorithm goes wrong
-Input values: 10 mins lenght, 1 min max. interruption, 2 lux max mEDI value
-```{r}
-##We want to visualise TP, TN, FP and FN for each participant. We will start doing this for the light data (medicluster_clean)
-
-prcurve_medi_clean <- prcurve_medi %>%
-  filter(threshold == 1)
-
-#First, we need to create state changes from the mediclusters_clean data frame
-medi_sc <- prcurve_medi_clean %>%
- group_by(Id) %>%
- mutate(interval_group = consecutive_id(classification)) %>% #need to set default for first value 
-  group_by(Id, interval_group) %>%
-  summarise(classification = first(classification), #keep only first value for each Id and interval_group
-            xmin = first(Datetime),
-            xmax = last(Datetime)) %>%
-  ungroup() 
-
-
-##List of all unique participant IDs
-participant_ids <- unique(dataset.LL.wrlg$Id)
-
-##Create a for loop to generate a plot for each participant 
-for (selected_id in participant_ids) {
-  
- subset_df <- dataset.LL.wrlg %>%
-  filter(Id == selected_id)
-
-
-##Calculate the limits of the shaded areas according to the Wear Log
-alg.times <- medi_sc %>%
-  filter(Id == selected_id) %>%
-  mutate(xmax = (xmax + lubridate::seconds(10)), #need to add 10 seconds to match next start time
-         Day.data.min = xmin %>% format(format = "%a"), #lower limit of the shaded area, needed for geom_rect
-         Day.data.max = xmax %>% format(format = "%a"), #upper limit of shaded area, needed for geom_rect
-         xmin = xmin %>% hms::as_hms(), #transform xmin to time (currently Datetime)
-         xmax = xmax %>% hms::as_hms(), #transform xmax to time (currently Datetime)
-         Day.data.min = factor(Day.data.min, levels = unique(Day.data.min)),
-         Day.data.max = factor(Day.data.max, levels = unique(Day.data.max)))
-
-##Some intervals on the Wear log that we want to plot cross day boundaries. We thus need to split them in 2 intervals, since we plot each day on a different facet of the plot 
-
-#Step 1: collect the part of the data that does not cross day boundaries
-alg.times1 <-
-  alg.times %>%
-  filter(Day.data.min == Day.data.max)
-
-#Step 2: Collect part of the data that does cross bounderies and split it by day, i.e. at midnight. 
-alg.times2 <-
-alg.times %>% filter(Day.data.min != Day.data.max) %>%
-  rowwise() %>%
-  mutate(
-    new_entry = list(
-      tibble(
-        xmin=c(xmin, hms::as_hms("00:00:00")),
-        xmax=c(hms::as_hms("23:59:59"), xmax),
-        Day.min=c(Day.data.min, Day.data.max),
-        Day.max=c(Day.data.min, Day.data.max)
-      )
-    )
-  ) %>%
-  select(classification, new_entry) %>%
-  unnest(new_entry)
-
-#Step 3: Combine the two again in a single df
-alg.combined <- 
-  bind_rows(alg.times1 %>% rename(Day.min = Day.data.min),
-            alg.times2) %>%
-  select(-Day.max) %>%
-  rename(Day.data = Day.min) 
-
-alg.combined$classification <- factor(alg.combined$classification, levels = c("TP", "TN", "FP", "FN", "NA")) #turn State into factor
-
-#Our dataset contains gaps
-
-p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
-            linewidth = 0.1, 
-            aes_col = State, 
-            geom = "line",
-            group = date(Datetime),
-            format.day = "%a",
-            x.axis.label = "Time", 
-            y.axis.label = "Illuminance (mEDI, lx)",
-            title = paste("p", selected_id, "light levels and algorithm performance")) +
-  geom_rect(data=alg.combined, aes(xmin= xmin, xmax = xmax, ymin =0, ymax = Inf, fill = classification), #adding classification output
-                    inherit.aes = FALSE,
-                    alpha = 0.15) +
-    scale_fill_manual(
-     name = "Algorithm classification",
-     values = c("TP" = "darkgreen",
-                "TN" = "#0072B2",
-                "FP" = "darkred",
-                "FN" = "darkgoldenrod2"),
-                na.value = "white") +
-  theme(plot.title = element_text(hjust = 0.5, size = 24, face = "plain"),
-        axis.text.x = element_text(size = 16),
-        axis.title = element_text(size = 18),
-        axis.text.y = element_text(size = 16),
-        legend.title = element_text(size = 14),
-        legend.text = element_text(size = 14))
-
-filename <- paste0("p", selected_id, "algorithm performance_2 (light).png")
-ggsave(filename = filename,
-       plot = p,
-       width = 10,
-       height = 14,
-       dpi = 600,
-       bg = "white",
-       path= "D:/cyepi/code/outputs/light_activity_prc/raw/medi_alg_perf")
-}
-```
-## Comments on above graph: it kind of works, but for some reason the shading of intervals that corss midnight does not work. Need to check again how this is done 
