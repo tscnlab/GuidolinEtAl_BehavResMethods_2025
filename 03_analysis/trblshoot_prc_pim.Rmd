@@ -30,7 +30,7 @@ prc_m_list <- list()
 for (threshold in pimthresholds) {
   
   prc_result <- generate_prc(
-    dataset = dataset.LL.wrlg,
+    dataset = df.LL.nosleep,
     low_var = "PIM",
     min_length = 60, #10 minutes (n of observations)
     max_interrupt = 0, #0 minutes (n of observations)
@@ -84,7 +84,7 @@ ggsave(filename = "prc_pim_thresholds.png",
        width = 6,
        dpi = 600,
        bg = "white",
-       path= "D:/cyepi/code/outputs/light_activity_prc/raw/trblshoot_parameters/activity")
+       path= "Z:/nonwear_detection/preprint_figures/supplementary")
 
 ```
 
@@ -111,7 +111,7 @@ prc_m_list <- list()
 for (min_length in min_lengths) {
   
   prc_result <- generate_prc(
-    dataset = dataset.LL.wrlg,
+    dataset = df.LL.nosleep,
     low_var = "PIM",
     min_length = min_length,
     max_interrupt = max_interrupt,
@@ -162,7 +162,7 @@ ggsave(filename = "prc_pim_length.png",
        width = 6,
        dpi = 600,
        bg = "white",
-       path= "D:/cyepi/code/outputs/light_activity_prc/raw/trblshoot_parameters/activity")
+       path= "Z:/nonwear_detection/preprint_figures/supplementary")
 
 ```
 
@@ -187,7 +187,7 @@ prc_m_list <- list()
 for (max_int in max_interrupts) {
   
   prc_result <- generate_prc(
-    dataset = dataset.LL.wrlg,
+    dataset = df.LL.nosleep,
     low_var = "PIM",
     min_length = min_length,
     max_int = max_int,
@@ -238,7 +238,7 @@ ggsave(filename = "prc_pim_interrupt.png",
        width = 6.3,
        dpi = 600,
        bg = "white",
-       path= "D:/cyepi/code/outputs/light_activity_prc/raw/trblshoot_parameters/activity")
+       path= "Z:/nonwear_detection/preprint_figures/supplementary")
 
 ```
 
@@ -262,6 +262,6 @@ ggsave(filename = "pim_prc_parameters_multiplot.png",
        height = 5,
        dpi = 600, 
        bg = "white",
-       path = "D:/cyepi/code/outputs/light_activity_prc/raw/trblshoot_parameters/activity")
+       path = "Z:/nonwear_detection/preprint_figures/supplementary")
 
 ```

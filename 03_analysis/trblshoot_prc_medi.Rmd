@@ -28,7 +28,7 @@ prc_m_list <- list()
 for (threshold in medithresholds) {
   
   prc_result <- generate_prc(
-    dataset = dataset.LL.wrlg,
+    dataset = df.LL.nosleep,
     low_var = "MEDI",
     min_length = 60, #10 minutes (n of observations)
     max_interrupt = 0, #1 minute (n of observations)
@@ -82,7 +82,7 @@ ggsave(filename = "prc_medi_thresholds.png",
        width = 6,
        dpi = 600,
        bg = "white",
-       path= "D:/cyepi/code/outputs/light_activity_prc/raw/trblshoot_parameters/light")
+       path= "Z:/nonwear_detection/preprint_figures/supplementary")
 
 ```
 
@@ -107,7 +107,7 @@ prc_m_list <- list()
 for (min_length in min_lengths) {
   
   prc_result <- generate_prc(
-    dataset = dataset.LL.wrlg,
+    dataset = df.LL.nosleep,
     low_var = "MEDI",
     min_length = min_length,
     max_interrupt = max_interrupt,
@@ -158,7 +158,7 @@ ggsave(filename = "prc_medi_length.png",
        width = 6,
        dpi = 600,
        bg = "white",
-       path= "D:/cyepi/code/outputs/light_activity_prc/raw/trblshoot_parameters/light")
+       path= "Z:/nonwear_detection/preprint_figures/supplementary")
 
 ```
 
@@ -182,7 +182,7 @@ prc_m_list <- list()
 for (max_int in max_interrupts) {
   
   prc_result <- generate_prc(
-    dataset = dataset.LL.wrlg,
+    dataset = df.LL.nosleep,
     low_var = "MEDI",
     min_length = min_length,
     max_interrupt = max_int,
@@ -232,7 +232,7 @@ ggsave(filename = "prc_medi_interrupt.png",
        width = 6.3,
        dpi = 600,
        bg = "white",
-       path= "D:/cyepi/code/outputs/light_activity_prc/raw/trblshoot_parameters/light")
+       path= "Z:/nonwear_detection/preprint_figures/supplementary")
 
 ```
 
@@ -256,11 +256,11 @@ ggsave(filename = "medi_prc_parameters_multiplot.png",
        height = 5,
        dpi = 600, 
        bg = "white",
-       path = "D:/cyepi/code/outputs/light_activity_prc/raw/trblshoot_parameters/light")
+       path = "Z:/nonwear_detection/preprint_figures/supplementary")
 
 ```
 ## Conclusion
 The values to be used are:
-1. Illuminance threshold: <1 lux
+1. Illuminance threshold: 1 lux
 2. Minimum length: 10 minutes 
 3. Maximum interruption: 0 minutes 
