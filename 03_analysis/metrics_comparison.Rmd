@@ -25,7 +25,52 @@ raw_dataset <- dataset.LL.wrlg
 nw_wrlg <- dataset.LL.wrlg %>% 
   mutate(MEDI = if_else(State == "off", NA, MEDI))
 
-##Think about whether you need to change the function alg_perf and generate_prc for the sleep - since now all the sleep states are labelled as NA. Should this be done outside of the function?
+#3. Non-wear by detection of clusters of low illuminance. We will use the dataset where padding has been added to transition states (see script classification_summary.Rmd). 
+nw_clusters <- nw_alg %>%
+  mutate(MEDI = if_else(is_low_medi_cluster == 0, NA, MEDI))
 
 ```
 
+### Data prep
+```{r}
+# Exclude Monday since this day does not contain full data. Do this for all three data frames
+raw_dataset <- raw_dataset %>% dplyr::filter(weekdays(Datetime) != "Monday")
+nw_wrlg <- nw_wrlg %>% dplyr::filter(weekdays(Datetime) != "Monday")
+nw_clusters <- nw_clusters %>% dplyr::filter(weekdays(Datetime) != "Monday")
+```
+
+### 1. Intradaily stability 
+```{r}
+# 1a. raw dataset
+is_raw_dataset <- raw_dataset %>% 
+  summarize(
+    IS = interdaily_stability(
+      Light.vector = MEDI,
+      Datetime.vector = Datetime
+    )
+  )
+
+# 1b. With Wear log based non-wear 
+is_nw_wrlg <- nw_wrlg %>% 
+  summarize(
+    IS = interdaily_stability(
+      Light.vector = MEDI,
+      Datetime.vector = Datetime,
+      na.rm = TRUE
+    )
+  )
+
+# 1c. With cluster based non-wear
+is_nw_clusters <- nw_clusters %>%
+  summarize(
+    IS = interdaily_stability(
+      Light.vector = MEDI,
+      Datetime.vector = Datetime,
+      na.rm = TRUE
+    )
+  )
+
+  
+```
+
+### 1b. Intradaily 
