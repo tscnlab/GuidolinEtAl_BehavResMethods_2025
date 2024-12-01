@@ -22,7 +22,7 @@ knitr::opts_chunk$set(echo = TRUE)
 prc_list <- list()
 
 classified_prc_medi <- alg_perf(
-    dataset = dataset.LL.wrlg,
+    dataset = df.LL.nosleep,
     low_var = "MEDI",
     min_length = 60, #10 minutes (n of observations)
     max_interrupt = 0, #0 minutes (n of observations)
@@ -47,12 +47,12 @@ summarise(classification = first(classification), #keep only first value for eac
 ### Third, and last, we need to visualise the classification as a time series, i.e. every day of the week, for each participant, with shaded areas for each classification type (TP, TN, FP, FN) and with the line colour of mEDI coding for the Wear log State.
 ```{r}
 ##List of all unique participant IDs
-participant_ids <- unique(dataset.LL.wrlg$Id)
+participant_ids <- unique(df.LL.nosleep$Id)
 
 ##Create a for loop to generate a plot for each participant 
 for (selected_id in participant_ids) {
   
- subset_df <- dataset.LL.wrlg %>%
+ subset_df <- df.LL.nosleep %>%
   filter(Id == selected_id)
 
 
@@ -293,6 +293,7 @@ gt::gtsave(misclass_table,
            filename = "results_fig06.png",
            path = "H:/nonwear_detection/preprint_figures/results")
 ```
+
 ## Adding a padding to the transition states 
 We have now identified that a large part of the misclassified intervals are due to transition states. With this knowledge, we can add a padding to each of these intervals, so that is_low_medi_cluster would expand of 3 minutes on both ends, i.e. we are more liberal in what we define as transition state here. How do we implement the padding? There are a couple of steps to this:
 1. The information on which intervals are transition states is currently stored in misclass_reasons_clean. On the other hand, the output of non-wear detection based on clusters of low illuminance is stored in classified_prc_medi. We need to label each Datetime of classified_prc_medi as transition state, where needed.
@@ -304,12 +305,13 @@ We have now identified that a large part of the misclassified intervals are due 
 prc_list <- list()
 
 nonwear_algorithm <- alg_perf(
-    dataset = dataset.LL.wrlg,
+    dataset = df.LL.nosleep,
     low_var = "MEDI",
     min_length = 60, #10 minutes (n of observations)
     max_interrupt = 0, #0 minutes (n of observations)
     threshold = 1 #1 mEDI lux
   )
+
 ```
 
 ### Step 2: we join the transition states from the "interval df" (i.e. misclass_reasons_clean) to the "continuous" dataset (i.e. nonwear_algorithm)
@@ -322,7 +324,7 @@ nw_alg <- full_join(nonwear_algorithm, transitions,
 
 # We have some extra columns in the resulting df, which we would like to get rid off, and then rename
 nw_alg <- nw_alg %>%
-  select(Id, Datetime, is_low_medi_cluster.x, bag.x, classification.x, reason) %>%
+  select(Id, Datetime, State, MEDI, is_low_medi_cluster.x, bag.x, classification.x, reason) %>%
   rename(is_low_medi_cluster = is_low_medi_cluster.x, bag = bag.x, classification = classification.x)
 
 ```
@@ -337,8 +339,14 @@ We want to use a function that performs the following operations:
 We create this function in the file add_pad_fun.R, where each step is described. Here, we call the function and apply to the relevant dataset.
 ```{r}
 # Apply function that adds padding to non-wear intervals, when they are preceded by a transition state
-# Note that this will automaticall print all instances where the values of is_low_medi_cluster are modified
+# Note that this will automatically print all instances where the values of is_low_medi_cluster are modified
 # If you want to change this, you have to do this in the function itself
 nw_alg_padded <- add_transition_pad(nw_alg)
+
+# Note that since we apply the alg_perf function and then the add_transition_pad function to the dataset where sleep states have been coded as NAs (df.LL.nosleep), the classification of these intervals returns a NA (for every State == sleep, classification == NA and also reason == NA. However, the observations corresponding to these still do return a value for is_low_medi_cluster. Since we do not want this, we will set every value of is_low_medi_cluster to NA, when it corresponds to a State == NA. We also want to re-code the sleep states from NA to 2. 
+
+nw_alg_padded <- nw_alg_padded %>%
+  mutate(is_low_medi_cluster = if_else(is.na(State), NA, is_low_medi_cluster),
+         State = if_else(is.na(State), 2, State))
 ```
 

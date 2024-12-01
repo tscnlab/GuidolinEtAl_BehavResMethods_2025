@@ -10,6 +10,8 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # Calculating metrics using different datasets
+This script should be run after classification_summary. 
+
 The aim of this script is to calculate and compare light metrics on three different datasets:
 1. A raw dataset, where non-wear information is ignored (i.e., we include all data regardless of whether it is wear or non-wear)
 2. A dataset where non-wear information is identified using self-reported non-wear time (wear log)
@@ -26,7 +28,7 @@ nw_wrlg <- dataset.LL.wrlg %>%
   mutate(MEDI = if_else(State == "off", NA, MEDI))
 
 #3. Non-wear by detection of clusters of low illuminance. We will use the dataset where padding has been added to transition states (see script classification_summary.Rmd). 
-nw_clusters <- nw_alg %>%
+nw_clusters <- nw_alg_padded %>%
   mutate(MEDI = if_else(is_low_medi_cluster == 0, NA, MEDI))
 
 ```
@@ -39,12 +41,12 @@ nw_wrlg <- nw_wrlg %>% dplyr::filter(weekdays(Datetime) != "Monday")
 nw_clusters <- nw_clusters %>% dplyr::filter(weekdays(Datetime) != "Monday")
 ```
 
-### 1. Intradaily stability 
+### 1. Calculating intradaily stability 
 ```{r}
 # 1a. raw dataset
 is_raw_dataset <- raw_dataset %>% 
   summarize(
-    IS = interdaily_stability(
+    IS_raw = interdaily_stability(
       Light.vector = MEDI,
       Datetime.vector = Datetime
     )
@@ -53,7 +55,7 @@ is_raw_dataset <- raw_dataset %>%
 # 1b. With Wear log based non-wear 
 is_nw_wrlg <- nw_wrlg %>% 
   summarize(
-    IS = interdaily_stability(
+    IS_wrlg = interdaily_stability(
       Light.vector = MEDI,
       Datetime.vector = Datetime,
       na.rm = TRUE
@@ -62,15 +64,94 @@ is_nw_wrlg <- nw_wrlg %>%
 
 # 1c. With cluster based non-wear
 is_nw_clusters <- nw_clusters %>%
+  group_by(Id) %>% #we need to group here, because this df is not directly generate in LightLogR
+  # and hence the data is not grouped by Id by default (as is the case for the other 2 data frames)
   summarize(
-    IS = interdaily_stability(
+    IS_clusters = interdaily_stability(
       Light.vector = MEDI,
       Datetime.vector = Datetime,
       na.rm = TRUE
     )
-  )
+  ) %>% 
+  ungroup()
 
-  
+# Combining the dfs 
+temp <- full_join(is_raw_dataset, is_nw_wrlg, by = "Id") #first, combine raw and wrlg data sets
+is_all <- full_join(temp, is_nw_clusters, by = "Id") #second, add clusters data set
+
+# Turning df into long form to perform computations
+is_all_long <- is_all %>%
+  pivot_longer(cols = c("IS_raw", "IS_wrlg", "IS_clusters"),
+                        names_to = "df",
+                        values_to = "is")
+
+# Compute sign test
+library(rstatix)
+
+is_sign <- is_all_long %>%
+  rstatix::sign_test(is ~ df) %>%
+  add_significance()
+
+
 ```
 
-### 1b. Intradaily 
+#### Plotting intradaily stability
+```{r}
+# Raw vs clean (wrlg)
+clean_wrlg <- ggpubr::ggscatter(data = is_all,
+          x = "IS_raw",
+          y = "IS_wrlg",
+          color = "Id",
+          ggtheme = theme_bw()) +
+    ggpubr::stat_cor(aes(label = after_stat(r.label)), # add r coefficient but not p value
+                   method = "pearson",
+                   label.x = 0.03,
+                   label.y = 0.95) +
+  ggplot2::scale_x_continuous(
+    limits = c(0, 1),
+    breaks = c(0, 0.50, 1), 
+    labels = c("0", "0.50", "1")
+  ) +
+  scale_y_continuous(limits = c(0, 1),
+    breaks = c(0, 0.50, 1), 
+    labels = c("0", "0.50", "1")
+  ) + 
+  labs(x = "Raw dataset", y = "Clean dataset (Wear log)") +
+  coord_fixed(ratio = 1)
+
+# Raw vs clean (clusters) - why 218 has 1.2??
+clean_clusters <- ggpubr::ggscatter(data = is_all,
+          x = "IS_raw",
+          y = "IS_clusters",
+          color = "Id",
+          ggtheme = theme_bw()) +
+    ggpubr::stat_cor(aes(label = after_stat(r.label)), # add r coefficient but not p value
+                   method = "pearson",
+                   label.x = 0.03,
+                   label.y = 0.95) +
+  ggplot2::scale_x_continuous(
+    limits = c(0, 1),
+    breaks = c(0, 0.50, 1), 
+    labels = c("0", "0.50", "1")
+  ) +
+  scale_y_continuous(limits = c(0, 1),
+    breaks = c(0, 0.50, 1), 
+    labels = c("0", "0.50", "1")
+  ) + 
+  labs(x = "Raw dataset", y = "Clean dataset (algorithm)") +
+  coord_fixed(ratio = 1)
+
+# Combining the plots
+p <- ggpubr::ggarrange(clean_wrlg, clean_clusters,
+                                labels = c("A", "B"),
+                                ncol = 2,
+                                nrow = 1,
+                                align = "hv",
+                       common.legend = TRUE,
+                       legend = "right")
+
+is_comparison <- ggpubr::annotate_figure(p, top = text_grob("Interdaily stability")) 
+
+```
+
+1b. Intradaily 
