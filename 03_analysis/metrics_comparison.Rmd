@@ -154,4 +154,116 @@ is_comparison <- ggpubr::annotate_figure(p, top = text_grob("Interdaily stabilit
 
 ```
 
-1b. Intradaily 
+### Calculating batch metrics for each participants on each day of the experimental week 
+- MLIT250
+- TAT250
+- Average MEDI
+- 
+```{r}
+batch_raw <- raw_dataset %>%
+  LightLogR::create_Timedata() %>%
+  mutate(wDay = wday(Datetime, label = TRUE, week_start = 1))
+
+batch_wrlg <- nw_wrlg %>%
+  LightLogR::create_Timedata() %>%
+  mutate(wDay = wday(Datetime, label = TRUE, week_start = 1))
+
+batch_clusters <- nw_clusters %>%
+  LightLogR::create_Timedata() %>%
+  mutate(wDay = wday(Datetime, label = TRUE, week_start = 1))
+
+# Batch metrics for raw dataset
+batch_raw <- 
+  batch_raw %>% 
+  group_by(Id, wDay) %>% 
+  summarize(
+    MLIT250 = 
+      timing_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE),
+    TAT250 = 
+      duration_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE),
+    average_MEDI = 
+      mean(MEDI),
+    light_exposure = 
+      sum(MEDI)/360, # 10 second epochs means 360 epochs in one hour. dividing by 360 gives the light exposure in lx·h
+    .groups = "drop_last"
+    ) %>% 
+  unnest(-Id)
+
+# Batch metrics for nw_wrlg dataset
+batch_wrlg <- 
+  batch_wrlg %>% 
+  group_by(Id, wDay) %>% 
+  summarize(
+    MLIT250 = 
+      timing_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+    TAT250 = 
+      duration_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+    average_MEDI = 
+      mean(MEDI, na.rm = TRUE),
+    light_exposure = 
+      sum(MEDI, na.rm = TRUE)/360, # 10 second epochs means 360 epochs in one hour. dividing by 360 gives the light exposure in lx·h
+    .groups = "drop_last"
+    ) %>% 
+  unnest(-Id)
+
+# Batch metrics for nw_clusters dataset
+batch_clusters <- 
+  batch_clusters %>% 
+  group_by(Id, wDay) %>% 
+  summarize(
+    MLIT250 = 
+      timing_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+    TAT250 = 
+      duration_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+    average_MEDI = 
+      mean(MEDI, na.rm = TRUE),
+    light_exposure = 
+      sum(MEDI, na.rm = TRUE)/360, # 10 second epochs means 360 epochs in one hour. dividing by 360 gives the light exposure in lx·h
+    .groups = "drop_last"
+    ) %>% 
+  unnest(-Id)
+
+```
+
+### TAT250 analysis
+```{r}
+raw_tat250 <- batch_raw %>% select(Id, wDay, mean_timing_above_250)
+wrlg_tat250 <- batch_wrlg %>% select(Id, wDay, mean_timing_above_250)
+clusters_tat250 <- batch_clusters %>% select(Id, wDay, mean_timing_above_250)
+
+# Combining the dfs 
+temp <- full_join(raw_tat250, wrlg_tat250, by = c("Id", "wDay")) %>%
+  rename(raw_tat250 = mean_timing_above_250.x, wrlg_tat250 = mean_timing_above_250.y) #first, combine raw and wrlg data sets
+tat250_all <- full_join(temp, clusters_tat250, by = c("Id", "wDay")) %>%
+  rename(clusters_tat250 = mean_timing_above_250) #second, add clusters data set
+
+tat250_means <- tat250_all %>%
+  group_by(Id) %>%
+  summarise(mean_raw = mean(raw_tat250),
+         sd_raw = sd(raw_tat250),
+         mean_wrlg = mean(wrlg_tat250),
+         sd_wrlg = sd(wrlg_tat250),
+         mean_clusters = mean(clusters_tat250),
+         sd_clusters = sd(clusters_tat250))
+
+
+```
+
+#### Plotting TAT250
+```{r}
+# Raw vs clean (wrlg)
+clean_wrlg_tat <- ggpubr::ggscatter(data = tat250_means,
+          x = "mean_raw",
+          y = "mean_wrlg",
+          color = "Id",
+          ggtheme = theme_bw()) +
+    ggpubr::stat_cor(aes(label = after_stat(r.label)), # add r coefficient but not p value
+                   method = "pearson",
+                   label.x = 0.03,
+                   label.y = 0.95) + 
+  ggplot2::geom_errorbar(data = tat250_means,
+                         aes(ymin=mean_wrlg-sd_wrlg)) 
+  labs(x = "Raw dataset", y = "Clean dataset (Wear log)") +
+  coord_fixed(ratio = 1)
+```
+
