@@ -180,9 +180,9 @@ wrlg_int_classified_zoom <- ggplot(bp_wrlg_df_wide, aes(x = n_per_bounded, y = n
   labs(x = "Closed intervals (%)", y = "Open intervals (%)", color = "Window size\n(minutes)") +
   theme_bw()  +
   geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf), fill = "#FFC20A", colour = NA, alpha = 0.03) +
-  theme(plot.title = element_text(hjust = 0.5, size = 24),
+  theme(plot.title = element_text(hjust = 0.5, size = 20),
         axis.text = element_text(size = 16),
-        axis.title = element_text(size = 18),
+        axis.title = element_text(size = 16),
         legend.title = element_text(size = 14),
         legend.text = element_text(size = 14)) +
   coord_fixed(ratio = 1) +
@@ -190,7 +190,7 @@ wrlg_int_classified_zoom <- ggplot(bp_wrlg_df_wide, aes(x = n_per_bounded, y = n
 
 
 
-plot <- ggarrange(wrlg_int_classified, wrlg_int_classified_zoom, 
+plot <- ggpubr::ggarrange(wrlg_int_classified, wrlg_int_classified_zoom, 
                   ncol = 2, 
                   nrow = 1,
                   common.legend = TRUE,
@@ -213,7 +213,11 @@ wrlg_int_type_multipanel <- annotate_figure(plot,
                                                                size = 16,
                                                                hjust = 0.5))
 
+print(wrlg_int_type_multipanel)
+
 ```
+
+
 #Saving the above plots
 ```{r}
 ggsave(filename = "wrlg-int-classified.png",
@@ -230,102 +234,14 @@ ggsave(filename = "wrlg-int-zoom.png",
        dpi = 600,
        path= "G:/cyepi/code/outputs/button_press")
 
-ggsave(filename = "multipanel-horiz.svg",
+## Figure for paper
+ggsave(filename = "results_fig03.svg",
        plot = wrlg_int_type_multipanel,
-       width = 6.8,
+       width = 7,
        height = 4,
        dpi = 600,
        bg = "white",
-       path= "G:/cyepi/code/outputs/button_press")
+       path= "H:/nonwear_detection/preprint_figures/results/fig03")
 
 ```
-
-## From here on the following chunks of code represent older code that was not fit for purpose
-```{r}
-window <- 120
-
-window_checker <- function(window = 120){
-  int_dec <- joined_int %>%
-    group_by(Id) %>%
-  #  filter(State == "off") %>%
-    mutate(start = int_start(Interval),
-           end = int_end(Interval))
-
-  # For each participant, check if there is an EVENT = 1 within the time window of the interval start
-  integrated_data_start <- int_dec %>%
-    left_join(data.bp.clean, by = "Id") %>%
-    mutate(event_within_start = event_within_window(Datetime, start, end)) %>%
-    group_by(Id, start) %>%
-    summarise(has_event_start = any(event_within_start))
-  
-  integrated_data_end <- int_dec %>%
-    left_join(data.bp.clean, by = "Id") %>%
-    mutate(event_within_end = event_within_window(Datetime, start, end)) %>%
-    group_by(Id, end) %>%
-    summarise(has_event_end = any(event_within_end))
-  
-  merged_data <- int_dec %>%
-    left_join(integrated_data_end, by = c("Id","end")) %>%
-    left_join(integrated_data_start, by = c("Id", "start"))
-  
-  merged_data$classification <- apply(merged_data[, c("has_event_start", "has_event_end")], 1, function(x) {
-    classify_interval(x[1], x[2])
-  })
-  
-  tibble_win <- merged_data %>%
-    ungroup() %>%
-    count(classification) %>%
-    mutate(window_size = window)
-  
-  return(tibble_win)
-}
-
-window_var <- c(60, 120, 180, 240, 300, 360, 420, 480) %>%
-  map(window_checker, .progress = TRUE)  
-
-event_counts <- data.table::rbindlist(window_var)
-
-event_per <- event_counts %>%
-  mutate(n_per = (n/197)*100)
-
-event_per_agg <- event_per %>%
-  group_by(window_size) %>%
-  summarise(n_per_closed = first(n_per[classification == "Closed interval"]),
-            n_per_open = first(n_per[classification == "Open ended both"])) %>%
-  ungroup()
-
-library(ggforce)
-library(ggrepel)
-
-val <- c("1" = "forestgreen", "2" = "darkmagenta", "3" = "tomato1", "4" = "tomato2", "5" = "tomato3", "6" = "royalblue1", "7" = "royalblue2", "8" = "royalblue3")
-
-int_type_per <- ggplot(event_per_agg, aes(x = n_per_closed, y =n_per_open, colour = as.factor(window_size/60))) +
-  geom_point(position = position_dodge(w=0.3),
-             alpha =0.3, size=4) +
-  xlim(0, 100) +
-  ylim(0, 100) +
-  labs(title = "Non-wear interval type according to button press events", x = "Closed intervals (%)", y = "Open intervals (%)", color = "Window size\n(minutes)") +
-  facet_zoom(ylim = c(8,14),
-             xlim = c(86.5,91)) +
-  scale_color_manual(values = val,
-                     breaks = c("1", "2", "3", "4", "5", "6", "7", "8")) +
-  annotate("text", size = 4, x = 86.8, y = 13.35, label = "1") +
-  annotate("text", size = 4, x = 88.83, y = 11.31, label = "2") +
-  annotate("text", size = 4, x = 89.72, y = 10.30, label = "3") +
-  annotate("text", size = 4, x = 89.84, y = 10.30, label = "4") +
-  annotate("text", size = 4, x = 89.96, y = 10.30, label = "5") +
-  annotate("text", size = 4, x = 90.24, y = 9.79, label = "6") +
-  annotate("text", size = 4, x = 90.36, y = 9.79, label = "7") +
-  annotate("text", size = 4, x = 90.48, y = 9.79, label = "8") +
-  theme_bw()  +
-  theme(plot.title = element_text(hjust = 0.5, size = 24),
-        axis.text.x = element_text(size = 16),
-        axis.title = element_text(size = 18),
-        legend.title = element_text(size = 16),
-        legend.text = element_text(size = 14))
-
-  
-```
-
-
 

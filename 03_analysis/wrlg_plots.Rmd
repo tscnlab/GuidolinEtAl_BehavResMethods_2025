@@ -24,6 +24,7 @@ We would like to visualise this as a distribution of time spent in each State, w
 #Load necessary packes
 ```{r}
 library(ggdist) # to create raincloud plots
+library(patchwork) 
 ```
 
 
@@ -98,7 +99,7 @@ states_dist_jitter2 <- ggplot(data = int_duration, aes(x=id_duration_per, y = St
   labs(title = "(Non-)wear time distribution across the week", x = "Percentage of time (%)") +
   coord_fixed(ratio = 12) + # reduce white space between categorical variables on y axis
   theme(legend.position = "none",
-        plot.title = element_text(hjust = 0.5, size = 20),
+        plot.title = element_text(hjust = 0.5, size = 18),
         axis.text.x = element_text(size = 14),
         axis.title = element_text(size = 16),
         axis.text.y = element_text(size = 14))
@@ -137,12 +138,12 @@ ggsave(filename = "states-distribution-1axis.png",
        dpi = 600,
        path= "G:/cyepi/code/outputs/wrlg_plots")
 
-ggsave(filename = "states-distribution-2axes.svg",
+ggsave(filename = "results_fig02a.svg",
        plot = state_dist_2axis_2,
        width = 7,
        height = 4,
        dpi = 600,
-       path= "G:/cyepi/code/outputs/wrlg_plots")
+       path= "H:/nonwear_detection/preprint_figures/results/fig02")
 ```
 
 ## 2) Calculate descriptive statistics on how much time participants spent in each Wear log state across the week 
@@ -170,7 +171,7 @@ timing_off <- wrlg_int %>%
          centre_point = as.POSIXct(start + difftime(end,start)/2, tz = tz),
          centre_point_h = hour(centre_point))
 
-timing_dens_plot_svg <- ggplot(timing_off, aes(x = as.numeric(centre_point_h), y = after_stat(count))) +
+timing_dens_plot <- ggplot(timing_off, aes(x = as.numeric(centre_point_h), y = after_stat(count))) +
   geom_histogram(color = "black", fill = "darkred", alpha = 0.6, position = "identity", bins = 24) +
   geom_density(color = "black", fill= "darkred", alpha = 0.3, outline.type = "upper") +
   labs(x = "Centre point of non-wear interval", y = "Number of Wake 'off' events", title = "Timing of non-wear episodes across the day") +
@@ -180,18 +181,18 @@ timing_dens_plot_svg <- ggplot(timing_off, aes(x = as.numeric(centre_point_h), y
     expand = c(0.0,0.0)) +
    theme_ggdist() +
    theme(legend.position = "none",
-        plot.title = element_text(hjust = 0.5, size = 22),
-        axis.text.x = element_text(size = 16, angle = 45, hjust = 1),
-        axis.title = element_text(size = 18),
-        axis.text.y = element_text(size = 16))
+        plot.title = element_text(hjust = 0.5, size = 18),
+        axis.text.x = element_text(size = 14, angle = 45, hjust = 1),
+        axis.title = element_text(size = 16),
+        axis.text.y = element_text(size = 14))
 
 # Saving the plot
-ggsave(filename = "timing-nonwear.svg",
-       plot = timing_dens_plot_svg,
+ggsave(filename = "results_fig02b.pdf",
+       plot = timing_dens_plot,
        width = 7,
-       height = 4,
+       height = 2,
        dpi = 600,
-       path= "G:/cyepi/code/outputs/wrlg_plots")
+       path= "H:/nonwear_detection/preprint_figures/results/fig02")
 
 ```
 
@@ -256,7 +257,7 @@ wknd_wkday <- wknd_wkday.combined %>%
                                      as.numeric(off_length)/as.numeric(wk_duration)),
          perc_length = normalised_length * 100)
 
- wknd_wk_dist.svg <- ggplot(data = wknd_wkday, aes(x=perc_length, y = day_type, fill = day_type)) +
+ wknd_wk_dist <- ggplot(data = wknd_wkday, aes(x=perc_length, y = day_type, fill = day_type)) +
   scale_x_continuous(limits = c(0,100), expand = c(0.05,0.05)) +
   ggdist::stat_halfeye(
     aes(colour = day_type,
@@ -279,7 +280,8 @@ wknd_wkday <- wknd_wkday.combined %>%
     fill = "white",
     height = .1,
     alpha = .3,
-    size = 1.2
+    size = 1.2,
+    na.rm = TRUE
   ) +
   scale_fill_manual(
     values = c("weekday" = "#bf0000", "weekend" = "#800000")) +
@@ -290,22 +292,42 @@ wknd_wkday <- wknd_wkday.combined %>%
   ggpubr::rremove("ylab") +
   ggpubr::rremove("y.ticks") +
  # ggpubr::rremove("xlab")+ 
-  labs(title = "Non-wear time distribution across weekdays and weekend days", x = "Percentage of time (%)") +
+  labs(title = "Non-wear time distribution across \nweekdays and weekend days", x = "Percentage of time (%)") +
   coord_fixed(ratio = 16) + # reduce white space between categorical variables on y axis
   theme(legend.position = "none",
-        plot.title = element_text(hjust = 0.5, size = 20),
-        axis.text.x = element_text(size = 16),
+        plot.title = element_text(hjust = 0.5, size = 18),
+        axis.text.x = element_text(size = 14),
         axis.title = element_text(size = 16),
-        axis.text.y = element_text(size = 16))
+        axis.text.y = element_text(size = 14))
  
- #Saving the plot
- ggsave(filename = " week-weekend-distribution.svg",
-       plot =  wknd_wk_dist.svg,
-       width = 7,
-       height = 4,
-       dpi = 600,
-       path= "G:/cyepi/code/outputs/wrlg_plots")
 
 ```
 
+## Saving the plot
+```{r}
+ #Saving the plot
+ ggsave(filename = "results_fig02c.svg",
+       plot =  wknd_wk_dist,
+       width = 7,
+       height = 4,
+       dpi = 600,
+       path= "H:/nonwear_detection/preprint_figures/results/fig02")
+
+```
+
+### Creating a multiplot with the three plots above - they will all go in figure 02
+```{r}
+library(patchwork)
+
+fig02_multiplot <- state_dist_2axis_2/wknd_wk_dist/timing_dens_plot 
+
+
+ggsave(filename = "results_fig02_all.png",
+       plot = fig02_multiplot,
+       width = 8,
+       height = 10,
+       dpi = 600,
+       bg = "white",
+       path= "H:/nonwear_detection/preprint_figures/results/fig02")
+```
 
