@@ -225,6 +225,38 @@ batch_clusters <-
 
 ```
 
+```{r}
+library(gtsummary)
+
+#styling formula for time
+style_time <- function(x, format = "%H:%M"){
+  x %>% as.numeric() %>%  hms::as_hms() %>% as.POSIXlt() %>% format(format)
+}
+
+batch_raw <- batch_raw %>% 
+  gtsummary::tbl_summary(statistic = list(all_continuous() ~ "{mean} (±{sd})"),
+              digits = list(
+                c(
+                  mean_timing_above_250, first_timing_above_250, 
+                  last_timing_above_250, duration_above_250
+                  ) ~ style_time),
+              label = list(
+                mean_timing_above_250 = 
+                  "mean timing above 250 lx mel EDI (HH:MM)",
+                first_timing_above_250 = 
+                  "first time above 250 lx mel EDI (HH:MM)",
+                last_timing_above_250 = 
+                  "last time above 250 lx mel EDI (HH:MM)",
+                duration_above_250 = "duration above 250 lx mel EDI (HH:MM)",
+                average_MEDI = "average mel EDI (lx)",
+                light_exposure = "light exposure (lx·h)"
+                )
+              )
+
+
+```
+
+
 ### TAT250 analysis
 ```{r}
 raw_tat250 <- batch_raw %>% select(Id, wDay, mean_timing_above_250)
@@ -249,21 +281,42 @@ tat250_means <- tat250_all %>%
 
 ```
 
-#### Plotting TAT250
+### Intradaily stability 
 ```{r}
-# Raw vs clean (wrlg)
-clean_wrlg_tat <- ggpubr::ggscatter(data = tat250_means,
-          x = "mean_raw",
-          y = "mean_wrlg",
-          color = "Id",
-          ggtheme = theme_bw()) +
-    ggpubr::stat_cor(aes(label = after_stat(r.label)), # add r coefficient but not p value
-                   method = "pearson",
-                   label.x = 0.03,
-                   label.y = 0.95) + 
-  ggplot2::geom_errorbar(data = tat250_means,
-                         aes(ymin=mean_wrlg-sd_wrlg)) 
-  labs(x = "Raw dataset", y = "Clean dataset (Wear log)") +
-  coord_fixed(ratio = 1)
+# 1a. raw dataset
+iv_raw_dataset <- raw_dataset %>% 
+  summarize(
+    IV = intradaily_variability(
+      Light.vector = MEDI,
+      Datetime.vector = Datetime
+    )
+  )
+
+# 1b. With Wear log based non-wear 
+iv_nw_wrlg <- nw_wrlg %>% 
+  summarize(
+    IS_wrlg = intradaily_variability(
+      Light.vector = MEDI,
+      Datetime.vector = Datetime,
+      na.rm = TRUE
+    )
+  )
+
+# 1c. With cluster based non-wear
+iv_nw_clusters <- nw_clusters %>%
+  group_by(Id) %>% #we need to group here, because this df is not directly generate in LightLogR
+  # and hence the data is not grouped by Id by default (as is the case for the other 2 data frames)
+  summarize(
+    IS_clusters = intradaily_variability(
+      Light.vector = MEDI,
+      Datetime.vector = Datetime,
+      na.rm = TRUE
+    )
+  ) %>% 
+  ungroup()
+
+# Combining the dfs 
+temp <- full_join(iv_raw_dataset, iv_nw_wrlg, by = "Id") #first, combine raw and wrlg data sets
+iv_all <- full_join(temp, iv_nw_clusters, by = "Id") #second, add clusters data set
 ```
 

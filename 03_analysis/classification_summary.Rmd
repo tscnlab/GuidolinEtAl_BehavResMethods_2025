@@ -168,7 +168,7 @@ summarise(classification = first(classification),
           xmax = last(Datetime), 
           class_duration = difftime(xmax, xmin, tz= tz, units = "mins")) %>%
   ungroup() %>%
-  filter(classification == "FN" | classification == "FP") 
+  filter(classification == "FN" | classification == "FP" | classification == "TP" | classification == "TN") # select misclassified and correctly classified intervals
   
 ```
 
@@ -200,6 +200,8 @@ misclass_reasons <- classification_int %>%
       classification == "FN" & bag == 1 & mean_MEDI <= threshold & class_duration <= transition_cutoff ~ "transition state",
       classification == "FP" & mean_MEDI <= threshold & class_duration <= transition_cutoff ~ "transition state",
       classification == "FP" & mean_MEDI <= threshold & class_duration > transition_cutoff ~ "low medi and cluster detected",
+      classification == "TN" ~ "Correctly classified",
+      classification == "TP" ~ "Correctly classified",
       TRUE ~ "visual_check" # Fallback case
     )
   )
@@ -252,7 +254,7 @@ misclass_summary <- misclass_reasons_clean %>%
   group_by(reason) %>%
   summarise(count = n()) %>%
   mutate(per_instances = (count/sum(count))*100,
-         per_instances = round(per_instances, digits = 3)) %>%
+         per_instances = round(per_instances, digits = 4)) %>%
   #Adding a row with tot numbers
   janitor::adorn_totals(where = c("row"))
 
@@ -268,18 +270,19 @@ library(gt)
 misclass_table <- misclass_summary %>%
   dplyr::arrange(count) %>% # Arranging in ascending order
   gt() %>% # Turning this into a gt object for further editing of the table 
-  gt::tab_header(title = md("**Instances of algorithm misclassification**")) %>%
+  gt::tab_header(title = md("**Algorithm performance and instances of misclassification**")) %>%
   gt::tab_stubhead(label = "reason") %>%
   #Re-labelling the columns
   gt::cols_label(reason = "Instance",
              count = "N",
              per_instances = "N (%)") %>%
   #Re-labelling row names
-  gt::text_case_match("bag not used or transition state" ~ "Bag not used or transition state",
-                      "algorithm limitation or bag actually not used" ~ "Algorithm limitation or bag not actually used",
-                      "bag not used, no clusters identified" ~ "Bag not used",
-                      "low medi and cluster detected" ~ "Low illuminance during wear",
-                      "transition state" ~ "Transition state")
+  gt::text_case_match("bag not used or transition state" ~ "Misclassified: Bag not used or transition state",
+                      "algorithm limitation or bag actually not used" ~ "Misclassified: Algorithm limitation or bag not actually used",
+                      "bag not used, no clusters identified" ~ "Misclassified: Bag not used",
+                      "low medi and cluster detected" ~ "Misclassified: Low illuminance during wear",
+                      "transition state" ~ "Misclassified: Transition state",
+                      "Correctly classified" ~ "Correctly classified")
 ```
 
 #### Saving the table
@@ -317,6 +320,8 @@ nonwear_algorithm <- alg_perf(
 ### Step 2: we join the transition states from the "interval df" (i.e. misclass_reasons_clean) to the "continuous" dataset (i.e. nonwear_algorithm)
 For this, we use full_join() and between to join the two datasets and obtain a df where values of xmin and xmax are joined only if Datetime falls within them
 ```{r}
+transitions <- misclass_reasons_clean %>%
+  filter(reason == "transition state")
 
 nw_alg <- full_join(nonwear_algorithm, transitions,
                     by = join_by(Id, 

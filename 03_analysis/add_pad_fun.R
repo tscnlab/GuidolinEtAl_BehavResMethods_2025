@@ -49,11 +49,35 @@ add_transition_pad <- function(df) {
           df_id$is_low_medi_cluster[transition_start_index:(i - 1)] <- 0
         }
       }
+    
+    # Detect transitions from 0 to 1 
+    if (df_id$is_low_medi_cluster[i] == 1 && df_id$is_low_medi_cluster[i - 1] == 0) {
+      cat("\nTransition 0 -> 1 detected at row:", i, "\n")
+      
+      if (!is.na(df_id$reason[i]) && # Check if this row has a reason that is not NA
+          df_id$reason[i] == "transition state") { #and that it has reason = transition state
+        
+        # If these two criteria are fulfilled,
+        # Find the end of the transition state by walking down the df 
+        # and assigning transition_end_index
+        transition_end_index <- i
+        while (transition_end_index < nrow(df_id) &&
+               !is.na(df_id$reason[transition_end_index + 1]) &&
+               df_id$reason[transition_end_index + 1] == "transition state") {
+          
+          # shift the end of the transition_end_index to this row
+          transition_end_index <- transition_end_index + 1
+        }
+        
+        # Set is_low_medi_clusters = 0 for the rows from the start to the end of the transition period
+        df_id$is_low_medi_cluster[i:transition_end_index] <- 0
+      }
     }
+  }
     
     # Add the updated subset for this Id to the list
     updated_df_list[[as.character(id)]] <- df_id
-  }
+ }
   
   # Combine all updated Id data frames back into a single data frame
   updated_df <- do.call(rbind, updated_df_list)
