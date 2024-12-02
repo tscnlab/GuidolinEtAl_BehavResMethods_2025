@@ -225,8 +225,8 @@ ggsave(filename = filename,
 
 ```
 
-## Poster making
-For the poster I am preparing for a conference, I would like to create a single plot for one representative participant. We choose participant 201 for this purpose. 
+## Only visualising this for one participant
+We would like to create a single plot for one representative participant. We choose participant 201 for this purpose. 
 ```{r}
 
 selected_id <- "201"
@@ -321,13 +321,13 @@ p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
         legend.box.background = element_rect(fill = "white", colour = "darkgrey"),
         legend.margin = margin(c(1,1,1,1)))
 
-ggsave(filename = "exemplary_participant.png",
+ggsave(filename = "results_fig01.png",
        plot = p,
        width = 11,
        height = 14,
        dpi = 600,
        bg = "white",
-       path= "D:/cyepi/code/outputs/visual_insp/light/example")
+       path= "H:/nonwear_detection/preprint_figures/results")
 
 ```
 
