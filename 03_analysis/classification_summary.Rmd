@@ -294,7 +294,7 @@ library(chromote)
 
 gt::gtsave(misclass_table,
            filename = "results_fig06.png",
-           path = "H:/nonwear_detection/preprint_figures/results")
+           path = "H:/nonwear_detection/preprint_figures/results/fig06")
 ```
 
 ## Adding a padding to the transition states 

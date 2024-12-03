@@ -29,7 +29,11 @@ nw_wrlg <- dataset.LL.wrlg %>%
 
 #3. Non-wear by detection of clusters of low illuminance. We will use the dataset where padding has been added to transition states (see script classification_summary.Rmd). 
 nw_clusters <- nw_alg_padded %>%
-  mutate(MEDI = if_else(is_low_medi_cluster == 0, NA, MEDI))
+  mutate(MEDI = case_when(
+    is.na(is_low_medi_cluster) ~ MEDI, # When is_low_medi_cluster is NA, retain MEDI
+    is_low_medi_cluster == 0 ~ NA, # When is_low_medi_cluster is 0, set MEDI to NA
+    TRUE ~ MEDI # For all other cases, retain MEDI
+  ))
 
 ```
 
@@ -41,7 +45,7 @@ nw_wrlg <- nw_wrlg %>% dplyr::filter(weekdays(Datetime) != "Monday")
 nw_clusters <- nw_clusters %>% dplyr::filter(weekdays(Datetime) != "Monday")
 ```
 
-### 1. Calculating intradaily stability 
+### 1. Calculating interdaily stability 
 ```{r}
 # 1a. raw dataset
 is_raw_dataset <- raw_dataset %>% 
@@ -95,7 +99,7 @@ is_sign <- is_all_long %>%
 
 ```
 
-#### Plotting intradaily stability
+#### Plotting interdaily stability
 ```{r}
 # Raw vs clean (wrlg)
 clean_wrlg <- ggpubr::ggscatter(data = is_all,
@@ -107,6 +111,7 @@ clean_wrlg <- ggpubr::ggscatter(data = is_all,
                    method = "pearson",
                    label.x = 0.03,
                    label.y = 0.95) +
+  geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
   ggplot2::scale_x_continuous(
     limits = c(0, 1),
     breaks = c(0, 0.50, 1), 
@@ -119,7 +124,7 @@ clean_wrlg <- ggpubr::ggscatter(data = is_all,
   labs(x = "Raw dataset", y = "Clean dataset (Wear log)") +
   coord_fixed(ratio = 1)
 
-# Raw vs clean (clusters) - why 218 has 1.2??
+# Raw vs clean (clusters) 
 clean_clusters <- ggpubr::ggscatter(data = is_all,
           x = "IS_raw",
           y = "IS_clusters",
@@ -129,6 +134,7 @@ clean_clusters <- ggpubr::ggscatter(data = is_all,
                    method = "pearson",
                    label.x = 0.03,
                    label.y = 0.95) +
+   geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
   ggplot2::scale_x_continuous(
     limits = c(0, 1),
     breaks = c(0, 0.50, 1), 
@@ -141,8 +147,9 @@ clean_clusters <- ggpubr::ggscatter(data = is_all,
   labs(x = "Raw dataset", y = "Clean dataset (algorithm)") +
   coord_fixed(ratio = 1)
 
+
 # Combining the plots
-p <- ggpubr::ggarrange(clean_wrlg, clean_clusters,
+p1 <- ggpubr::ggarrange(clean_wrlg, clean_clusters,
                                 labels = c("A", "B"),
                                 ncol = 2,
                                 nrow = 1,
@@ -150,15 +157,122 @@ p <- ggpubr::ggarrange(clean_wrlg, clean_clusters,
                        common.legend = TRUE,
                        legend = "right")
 
-is_comparison <- ggpubr::annotate_figure(p, top = text_grob("Interdaily stability")) 
+is_comparison <- ggpubr::annotate_figure(p, top = text_grob("Interdaily stability", size = 18)) 
 
+is_comparison
 ```
 
+### 2. Calculating intradaily variability
+```{r}
+# 1a. raw dataset
+iv_raw_dataset <- raw_dataset %>% 
+  summarize(
+    IV_raw = intradaily_variability(
+      Light.vector = MEDI,
+      Datetime.vector = Datetime
+    )
+  )
+
+# 1b. With Wear log based non-wear 
+iv_nw_wrlg <- nw_wrlg %>% 
+  summarize(
+    IV_wrlg = intradaily_variability(
+      Light.vector = MEDI,
+      Datetime.vector = Datetime,
+      na.rm = TRUE
+    )
+  )
+
+# 1c. With cluster based non-wear
+iv_nw_clusters <- nw_clusters %>%
+  group_by(Id) %>% #we need to group here, because this df is not directly generate in LightLogR
+  # and hence the data is not grouped by Id by default (as is the case for the other 2 data frames)
+  summarize(
+    IV_clusters = intradaily_variability(
+      Light.vector = MEDI,
+      Datetime.vector = Datetime,
+      na.rm = TRUE
+    )
+  ) %>% 
+  ungroup()
+
+# Combining the dfs 
+temp <- full_join(iv_raw_dataset, iv_nw_wrlg, by = "Id") #first, combine raw and wrlg data sets
+iv_all <- full_join(temp, iv_nw_clusters, by = "Id") #second, add clusters data set
+```
+
+#### Plotting intradaily variability 
+```{r}
+# Raw vs clean (wrlg)
+clean_wrlg <- ggpubr::ggscatter(data = iv_all,
+          x = "IV_raw",
+          y = "IV_wrlg",
+          color = "Id",
+          ggtheme = theme_bw()) +
+    ggpubr::stat_cor(aes(label = after_stat(r.label)), # add r coefficient but not p value
+                   method = "pearson",
+                   label.x = 0.03,
+                   label.y = 1.95) +
+  geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
+  ggplot2::scale_x_continuous(
+    limits = c(0, 2),
+    breaks = c(0, 0.50, 1, 1.5, 2), 
+    labels = c("0", "0.50", "1", "1.5", "2")
+  ) +
+  scale_y_continuous(
+   limits = c(0, 2),
+    breaks = c(0, 0.50, 1, 1.5, 2), 
+    labels = c("0", "0.50", "1", "1.5", "2")
+  ) + 
+  labs(x = "Raw dataset", y = "Clean dataset (Wear log)") +
+  coord_fixed(ratio = 1)
+
+# Raw vs clean (clusters) 
+clean_clusters <- ggpubr::ggscatter(data = iv_all,
+          x = "IV_raw",
+          y = "IV_clusters",
+          color = "Id",
+          ggtheme = theme_bw()) +
+    ggpubr::stat_cor(aes(label = after_stat(r.label)), # add r coefficient but not p value
+                   method = "pearson",
+                   label.x = 0.03,
+                   label.y = 1.95) +
+   geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
+  ggplot2::scale_x_continuous(
+    limits = c(0, 2),
+    breaks = c(0, 0.50, 1, 1.5, 2), 
+    labels = c("0", "0.50", "1", "1.5", "2")
+  ) +
+  scale_y_continuous(
+   limits = c(0, 2),
+    breaks = c(0, 0.50, 1, 1.5, 2), 
+    labels = c("0", "0.50", "1", "1.5", "2")
+  ) + 
+  labs(x = "Raw dataset", y = "Clean dataset (algorithm)") +
+  coord_fixed(ratio = 1)
+
+
+# Combining the plots
+p2 <- ggpubr::ggarrange(clean_wrlg, clean_clusters,
+                                labels = c("A", "B"),
+                                ncol = 2,
+                                nrow = 1,
+                                align = "hv",
+                       common.legend = TRUE,
+                       legend = "right")
+
+iv_comparison <- ggpubr::annotate_figure(p2, top = text_grob("Intradaily variability", size = 18)) 
+
+iv_comparison
+```
+
+
 ### Calculating batch metrics for each participants on each day of the experimental week 
-- MLIT250
-- TAT250
+- MLIT250, FLIT250, LLIT250
+- MLIT10, FLIT10, LLIT10
+- TAT250, TAT1000
 - Average MEDI
-- 
+- LE
 ```{r}
 batch_raw <- raw_dataset %>%
   LightLogR::create_Timedata() %>%
@@ -177,14 +291,20 @@ batch_raw <-
   batch_raw %>% 
   group_by(Id, wDay) %>% 
   summarize(
+    MLIT10 =
+      timing_above_threshold(MEDI, Time.data, threshold = 10, as.df = TRUE, na.rm = TRUE),
     MLIT250 = 
-      timing_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE),
+      timing_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+    MLIT1000 = 
+      timing_above_threshold(MEDI, Time.data, threshold = 1000, as.df = TRUE, na.rm = TRUE),
     TAT250 = 
-      duration_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE),
+      duration_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+    TAT1000 = 
+      duration_above_threshold(MEDI, Time.data, threshold = 1000, as.df = TRUE, na.rm = TRUE),
     average_MEDI = 
-      mean(MEDI),
+      mean(MEDI, na.rm = TRUE),
     light_exposure = 
-      sum(MEDI)/360, # 10 second epochs means 360 epochs in one hour. dividing by 360 gives the light exposure in lx·h
+      sum(MEDI, na.rm = TRUE)/360, # 10 second epochs means 360 epochs in one hour. dividing by 360 gives the light exposure in lx·h
     .groups = "drop_last"
     ) %>% 
   unnest(-Id)
@@ -194,10 +314,16 @@ batch_wrlg <-
   batch_wrlg %>% 
   group_by(Id, wDay) %>% 
   summarize(
+     MLIT10 =
+      timing_above_threshold(MEDI, Time.data, threshold = 10, as.df = TRUE, na.rm = TRUE),
     MLIT250 = 
       timing_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+    MLIT1000 = 
+      timing_above_threshold(MEDI, Time.data, threshold = 1000, as.df = TRUE, na.rm = TRUE),
     TAT250 = 
       duration_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+    TAT1000 = 
+      duration_above_threshold(MEDI, Time.data, threshold = 1000, as.df = TRUE, na.rm = TRUE),
     average_MEDI = 
       mean(MEDI, na.rm = TRUE),
     light_exposure = 
@@ -211,10 +337,16 @@ batch_clusters <-
   batch_clusters %>% 
   group_by(Id, wDay) %>% 
   summarize(
+     MLIT10 =
+      timing_above_threshold(MEDI, Time.data, threshold = 10, as.df = TRUE, na.rm = TRUE),
     MLIT250 = 
       timing_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+    MLIT1000 = 
+      timing_above_threshold(MEDI, Time.data, threshold = 1000, as.df = TRUE, na.rm = TRUE),
     TAT250 = 
       duration_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+    TAT1000 = 
+      duration_above_threshold(MEDI, Time.data, threshold = 1000, as.df = TRUE, na.rm = TRUE),
     average_MEDI = 
       mean(MEDI, na.rm = TRUE),
     light_exposure = 
@@ -225,98 +357,108 @@ batch_clusters <-
 
 ```
 
-```{r}
-library(gtsummary)
-
-#styling formula for time
-style_time <- function(x, format = "%H:%M"){
-  x %>% as.numeric() %>%  hms::as_hms() %>% as.POSIXlt() %>% format(format)
-}
-
-batch_raw <- batch_raw %>% 
-  gtsummary::tbl_summary(statistic = list(all_continuous() ~ "{mean} (±{sd})"),
-              digits = list(
-                c(
-                  mean_timing_above_250, first_timing_above_250, 
-                  last_timing_above_250, duration_above_250
-                  ) ~ style_time),
-              label = list(
-                mean_timing_above_250 = 
-                  "mean timing above 250 lx mel EDI (HH:MM)",
-                first_timing_above_250 = 
-                  "first time above 250 lx mel EDI (HH:MM)",
-                last_timing_above_250 = 
-                  "last time above 250 lx mel EDI (HH:MM)",
-                duration_above_250 = "duration above 250 lx mel EDI (HH:MM)",
-                average_MEDI = "average mel EDI (lx)",
-                light_exposure = "light exposure (lx·h)"
-                )
-              )
-
-
-```
-
 
 ### TAT250 analysis
 ```{r}
-raw_tat250 <- batch_raw %>% select(Id, wDay, mean_timing_above_250)
-wrlg_tat250 <- batch_wrlg %>% select(Id, wDay, mean_timing_above_250)
-clusters_tat250 <- batch_clusters %>% select(Id, wDay, mean_timing_above_250)
+# Function to format the time 
+style_time <- function(x){
+  x %>%
+    as.numeric() %>%
+    hms::as_hms() %>%
+    round_hms()
+}
 
-# Combining the dfs 
-temp <- full_join(raw_tat250, wrlg_tat250, by = c("Id", "wDay")) %>%
-  rename(raw_tat250 = mean_timing_above_250.x, wrlg_tat250 = mean_timing_above_250.y) #first, combine raw and wrlg data sets
-tat250_all <- full_join(temp, clusters_tat250, by = c("Id", "wDay")) %>%
-  rename(clusters_tat250 = mean_timing_above_250) #second, add clusters data set
+# Helper function to round hms
+round_hms <- function(x) {
+  hms::as_hms(round(as.numeric(x)))  # Round numeric seconds and return as hms
+}
 
-tat250_means <- tat250_all %>%
+# Raw dataset
+tat250_raw <- batch_raw %>%
+  select(mean_timing_above_250) %>%
   group_by(Id) %>%
-  summarise(mean_raw = mean(raw_tat250),
-         sd_raw = sd(raw_tat250),
-         mean_wrlg = mean(wrlg_tat250),
-         sd_wrlg = sd(wrlg_tat250),
-         mean_clusters = mean(clusters_tat250),
-         sd_clusters = sd(clusters_tat250))
+  summarize(
+    mean_time = style_time(mean(as.numeric(mean_timing_above_250), na.rm = TRUE)), # Calculate mean and convert back to hms
+    sd_time = style_time(sd(as.numeric(mean_timing_above_250), na.rm = TRUE))      # Calculate sd and convert back to hms
+  )
 
+# Wear log data set 
+tat250_wrlg <- batch_wrlg %>%
+  select(mean_timing_above_250) %>%
+  group_by(Id) %>%
+  summarize(
+    mean_time = style_time(mean(as.numeric(mean_timing_above_250), na.rm = TRUE)), # Calculate mean and convert back to hms
+    sd_time = style_time(sd(as.numeric(mean_timing_above_250), na.rm = TRUE))      # Calculate sd and convert back to hms
+  )
+
+# Clusters data set
+tat250_clusters <- batch_clusters %>%
+  select(mean_timing_above_250) %>%
+  group_by(Id) %>%
+  summarize(
+    mean_time = style_time(mean(as.numeric(mean_timing_above_250), na.rm = TRUE)), # Calculate mean and convert back to hms
+    sd_time = style_time(sd(as.numeric(mean_timing_above_250), na.rm = TRUE))      # Calculate sd and convert back to hms
+  )
+
+# Joining the dfs
+temp2 <- full_join(tat250_raw, tat250_wrlg, by = "Id") %>%
+  rename(mean_raw = mean_time.x,
+         sd_raw = sd_time.x,
+         mean_wrlg = mean_time.y,
+         sd_wrlg = sd_time.y)
+
+tat250_all <- full_join(temp2, tat250_clusters, by = "Id") %>%
+  rename(mean_clusters = mean_time,
+         sd_clusters = sd_time)
 
 ```
-
-### Intradaily stability 
+#### Plot TAT250 results 
 ```{r}
-# 1a. raw dataset
-iv_raw_dataset <- raw_dataset %>% 
-  summarize(
-    IV = intradaily_variability(
-      Light.vector = MEDI,
-      Datetime.vector = Datetime
-    )
-  )
+raw_vs_wrlg <- ggplot(tat250_all, aes(x = as.numeric(mean_raw), y = as.numeric(mean_wrlg), colour = Id)) +
+  geom_jitter() + 
+  geom_errorbar(aes(
+    ymin = as.numeric(mean_wrlg-sd_wrlg),
+    ymax = as.numeric(mean_wrlg+sd_wrlg)
+  )) +
+  geom_errorbarh(aes(
+    xmin = as.numeric(mean_raw-sd_raw),
+    xmax = as.numeric(mean_raw+sd_wrlg)
+  )) +
+ geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
+  scale_y_continuous(labels = function(x) hms::as_hms(x)) + # Convert y-axis labels back to HH:MM
+  scale_x_continuous(labels = function(x) hms::as_hms(x)) + # Convert x-axis labels back to HH:MM 
+  labs(x = "Mean time (Raw dataset)", y = "Mean time (Clean dataset, Wear log)") +
+  coord_fixed(ratio = 1) +
+  theme_bw() 
 
-# 1b. With Wear log based non-wear 
-iv_nw_wrlg <- nw_wrlg %>% 
-  summarize(
-    IS_wrlg = intradaily_variability(
-      Light.vector = MEDI,
-      Datetime.vector = Datetime,
-      na.rm = TRUE
-    )
-  )
+  
+raw_vs_clusters <- ggplot(tat250_all, aes(x = as.numeric(mean_raw), y = as.numeric(mean_clusters), colour = Id)) +
+  geom_jitter() + 
+  geom_errorbar(aes(
+    ymin = as.numeric(mean_clusters-sd_clusters),
+    ymax = as.numeric(mean_clusters+sd_clusters)
+  )) +
+  geom_errorbarh(aes(
+    xmin = as.numeric(mean_raw-sd_raw),
+    xmax = as.numeric(mean_raw+sd_wrlg)
+  )) +
+ geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
+  scale_y_continuous(labels = function(x) hms::as_hms(x)) + # Convert y-axis labels back to HH:MM
+  scale_x_continuous(labels = function(x) hms::as_hms(x)) + # Convert x-axis labels back to HH:MM 
+  labs(x = "Mean time (Raw dataset)", y = "Mean time (Clean dataset, algorithm)") +
+  coord_fixed(ratio = 1) +
+  theme_bw() 
 
-# 1c. With cluster based non-wear
-iv_nw_clusters <- nw_clusters %>%
-  group_by(Id) %>% #we need to group here, because this df is not directly generate in LightLogR
-  # and hence the data is not grouped by Id by default (as is the case for the other 2 data frames)
-  summarize(
-    IS_clusters = intradaily_variability(
-      Light.vector = MEDI,
-      Datetime.vector = Datetime,
-      na.rm = TRUE
-    )
-  ) %>% 
-  ungroup()
+# Combining the plots
+p3 <- ggpubr::ggarrange(raw_vs_wrlg, raw_vs_clusters,
+                                labels = c("A", "B"),
+                                ncol = 2,
+                                nrow = 1,
+                                align = "hv",
+                       common.legend = TRUE,
+                       legend = "right")
 
-# Combining the dfs 
-temp <- full_join(iv_raw_dataset, iv_nw_wrlg, by = "Id") #first, combine raw and wrlg data sets
-iv_all <- full_join(temp, iv_nw_clusters, by = "Id") #second, add clusters data set
+tat250_comparison <- ggpubr::annotate_figure(p3, top = text_grob("Time above threshold (250 mEDI lux)", size = 18)) 
 ```
+
 
