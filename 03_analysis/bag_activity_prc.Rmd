@@ -184,7 +184,7 @@ prc_combined <- ggplot() +
             color = "darkgrey",
             size = 3.8) +
   theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5, size = 16),
+  theme(plot.title = element_text(hjust = 0.5, size = 18),
         plot.subtitle = element_text(hjust = 0.5, size = 14, colour = "grey33"),
         axis.text = element_text(size = 14),
         axis.title = element_text(size = 14),
@@ -196,13 +196,13 @@ prc_combined <- ggplot() +
   coord_fixed(ratio = 1) 
 
 #Save the plot
-ggsave(filename = "prc_thresholds_light_pim.png",
+ggsave(filename = "results_fig04b.svg",
        plot = prc_combined,
        height = 5.5, 
        width = 5,
        dpi = 600,
        bg = "white",
-       path= "D:/cyepi/code/outputs/light_activity_prc/raw/general_plots")
+       path= "H:/nonwear_detection/preprint_figures/results/fig04")
 ```
 
 ##Visualisation of activity and light prc for each participant in a multiplot
@@ -348,13 +348,13 @@ prc_multiplot <- ggplot() +
    coord_fixed(ratio = 1)
 
 #Save the plot
-ggsave(filename = "results_fig04.png",
+ggsave(filename = "results_fig05.svg",
        plot = prc_multiplot,
        height = 11, 
        width = 11,
        dpi = 600,
        bg = "white",
-       path= "Z:/nonwear_detection/preprint_figures/results")
+       path= "H:/nonwear_detection/preprint_figures/results/fig05")
 
 ```
 
