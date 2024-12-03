@@ -1,4 +1,4 @@
-# Function that adds padding to each transition state from wear to non-wear, according to the low illuminance detection
+# Function that adds padding to each transition state from wear to non-wear, and from now-wear to wear, according to the low illuminance detection
 
 add_transition_pad <- function(df) {
   # Initialise a list to store the updated data frames for each Id
