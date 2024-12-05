@@ -265,8 +265,6 @@ iv_comparison <- ggpubr::annotate_figure(p2, top = text_grob("Intradaily variabi
 
 iv_comparison
 ```
-
-
 ### Calculating batch metrics for each participants on each day of the experimental week 
 - MLIT250, FLIT250, LLIT250
 - MLIT10, FLIT10, LLIT10
@@ -291,7 +289,7 @@ batch_raw <-
   batch_raw %>% 
   group_by(Id, wDay) %>% 
   summarize(
-    MLIT10 =
+    MLIT10 = #Note: This creates 1) mean timing above threshold, 2) first timing above threshold, 3) last timing above threshold
       timing_above_threshold(MEDI, Time.data, threshold = 10, as.df = TRUE, na.rm = TRUE),
     MLIT250 = 
       timing_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
@@ -337,7 +335,7 @@ batch_clusters <-
   batch_clusters %>% 
   group_by(Id, wDay) %>% 
   summarize(
-     MLIT10 =
+     MLIT10 = 
       timing_above_threshold(MEDI, Time.data, threshold = 10, as.df = TRUE, na.rm = TRUE),
     MLIT250 = 
       timing_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
@@ -357,100 +355,44 @@ batch_clusters <-
 
 ```
 
+## Calculating timing metrics
+In the following chunks, we will calculate "timing metrics":
+- MLiT 10, MLiT250, MLiT1000
+- FLiT 10, FLiT 250, FLiT 1000
+- LLit 10, LLiT 250, LLit 1000
+To facilitate these calculations, we wrote a function (calculate_metric_fun.R script) that takes the tree datasets and calculates ean and sd for the timing metric of interest. 
 
-### TAT250 analysis
+### MLiT 10 analysis
 ```{r}
-# Function to format the time 
-style_time <- function(x){
-  x %>%
-    as.numeric() %>%
-    hms::as_hms() %>%
-    round_hms()
-}
+# Calculating
+mlit10_all <- calculate_metric(
+  raw_df = batch_raw,
+  wrlg_df = batch_wrlg,
+  clusters_df = batch_clusters,
+  metric = "mean_timing_above_10"
+)
 
-# Helper function to round hms
-round_hms <- function(x) {
-  hms::as_hms(round(as.numeric(x)))  # Round numeric seconds and return as hms
-}
+# Plotting
+## Raw vs wrlg
+raw_vs_wrlg_vis <- visualize_comparison(
+  data = mlit10_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_wrlg", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean Wear log dataset)",
+)
 
-# Raw dataset
-tat250_raw <- batch_raw %>%
-  select(mean_timing_above_250) %>%
-  group_by(Id) %>%
-  summarize(
-    mean_time = style_time(mean(as.numeric(mean_timing_above_250), na.rm = TRUE)), # Calculate mean and convert back to hms
-    sd_time = style_time(sd(as.numeric(mean_timing_above_250), na.rm = TRUE))      # Calculate sd and convert back to hms
-  )
+## Raw vs clusters
+raw_vs_clusters_vis <- visualize_comparison(
+  data = mlit10_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_clusters", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean algorithm dataset)",
+)
 
-# Wear log data set 
-tat250_wrlg <- batch_wrlg %>%
-  select(mean_timing_above_250) %>%
-  group_by(Id) %>%
-  summarize(
-    mean_time = style_time(mean(as.numeric(mean_timing_above_250), na.rm = TRUE)), # Calculate mean and convert back to hms
-    sd_time = style_time(sd(as.numeric(mean_timing_above_250), na.rm = TRUE))      # Calculate sd and convert back to hms
-  )
-
-# Clusters data set
-tat250_clusters <- batch_clusters %>%
-  select(mean_timing_above_250) %>%
-  group_by(Id) %>%
-  summarize(
-    mean_time = style_time(mean(as.numeric(mean_timing_above_250), na.rm = TRUE)), # Calculate mean and convert back to hms
-    sd_time = style_time(sd(as.numeric(mean_timing_above_250), na.rm = TRUE))      # Calculate sd and convert back to hms
-  )
-
-# Joining the dfs
-temp2 <- full_join(tat250_raw, tat250_wrlg, by = "Id") %>%
-  rename(mean_raw = mean_time.x,
-         sd_raw = sd_time.x,
-         mean_wrlg = mean_time.y,
-         sd_wrlg = sd_time.y)
-
-tat250_all <- full_join(temp2, tat250_clusters, by = "Id") %>%
-  rename(mean_clusters = mean_time,
-         sd_clusters = sd_time)
-
-```
-#### Plot TAT250 results 
-```{r}
-raw_vs_wrlg <- ggplot(tat250_all, aes(x = as.numeric(mean_raw), y = as.numeric(mean_wrlg), colour = Id)) +
-  geom_jitter() + 
-  geom_errorbar(aes(
-    ymin = as.numeric(mean_wrlg-sd_wrlg),
-    ymax = as.numeric(mean_wrlg+sd_wrlg)
-  )) +
-  geom_errorbarh(aes(
-    xmin = as.numeric(mean_raw-sd_raw),
-    xmax = as.numeric(mean_raw+sd_wrlg)
-  )) +
- geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
-  scale_y_continuous(labels = function(x) hms::as_hms(x)) + # Convert y-axis labels back to HH:MM
-  scale_x_continuous(labels = function(x) hms::as_hms(x)) + # Convert x-axis labels back to HH:MM 
-  labs(x = "Mean time (Raw dataset)", y = "Mean time (Clean dataset, Wear log)") +
-  coord_fixed(ratio = 1) +
-  theme_bw() 
-
-  
-raw_vs_clusters <- ggplot(tat250_all, aes(x = as.numeric(mean_raw), y = as.numeric(mean_clusters), colour = Id)) +
-  geom_jitter() + 
-  geom_errorbar(aes(
-    ymin = as.numeric(mean_clusters-sd_clusters),
-    ymax = as.numeric(mean_clusters+sd_clusters)
-  )) +
-  geom_errorbarh(aes(
-    xmin = as.numeric(mean_raw-sd_raw),
-    xmax = as.numeric(mean_raw+sd_wrlg)
-  )) +
- geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
-  scale_y_continuous(labels = function(x) hms::as_hms(x)) + # Convert y-axis labels back to HH:MM
-  scale_x_continuous(labels = function(x) hms::as_hms(x)) + # Convert x-axis labels back to HH:MM 
-  labs(x = "Mean time (Raw dataset)", y = "Mean time (Clean dataset, algorithm)") +
-  coord_fixed(ratio = 1) +
-  theme_bw() 
-
-# Combining the plots
-p3 <- ggpubr::ggarrange(raw_vs_wrlg, raw_vs_clusters,
+## Combining the plots
+p3 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
                                 labels = c("A", "B"),
                                 ncol = 2,
                                 nrow = 1,
@@ -458,7 +400,430 @@ p3 <- ggpubr::ggarrange(raw_vs_wrlg, raw_vs_clusters,
                        common.legend = TRUE,
                        legend = "right")
 
-tat250_comparison <- ggpubr::annotate_figure(p3, top = text_grob("Time above threshold (250 mEDI lux)", size = 18)) 
+mlit10_comparison <- ggpubr::annotate_figure(p3, top = text_grob("Time above threshold (10 mEDI lux)", size = 18)) 
+
+mlit10_comparison
+```
+### MLiT250 analysis
+```{r}
+# Calculation 
+mlit250_all <- calculate_metric(
+  raw_df = batch_raw,
+  wrlg_df = batch_wrlg,
+  clusters_df = batch_clusters,
+  metric = "mean_timing_above_250"
+)
+
+# Plotting
+## Raw vs wrlg
+raw_vs_wrlg_vis <- visualize_comparison(
+  data = mlit250_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_wrlg", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean Wear log dataset)",
+)
+
+## Raw vs clusters
+raw_vs_clusters_vis <- visualize_comparison(
+  data = mlit250_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_clusters", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean algorithm dataset)",
+)
+
+## Combining the plots
+p4 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
+                                labels = c("A", "B"),
+                                ncol = 2,
+                                nrow = 1,
+                                align = "hv",
+                       common.legend = TRUE,
+                       legend = "right")
+
+mlit250_comparison <- ggpubr::annotate_figure(p4, top = text_grob("Time above threshold (250 mEDI lux)", size = 18)) 
+
+mlit250_comparison
+```
+#### MLiT 1000 analysis
+```{r}
+# Calculation 
+mlit1000_all <- calculate_metric(
+  raw_df = batch_raw,
+  wrlg_df = batch_wrlg,
+  clusters_df = batch_clusters,
+  metric = "mean_timing_above_1000"
+)
+
+# Plotting
+## Raw vs wrlg
+raw_vs_wrlg_vis <- visualize_comparison(
+  data = mlit1000_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_wrlg", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean Wear log dataset)",
+)
+
+## Raw vs clusters
+raw_vs_clusters_vis <- visualize_comparison(
+  data = mlit1000_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_clusters", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean algorithm dataset)",
+)
+
+## Combining the plots
+p5 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
+                                labels = c("A", "B"),
+                                ncol = 2,
+                                nrow = 1,
+                                align = "hv",
+                       common.legend = TRUE,
+                       legend = "right")
+
+mlit1000_comparison <- ggpubr::annotate_figure(p5, top = text_grob("Time above threshold (1000 mEDI lux)", size = 18)) 
+
+mlit1000_comparison
+```
+### FLiT 10 analysis
+```{r}
+# Calculation 
+flit10_all <- calculate_metric(
+  raw_df = batch_raw,
+  wrlg_df = batch_wrlg,
+  clusters_df = batch_clusters,
+  metric = "first_timing_above_10"
+)
+
+# Plotting
+## Raw vs wrlg
+raw_vs_wrlg_vis <- visualize_comparison(
+  data = flit10_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_wrlg", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean Wear log dataset)",
+)
+
+## Raw vs clusters
+raw_vs_clusters_vis <- visualize_comparison(
+  data = flit10_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_clusters", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean algorithm dataset)",
+)
+
+## Combining the plots
+p6 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
+                                labels = c("A", "B"),
+                                ncol = 2,
+                                nrow = 1,
+                                align = "hv",
+                       common.legend = TRUE,
+                       legend = "right")
+
+flit10_comparison <- ggpubr::annotate_figure(p6, top = text_grob("First time above threshold (10 mEDI lux)", size = 18)) 
+
+flit10_comparison
+```
+### FLiT 250 analysis
+```{r}
+# Calculation 
+flit250_all <- calculate_metric(
+  raw_df = batch_raw,
+  wrlg_df = batch_wrlg,
+  clusters_df = batch_clusters,
+  metric = "first_timing_above_250"
+)
+
+# Plotting
+## Raw vs wrlg
+raw_vs_wrlg_vis <- visualize_comparison(
+  data = flit250_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_wrlg", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean Wear log dataset)",
+)
+
+## Raw vs clusters
+raw_vs_clusters_vis <- visualize_comparison(
+  data = flit250_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_clusters", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean algorithm dataset)",
+)
+
+## Combining the plots
+p7 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
+                                labels = c("A", "B"),
+                                ncol = 2,
+                                nrow = 1,
+                                align = "hv",
+                       common.legend = TRUE,
+                       legend = "right")
+
+flit250_comparison <- ggpubr::annotate_figure(p7, top = text_grob("First time above threshold (250 mEDI lux)", size = 18)) 
+
+flit250_comparison
+```
+
+### FLiT 1000 comparison 
+```{r}
+# Calculation 
+flit1000_all <- calculate_metric(
+  raw_df = batch_raw,
+  wrlg_df = batch_wrlg,
+  clusters_df = batch_clusters,
+  metric = "first_timing_above_1000"
+)
+
+# Plotting
+## Raw vs wrlg
+raw_vs_wrlg_vis <- visualize_comparison(
+  data = flit1000_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_wrlg", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean Wear log dataset)",
+)
+
+## Raw vs clusters
+raw_vs_clusters_vis <- visualize_comparison(
+  data = flit1000_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_clusters", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean algorithm dataset)",
+)
+
+## Combining the plots
+p8 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
+                                labels = c("A", "B"),
+                                ncol = 2,
+                                nrow = 1,
+                                align = "hv",
+                       common.legend = TRUE,
+                       legend = "right")
+
+flit1000_comparison <- ggpubr::annotate_figure(p8, top = text_grob("First time above threshold (1000 mEDI lux)", size = 18)) 
+
+flit1000_comparison
+```
+### LLiT 10 analysis
+```{r}
+# Calculation 
+llit10_all <- calculate_metric(
+  raw_df = batch_raw,
+  wrlg_df = batch_wrlg,
+  clusters_df = batch_clusters,
+  metric = "last_timing_above_10"
+)
+
+# Plotting
+## Raw vs wrlg
+raw_vs_wrlg_vis <- visualize_comparison(
+  data = llit10_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_wrlg", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean Wear log dataset)",
+)
+
+## Raw vs clusters
+raw_vs_clusters_vis <- visualize_comparison(
+  data = llit10_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_clusters", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean algorithm dataset)",
+)
+
+## Combining the plots
+p9 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
+                                labels = c("A", "B"),
+                                ncol = 2,
+                                nrow = 1,
+                                align = "hv",
+                       common.legend = TRUE,
+                       legend = "right")
+
+llit10_comparison <- ggpubr::annotate_figure(p9, top = text_grob("Last time above threshold (10 mEDI lux)", size = 18)) 
+
+llit10_comparison
+```
+### LLiT 250 analysis
+```{r}
+# Calculation 
+llit250_all <- calculate_metric(
+  raw_df = batch_raw,
+  wrlg_df = batch_wrlg,
+  clusters_df = batch_clusters,
+  metric = "last_timing_above_250"
+)
+
+# Plotting
+## Raw vs wrlg
+raw_vs_wrlg_vis <- visualize_comparison(
+  data = llit250_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_wrlg", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean Wear log dataset)",
+)
+
+## Raw vs clusters
+raw_vs_clusters_vis <- visualize_comparison(
+  data = llit250_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_clusters", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean algorithm dataset)",
+)
+
+## Combining the plots
+p10 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
+                                labels = c("A", "B"),
+                                ncol = 2,
+                                nrow = 1,
+                                align = "hv",
+                       common.legend = TRUE,
+                       legend = "right")
+
+llit250_comparison <- ggpubr::annotate_figure(p10, top = text_grob("Last time above threshold (250 mEDI lux)", size = 18)) 
+
+llit250_comparison
+```
+### LLiT 1000 analysis
+```{r}
+# Calculation 
+llit1000_all <- calculate_metric(
+  raw_df = batch_raw,
+  wrlg_df = batch_wrlg,
+  clusters_df = batch_clusters,
+  metric = "last_timing_above_1000"
+)
+
+# Plotting
+## Raw vs wrlg
+raw_vs_wrlg_vis <- visualize_comparison(
+  data = llit1000_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_wrlg", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean Wear log dataset)",
+)
+
+## Raw vs clusters
+raw_vs_clusters_vis <- visualize_comparison(
+  data = llit1000_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_clusters", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean algorithm dataset)",
+)
+
+## Combining the plots
+p11 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
+                                labels = c("A", "B"),
+                                ncol = 2,
+                                nrow = 1,
+                                align = "hv",
+                       common.legend = TRUE,
+                       legend = "right")
+
+llit1000_comparison <- ggpubr::annotate_figure(p11, top = text_grob("Last time above threshold (1000 mEDI lux)", size = 18)) 
+
+llit1000_comparison
+```
+### TAT 250 analysis
+```{r}
+# Calculation 
+tat250_all <- calculate_metric(
+  raw_df = batch_raw,
+  wrlg_df = batch_wrlg,
+  clusters_df = batch_clusters,
+  metric = "duration_above_250"
+)
+
+# Plotting
+## Raw vs wrlg
+raw_vs_wrlg_vis <- visualize_comparison(
+  data = tat250_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_wrlg", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean Wear log dataset)",
+)
+
+## Raw vs clusters
+raw_vs_clusters_vis <- visualize_comparison(
+  data = tat250_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_clusters", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean algorithm dataset)",
+)
+
+## Combining the plots
+p12 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
+                                labels = c("A", "B"),
+                                ncol = 2,
+                                nrow = 1,
+                                align = "hv",
+                       common.legend = TRUE,
+                       legend = "right")
+
+tat250_comparison <- ggpubr::annotate_figure(p12, top = text_grob("Duration above threshold (250 mEDI lux)", size = 18)) 
+
+tat250_comparison
+```
+### TAT 1000 comparison
+```{r}
+# Calculation 
+tat1000_all <- calculate_metric(
+  raw_df = batch_raw,
+  wrlg_df = batch_wrlg,
+  clusters_df = batch_clusters,
+  metric = "duration_above_1000"
+)
+
+# Plotting
+## Raw vs wrlg
+raw_vs_wrlg_vis <- visualize_comparison(
+  data = tat1000_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_wrlg", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean Wear log dataset)",
+)
+
+## Raw vs clusters
+raw_vs_clusters_vis <- visualize_comparison(
+  data = tat1000_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_clusters", 
+  x_label = "Mean time (Raw dataset)", 
+  y_label = "Mean time (Clean algorithm dataset)",
+)
+
+## Combining the plots
+p13 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
+                                labels = c("A", "B"),
+                                ncol = 2,
+                                nrow = 1,
+                                align = "hv",
+                       common.legend = TRUE,
+                       legend = "right")
+
+tat1000_comparison <- ggpubr::annotate_figure(p13, top = text_grob("Duration above threshold (1000 mEDI lux)", size = 18)) 
+
+tat1000_comparison
 ```
 
 
