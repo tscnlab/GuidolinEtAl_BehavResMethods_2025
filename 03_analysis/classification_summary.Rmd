@@ -218,17 +218,17 @@ The classification above led to 4 instances, i.e. intervals, which could no be a
 vis_chek <- misclass_reasons %>%
   filter(reason == "visual_check")
 
-# Case 1: The FN intPID 212 from 2023-09-11 21:13:00 to 2023-09-11 21:21:50 reported using the bag, but the mean MEDI is < 1 lux. The interval duration is 9 minutes. From visual inspection, we can see that they did use the bag. Hence, this misclassification is likely due to an algorithm limitation of detecting clusters > 10 minutes. We change this manually. 
+# Case 1: The FN interval detected for PID 212 ranges from 2023-09-11 21:13:00 to 2023-09-11 21:21:50. They reported using the bag during this this, but the mean MEDI is < 1 lux. The interval duration is 9 minutes. From visual inspection, we can see that they did use the bag. Hence, this misclassification is likely due to an algorithm limitation of detecting clusters > 10 minutes. We change this manually. 
 
 misclass_reasons_1 <- misclass_reasons %>%
   mutate(reason = ifelse(Id == "212" & xmax == as.POSIXct("2023-09-11 21:21:50", tz = tz), "algorithm limitation or bag actually not used", reason))
 
-# Case 2: PID 222 reported not using the bag from 2023-10-26 16:04:02 to 2023-10-26 16:31:52 and mean MEDI <1 lux in this 28 minute interval. Upon visual inspection, we identify that this was not detected as a low illuminance cluster because there are multiple timepoints where MEDI is above threshold (1 lux), even if the average is below threshold. We change this manually and label is as algorithm limitation. 
+# Case 2: The FN interval detected for PID 222 ranges from 2023-10-26 16:04:02 to 2023-10-26 16:31:52. During this period, they reported not using the bag, and the mean MEDI is <1 lux in this 28 minute interval. Upon visual inspection, we identify that this was not detected as a low illuminance cluster because there are multiple timepoints where MEDI is above threshold (1 lux), even if the average is below threshold. We change this manually and label is as algorithm limitation. 
 
 misclass_reasons_2 <- misclass_reasons_1 %>%
   mutate(reason = ifelse(Id == "222" & xmax == as.POSIXct("2023-10-26 16:31:52", tz = tz), "algorithm limitation or bag actually not used", reason))
 
-# Case 3: PID 225 reported using the bag from 2023-10-31 05:42:05 to 2023-10-31 05:45:55 (4 minute FN interval). The mean MEDI here is also below threshold. This is an algorithm limitation, as the interval is too short to be detected by our cluster function. We can label it as such manually. 
+# Case 3: The FN interval detected for PID 225 ranges from 2023-10-31 05:42:05 to 2023-10-31 05:45:55 (4 minutes), during which they reported using the bag. The mean MEDI here is also below threshold. This is an algorithm limitation, as the interval is too short to be detected by our cluster function. We can label it as such manually. 
 
 misclass_reasons_3 <- misclass_reasons_2 %>%
   mutate(reason = ifelse(Id == "225" & xmax == as.POSIXct("2023-10-31 05:45:55", tz = tz), "algorithm limitation or bag actually not used", reason))
@@ -348,7 +348,7 @@ We create this function in the file add_pad_fun.R, where each step is described.
 # If you want to change this, you have to do this in the function itself
 nw_alg_padded <- add_transition_pad(nw_alg)
 
-# Note that since we apply the alg_perf function and then the add_transition_pad function to the dataset where sleep states have been coded as NAs (df.LL.nosleep), the classification of these intervals returns a NA (for every State == sleep, classification == NA and also reason == NA. However, the observations corresponding to these still do return a value for is_low_medi_cluster. Since we do not want this, we will set every value of is_low_medi_cluster to NA, when it corresponds to a State == NA. We also want to re-code the sleep states from NA to 2. 
+# Note that since we apply the alg_perf function and then the add_transition_pad function to the dataset where sleep states have been coded as NAs (df.LL.nosleep), the classification of these intervals returns a NA (for every State == sleep, classification == NA and also reason == NA). However, the observations corresponding to these still do return a value for is_low_medi_cluster. Since we do not want this, we will set every value of is_low_medi_cluster to NA, when it corresponds to a State == NA. We also want to re-code the sleep states from NA to 2. 
 
 nw_alg_padded <- nw_alg_padded %>%
   mutate(is_low_medi_cluster = if_else(is.na(State), NA, is_low_medi_cluster),
