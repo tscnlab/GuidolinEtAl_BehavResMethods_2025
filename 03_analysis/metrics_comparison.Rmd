@@ -83,34 +83,26 @@ is_nw_clusters <- nw_clusters %>%
 temp <- full_join(is_raw_dataset, is_nw_wrlg, by = "Id") #first, combine raw and wrlg data sets
 is_all <- full_join(temp, is_nw_clusters, by = "Id") #second, add clusters data set
 
-# Turning df into long form to perform computations
-is_all_long <- is_all %>%
-  pivot_longer(cols = c("IS_raw", "IS_wrlg", "IS_clusters"),
-                        names_to = "df",
-                        values_to = "is")
-
-# Compute sign test
-library(rstatix)
-
-is_sign <- is_all_long %>%
-  rstatix::sign_test(is ~ df) %>%
-  add_significance()
+# Calculating deltas
+is_all <- is_all %>%
+  mutate(delta_wrlg = IS_wrlg - IS_raw,
+         delta_clusters = IS_clusters - IS_raw)
 
 
 ```
 
 #### Plotting interdaily stability
 ```{r}
-# Raw vs clean (wrlg)
+# Raw vs clean (wrlg) scatterplot
 clean_wrlg <- ggpubr::ggscatter(data = is_all,
           x = "IS_raw",
           y = "IS_wrlg",
           color = "Id",
           ggtheme = theme_bw()) +
-    ggpubr::stat_cor(aes(label = after_stat(r.label)), # add r coefficient but not p value
-                   method = "pearson",
-                   label.x = 0.03,
-                   label.y = 0.95) +
+   # ggpubr::stat_cor(aes(label = after_stat(r.label)), # add r coefficient but not p value
+   #                method = "pearson",
+   #                label.x = 0.03,
+    #               label.y = 0.95) +
   geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
   ggplot2::scale_x_continuous(
     limits = c(0, 1),
@@ -122,18 +114,19 @@ clean_wrlg <- ggpubr::ggscatter(data = is_all,
     labels = c("0", "0.50", "1")
   ) + 
   labs(x = "Raw dataset", y = "Clean dataset (Wear log)") +
-  coord_fixed(ratio = 1)
+  coord_fixed(ratio = 1) +
+  ggpubr::rremove("legend")
 
-# Raw vs clean (clusters) 
+# Raw vs clean (clusters) scatterplot
 clean_clusters <- ggpubr::ggscatter(data = is_all,
           x = "IS_raw",
           y = "IS_clusters",
           color = "Id",
           ggtheme = theme_bw()) +
-    ggpubr::stat_cor(aes(label = after_stat(r.label)), # add r coefficient but not p value
-                   method = "pearson",
-                   label.x = 0.03,
-                   label.y = 0.95) +
+   # ggpubr::stat_cor(aes(label = after_stat(r.label)), # add r coefficient but not p value
+    #               method = "pearson",
+    #               label.x = 0.03,
+     #              label.y = 0.95) +
    geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
   ggplot2::scale_x_continuous(
     limits = c(0, 1),
@@ -145,21 +138,38 @@ clean_clusters <- ggpubr::ggscatter(data = is_all,
     labels = c("0", "0.50", "1")
   ) + 
   labs(x = "Raw dataset", y = "Clean dataset (algorithm)") +
-  coord_fixed(ratio = 1)
+  coord_fixed(ratio = 1) +
+  ggpubr::rremove("legend")
 
+# Histogram of deltas
+## First, do some re-structuring
+# Turning df into long form to perform computations
+is_all_long <- is_all %>%
+  pivot_longer(cols = c(delta_wrlg, delta_clusters),
+                        names_to = "metric",
+                        values_to = "delta")
+
+delta_hist <- ggplot(is_all_long, aes(x = delta, fill = metric)) +
+  geom_histogram(position = "identity", alpha = 0.5, bins = 50, color = "black") +
+  labs(x = "Delta", y = "Frequency") +
+  scale_fill_manual(
+    name = "Metric",
+    values = c("#0072B2", "#D55E00"),
+    labels = c("Algorithm dataset", "Wear log dataset")
+    ) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5), 
+        aspect.ratio = 1) 
 
 # Combining the plots
-p1 <- ggpubr::ggarrange(clean_wrlg, clean_clusters,
-                                labels = c("A", "B"),
-                                ncol = 2,
-                                nrow = 1,
-                                align = "hv",
-                       common.legend = TRUE,
-                       legend = "right")
+## Make sure you have patchwork loaded in
+p1 <- clean_wrlg + clean_clusters + delta_hist + 
+  plot_annotation("Interdaily stability",
+  tag_levels = list(c("A1", "A2", "A3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
-is_comparison <- ggpubr::annotate_figure(p, top = text_grob("Interdaily stability", size = 18)) 
+p1
 
-is_comparison
 ```
 
 ### 2. Calculating intradaily variability
@@ -199,6 +209,11 @@ iv_nw_clusters <- nw_clusters %>%
 # Combining the dfs 
 temp <- full_join(iv_raw_dataset, iv_nw_wrlg, by = "Id") #first, combine raw and wrlg data sets
 iv_all <- full_join(temp, iv_nw_clusters, by = "Id") #second, add clusters data set
+
+# Calculating delta
+iv_all <- iv_all %>%
+    mutate(delta_wrlg = IV_wrlg - IV_raw,
+          delta_clusters = IV_clusters - IV_raw)
 ```
 
 #### Plotting intradaily variability 
@@ -209,10 +224,10 @@ clean_wrlg <- ggpubr::ggscatter(data = iv_all,
           y = "IV_wrlg",
           color = "Id",
           ggtheme = theme_bw()) +
-    ggpubr::stat_cor(aes(label = after_stat(r.label)), # add r coefficient but not p value
-                   method = "pearson",
-                   label.x = 0.03,
-                   label.y = 1.95) +
+   # ggpubr::stat_cor(aes(label = after_stat(r.label)), # add r coefficient but not p value
+   #                method = "pearson",
+    #               label.x = 0.03,
+     #               label.y = 1.95) +
   geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
   ggplot2::scale_x_continuous(
     limits = c(0, 2),
@@ -225,7 +240,8 @@ clean_wrlg <- ggpubr::ggscatter(data = iv_all,
     labels = c("0", "0.50", "1", "1.5", "2")
   ) + 
   labs(x = "Raw dataset", y = "Clean dataset (Wear log)") +
-  coord_fixed(ratio = 1)
+  coord_fixed(ratio = 1) + 
+  ggpubr::rremove("legend")
 
 # Raw vs clean (clusters) 
 clean_clusters <- ggpubr::ggscatter(data = iv_all,
@@ -233,10 +249,10 @@ clean_clusters <- ggpubr::ggscatter(data = iv_all,
           y = "IV_clusters",
           color = "Id",
           ggtheme = theme_bw()) +
-    ggpubr::stat_cor(aes(label = after_stat(r.label)), # add r coefficient but not p value
-                   method = "pearson",
-                   label.x = 0.03,
-                   label.y = 1.95) +
+    #ggpubr::stat_cor(aes(label = after_stat(r.label)), # add r coefficient but not p value
+   #                method = "pearson",
+    #               label.x = 0.03,
+    #               label.y = 1.95) +
    geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
   ggplot2::scale_x_continuous(
     limits = c(0, 2),
@@ -249,21 +265,41 @@ clean_clusters <- ggpubr::ggscatter(data = iv_all,
     labels = c("0", "0.50", "1", "1.5", "2")
   ) + 
   labs(x = "Raw dataset", y = "Clean dataset (algorithm)") +
-  coord_fixed(ratio = 1)
+  coord_fixed(ratio = 1) + 
+  ggpubr::rremove("legend")
+
+# Histogram of deltas
+## First, do some re-structuring
+# Turning df into long form to perform computations
+iv_all_long <- iv_all %>%
+  pivot_longer(cols = c(delta_wrlg, delta_clusters),
+                        names_to = "metric",
+                        values_to = "delta")
+
+delta_hist <- ggplot(iv_all_long, aes(x = delta, fill = metric)) +
+  geom_histogram(position = "identity", alpha = 0.5, bins = 50, color = "black") +
+  labs(x = "Delta", y = "Frequency") +
+  scale_fill_manual(
+    name = "Metric",
+    values = c("#0072B2", "#D55E00"),
+    labels = c("Algorithm dataset", "Wear log dataset")
+    ) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5), 
+        aspect.ratio = 1) 
 
 
 # Combining the plots
-p2 <- ggpubr::ggarrange(clean_wrlg, clean_clusters,
-                                labels = c("A", "B"),
-                                ncol = 2,
-                                nrow = 1,
-                                align = "hv",
-                       common.legend = TRUE,
-                       legend = "right")
+## Make sure you have patchwork loaded in
+p2 <- clean_wrlg + clean_clusters + delta_hist + 
+  plot_annotation("Intradaily variability",
+  tag_levels = list(c("B1", "B2", "B3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
-iv_comparison <- ggpubr::annotate_figure(p2, top = text_grob("Intradaily variability", size = 18)) 
+p2
 
-iv_comparison
+
+
 ```
 ### Calculating batch metrics for each participants on each day of the experimental week 
 - MLIT250, FLIT250, LLIT250
@@ -391,18 +427,18 @@ raw_vs_clusters_vis <- visualize_comparison(
   y_label = "Mean time (Clean algorithm dataset)",
 )
 
+## Histogram of deltas 
+delta_hist <- vis_deltas(df = mlit10_all,
+           delta_col = "delta",
+           metric_col = "metric") 
+
 ## Combining the plots
-p3 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
-                                labels = c("A", "B"),
-                                ncol = 2,
-                                nrow = 1,
-                                align = "hv",
-                       common.legend = TRUE,
-                       legend = "right")
+p3 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
+  plot_annotation("Mean timing of light above 10 lux",
+  tag_levels = list(c("C1", "C2", "C3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
-mlit10_comparison <- ggpubr::annotate_figure(p3, top = text_grob("Time above threshold (10 mEDI lux)", size = 18)) 
-
-mlit10_comparison
+p3
 ```
 ### MLiT250 analysis
 ```{r}
@@ -433,18 +469,18 @@ raw_vs_clusters_vis <- visualize_comparison(
   y_label = "Mean time (Clean algorithm dataset)",
 )
 
+## Histogram of deltas 
+delta_hist <- vis_deltas(df = mlit250_all,
+           delta_col = "delta",
+           metric_col = "metric") 
+
 ## Combining the plots
-p4 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
-                                labels = c("A", "B"),
-                                ncol = 2,
-                                nrow = 1,
-                                align = "hv",
-                       common.legend = TRUE,
-                       legend = "right")
+p4 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
+  plot_annotation("Mean timing of light above 250 lux",
+  tag_levels = list(c("D1", "D2", "D3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
-mlit250_comparison <- ggpubr::annotate_figure(p4, top = text_grob("Time above threshold (250 mEDI lux)", size = 18)) 
-
-mlit250_comparison
+p4
 ```
 #### MLiT 1000 analysis
 ```{r}
@@ -475,18 +511,18 @@ raw_vs_clusters_vis <- visualize_comparison(
   y_label = "Mean time (Clean algorithm dataset)",
 )
 
+## Histogram of deltas 
+delta_hist <- vis_deltas(df = mlit1000_all,
+           delta_col = "delta",
+           metric_col = "metric") 
+
 ## Combining the plots
-p5 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
-                                labels = c("A", "B"),
-                                ncol = 2,
-                                nrow = 1,
-                                align = "hv",
-                       common.legend = TRUE,
-                       legend = "right")
+p5 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
+  plot_annotation("Mean timing of light above 1000 lux",
+  tag_levels = list(c("E1", "E2", "E3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
-mlit1000_comparison <- ggpubr::annotate_figure(p5, top = text_grob("Time above threshold (1000 mEDI lux)", size = 18)) 
-
-mlit1000_comparison
+p5
 ```
 ### FLiT 10 analysis
 ```{r}
@@ -517,18 +553,18 @@ raw_vs_clusters_vis <- visualize_comparison(
   y_label = "Mean time (Clean algorithm dataset)",
 )
 
+## Histogram of deltas 
+delta_hist <- vis_deltas(df = flit10_all,
+           delta_col = "delta",
+           metric_col = "metric") 
+
 ## Combining the plots
-p6 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
-                                labels = c("A", "B"),
-                                ncol = 2,
-                                nrow = 1,
-                                align = "hv",
-                       common.legend = TRUE,
-                       legend = "right")
+p6 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
+  plot_annotation("First timing of light above 10 lux",
+  tag_levels = list(c("F1", "F2", "F3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
-flit10_comparison <- ggpubr::annotate_figure(p6, top = text_grob("First time above threshold (10 mEDI lux)", size = 18)) 
-
-flit10_comparison
+p6
 ```
 ### FLiT 250 analysis
 ```{r}
@@ -559,18 +595,18 @@ raw_vs_clusters_vis <- visualize_comparison(
   y_label = "Mean time (Clean algorithm dataset)",
 )
 
+## Histogram of deltas 
+delta_hist <- vis_deltas(df = flit250_all,
+           delta_col = "delta",
+           metric_col = "metric") 
+
 ## Combining the plots
-p7 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
-                                labels = c("A", "B"),
-                                ncol = 2,
-                                nrow = 1,
-                                align = "hv",
-                       common.legend = TRUE,
-                       legend = "right")
+p7 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
+  plot_annotation("First timing of light above 250 lux",
+  tag_levels = list(c("G1", "G2", "G3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
-flit250_comparison <- ggpubr::annotate_figure(p7, top = text_grob("First time above threshold (250 mEDI lux)", size = 18)) 
-
-flit250_comparison
+p7
 ```
 
 ### FLiT 1000 comparison 
@@ -602,18 +638,18 @@ raw_vs_clusters_vis <- visualize_comparison(
   y_label = "Mean time (Clean algorithm dataset)",
 )
 
+## Histogram of deltas 
+delta_hist <- vis_deltas(df = flit1000_all,
+           delta_col = "delta",
+           metric_col = "metric") 
+
 ## Combining the plots
-p8 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
-                                labels = c("A", "B"),
-                                ncol = 2,
-                                nrow = 1,
-                                align = "hv",
-                       common.legend = TRUE,
-                       legend = "right")
+p8 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
+  plot_annotation("First timing of light above 1000 lux",
+  tag_levels = list(c("H1", "H2", "H3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
-flit1000_comparison <- ggpubr::annotate_figure(p8, top = text_grob("First time above threshold (1000 mEDI lux)", size = 18)) 
-
-flit1000_comparison
+p8
 ```
 ### LLiT 10 analysis
 ```{r}
@@ -644,18 +680,19 @@ raw_vs_clusters_vis <- visualize_comparison(
   y_label = "Mean time (Clean algorithm dataset)",
 )
 
+## Histogram of deltas 
+delta_hist <- vis_deltas(df = llit10_all,
+           delta_col = "delta",
+           metric_col = "metric") 
+
 ## Combining the plots
-p9 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
-                                labels = c("A", "B"),
-                                ncol = 2,
-                                nrow = 1,
-                                align = "hv",
-                       common.legend = TRUE,
-                       legend = "right")
+p9 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
+  plot_annotation("Last timing of light above 10 lux",
+  tag_levels = list(c("I1", "I2", "I3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
-llit10_comparison <- ggpubr::annotate_figure(p9, top = text_grob("Last time above threshold (10 mEDI lux)", size = 18)) 
+p9
 
-llit10_comparison
 ```
 ### LLiT 250 analysis
 ```{r}
@@ -686,18 +723,18 @@ raw_vs_clusters_vis <- visualize_comparison(
   y_label = "Mean time (Clean algorithm dataset)",
 )
 
+## Histogram of deltas 
+delta_hist <- vis_deltas(df = llit250_all,
+           delta_col = "delta",
+           metric_col = "metric") 
+
 ## Combining the plots
-p10 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
-                                labels = c("A", "B"),
-                                ncol = 2,
-                                nrow = 1,
-                                align = "hv",
-                       common.legend = TRUE,
-                       legend = "right")
+p10 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
+  plot_annotation("Last timing of light above 250 lux",
+  tag_levels = list(c("J1", "J2", "J3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
-llit250_comparison <- ggpubr::annotate_figure(p10, top = text_grob("Last time above threshold (250 mEDI lux)", size = 18)) 
-
-llit250_comparison
+p10
 ```
 ### LLiT 1000 analysis
 ```{r}
@@ -728,18 +765,18 @@ raw_vs_clusters_vis <- visualize_comparison(
   y_label = "Mean time (Clean algorithm dataset)",
 )
 
+## Histogram of deltas 
+delta_hist <- vis_deltas(df = llit1000_all,
+           delta_col = "delta",
+           metric_col = "metric") 
+
 ## Combining the plots
-p11 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
-                                labels = c("A", "B"),
-                                ncol = 2,
-                                nrow = 1,
-                                align = "hv",
-                       common.legend = TRUE,
-                       legend = "right")
+p11 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
+  plot_annotation("Last timing of light above 1000 lux",
+  tag_levels = list(c("K1", "K2", "K3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
-llit1000_comparison <- ggpubr::annotate_figure(p11, top = text_grob("Last time above threshold (1000 mEDI lux)", size = 18)) 
-
-llit1000_comparison
+p11
 ```
 ### TAT 250 analysis
 ```{r}
@@ -770,18 +807,18 @@ raw_vs_clusters_vis <- visualize_comparison(
   y_label = "Mean time (Clean algorithm dataset)",
 )
 
+## Histogram of deltas 
+delta_hist <- vis_deltas(df = tat250_all,
+           delta_col = "delta",
+           metric_col = "metric") 
+
 ## Combining the plots
-p12 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
-                                labels = c("A", "B"),
-                                ncol = 2,
-                                nrow = 1,
-                                align = "hv",
-                       common.legend = TRUE,
-                       legend = "right")
+p12 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
+  plot_annotation("Time above 250 lux",
+  tag_levels = list(c("M1", "M2", "M3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
-tat250_comparison <- ggpubr::annotate_figure(p12, top = text_grob("Duration above threshold (250 mEDI lux)", size = 18)) 
-
-tat250_comparison
+p12
 ```
 ### TAT 1000 comparison
 ```{r}
@@ -812,18 +849,32 @@ raw_vs_clusters_vis <- visualize_comparison(
   y_label = "Mean time (Clean algorithm dataset)",
 )
 
+## Histogram of deltas 
+delta_hist <- vis_deltas(df = tat1000_all,
+           delta_col = "delta",
+           metric_col = "metric") 
+
 ## Combining the plots
-p13 <- ggpubr::ggarrange(raw_vs_wrlg_vis, raw_vs_clusters_vis,
-                                labels = c("A", "B"),
-                                ncol = 2,
-                                nrow = 1,
-                                align = "hv",
-                       common.legend = TRUE,
-                       legend = "right")
+p13 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
+  plot_annotation("Time above 1000 lux",
+  tag_levels = list(c("N1", "N2", "N3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
-tat1000_comparison <- ggpubr::annotate_figure(p13, top = text_grob("Duration above threshold (1000 mEDI lux)", size = 18)) 
+p13
 
-tat1000_comparison
+```
+### Combining this into one big multiplot
+```{r}
+all_plots <- p1 / p2 / p3 / p4
+
+/ p7 / p8 / p9 / p10 / p11 / p12 / p13
+
+ggsave(filename = "results_fig08.png",
+       plot = all_plots, 
+       width = 210,
+       height = 297,
+       units = "mm",
+       path = "Z:/nonwear_detection/preprint_figures/results/fig08")
 ```
 
 

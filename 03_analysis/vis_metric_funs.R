@@ -59,6 +59,11 @@ calculate_metric <- function(raw_df, wrlg_df, clusters_df, metric) {
     rename(mean_clusters = mean_time,
            sd_clusters = sd_time)
   
+  # Calculating deltas 
+  metric_all <- metric_all %>%
+    mutate(delta_wrlg = hms::as_hms(mean_wrlg - mean_raw),
+           delta_clusters = hms::as_hms(mean_clusters - mean_raw)) 
+  
   return(metric_all)
 }
 
@@ -73,8 +78,34 @@ visualize_comparison <- function(data, x_col, y_col, x_label, y_label, title) {
     scale_x_continuous(labels = function(x) hms::as_hms(x)) + 
     labs(x = x_label, y = y_label) +
     coord_fixed(ratio = 1) +
-    theme_bw()
+    theme_bw() +
+    ggpubr::rremove("legend") 
   
   print(p)
 }
 
+## Function for visualising histogram of deltas.
+
+vis_deltas <- function (df, delta_col, metric_col) {
+  
+  # Turning df into long form to perform computations
+  df_long <- df %>%
+  pivot_longer(cols = c(delta_wrlg, delta_clusters),
+               names_to = "metric",
+               values_to = "delta")
+  
+  # Create histogram
+  b <- ggplot(df_long, aes(x = (.data[[delta_col]]), fill = (.data[[metric_col]]))) +
+  geom_histogram(position = "identity", alpha = 0.5, bins = 50, color = "black") +
+  labs(x = "Delta", y = "Frequency") +
+  scale_fill_manual(
+    name = "Metric",
+    values = c("#0072B2", "#D55E00"),
+    labels = c("Algorithm dataset", "Wear log dataset")
+  ) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5), 
+        aspect.ratio = 1) 
+  
+  return(b)
+}
