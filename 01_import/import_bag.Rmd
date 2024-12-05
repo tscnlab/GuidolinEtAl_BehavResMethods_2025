@@ -19,6 +19,7 @@ knitr::opts_chunk$set(echo = TRUE)
 First, we need to re-adjust the original Wear log file, where the black bag information is contained.
 ```{r pressure, echo=FALSE}
 #First, turn it into a dataframe
+
 wearlog_df <- lapply(
   wearlogfiles, 
   function(x) read.csv(x, stringsAsFactors = FALSE, sep = ";")
