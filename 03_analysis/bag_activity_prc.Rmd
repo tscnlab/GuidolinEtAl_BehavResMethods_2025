@@ -21,10 +21,97 @@ These functions (find_clusters_funs, loaded in separately) identify clusters of 
 2) minimum length of the clusters
 3) max interrpution length for the cluster to still be identified as such 
 
-### Loading in the data, if not already there
+### Optional: loading in the RDS data saved from the wearlog_LL_fusion.Rmd script, if not already there
 ```{r}
 clean.LL.wrlg <- readRDS('clean_data.Rds')
 ```
+
+## First, let's explore the relationship between light and activity across wear log status
+```{r}
+#We will be plotting using log10 transformation, so we cannot have 0 values in our data set. For this reason, we add 1 to each value in MEDI and PIM
+
+vis.LL.wrlg <- dataset.LL.wrlg
+
+vis.LL.wrlg$MEDI <- vis.LL.wrlg$MEDI + 1
+vis.LL.wrlg$PIM <- vis.LL.wrlg$PIM + 1
+
+#To be able to visually observe how light and activity relate to each other in our data set, we cannot plot all our data points (too many). So, we take median values of each Id, for each State (off/on/sleep)
+
+median.LL.wrlg <- vis.LL.wrlg %>%
+#  filter(!State == "sleep") %>%
+  group_by(Id, State) %>%
+  summarise(median_medi = median(log10(MEDI), na.rm = TRUE),
+            median_pim = median(log10(PIM), na.rm = TRUE),
+            qr1_medi = quantile(log10(MEDI), 1/4, na.rm = TRUE), #first quantile
+            qr1_pim = quantile(log10(PIM), 1/4, na.rm = TRUE), #first quantile
+            qr3_medi = quantile(log10(MEDI), 3/4, na.rm = TRUE), #third quantile
+            qr3_pim = quantile(log10(PIM), 3/4, na.rm = TRUE)) %>% #third quantile
+  ungroup()
+
+set.seed(1) #we will use geom_jitter, which uses random sampling. For reproducibility we need to set.seed(1) so that running the script multiple times will lead to the same plot
+
+scatter <- ggplot(median.LL.wrlg, aes(x = median_medi, y = median_pim)) + 
+  geom_jitter(aes(fill = State, color = State), size = 2.5, alpha = 0.6,
+              position = position_jitter(width = .3, height = .3)) + #adjust position of points to avoid overlap
+   scale_fill_manual(
+    name = "Wear log \n'state'",
+    values = c("off" = "darkred", "on" = "#0072B2", "sleep" = "darkgoldenrod2"),
+    labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
+  scale_color_manual(
+    name = "Wear log \n'state'",
+    values = c("off" = "darkred", "on" = "#0072B2", "sleep" = "darkgoldenrod2"),
+    labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
+  scale_x_continuous(
+    breaks = c(-1, 1,3), 
+    labels = c(expression(10^-1), expression(10^1), expression(10^3)), #ensure that the log expression is labelled correctly 
+    limits = c(-1, 4)
+  ) +
+  scale_y_continuous(
+    breaks = c(-1, 1, 3),
+    labels = c(expression(10^-1), expression(10^1), expression(10^3)), #ensure that the log expression is labelled correctly 
+    limits = c(-1, 4)
+  ) +
+  labs(x = "Median of log illuminance (mEDI, lx)",
+       y = "Median of log activity (PIM)") +
+  coord_fixed(ratio=1) + #make sure plot is a square
+  theme_bw() + 
+  theme(plot.title = element_text(hjust = 0.5, size = 18),
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 12, hjust = 0.5),
+        legend.text = element_text(size = 10),
+        legend.position = "bottom") +
+  guides(fill = guide_legend(nrow = 1))
+  
+#Add a boxpot as a marginal plot using package ggExtra
+library(ggExtra)
+library(ggpubr)
+
+marginal <- ggExtra::ggMarginal(scatter, type = "boxplot", groupColour = TRUE, groupFill = TRUE)
+
+
+plot_marginal <- ggpubr::annotate_figure(marginal,
+                                 #Add title
+                                 top = text_grob("Relationship between illuminance \nand activity across wear log states",
+                                                            color = "black",
+                                                            face = "plain",
+                                                            size = 18))
+
+```
+### Saving the plot
+```{r}
+
+ggsave(filename = "results_fig04a.svg",
+       plot = plot_marginal ,
+       width = 5,
+       height = 5.5,
+       dpi = 600,
+       bg = "white",
+       path= "H:/nonwear_detection/preprint_figures/results/fig04")
+```
+
+### Conclusion from this plot
+It seems like during wear time, activity and light are high, while during non-wear time, they are low. Hence, we will next implement a method to detect clusters of low illuminance and low activity as a way of classifing non-wear time. 
 
 ### Creating a dataframe without sleep states
 Since we want to classify wear and non-wear based on clusters of low illuminance, we do not care about the time that the participants are sleeping. In other words, the wear and non-wear classification does not apply to this period. To be able to use the dataset.LL.wrlg and run the classification on it, we first need to set all "sleep" values (based on Wear log data) as NA
@@ -162,7 +249,7 @@ prc_combined <- ggplot() +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
        title = "Precision-recall curve for detection of \nnon-wear intervals based on activity \nand illuminance thresholds",
-       subtitle = "Min. length = 10 min, max. interruption = 0 min") +
+      ) +
   #Adding the symbols for the arrows as text and the label
   annotate("text",
            x = 0.67,
@@ -196,10 +283,37 @@ prc_combined <- ggplot() +
   coord_fixed(ratio = 1) 
 
 #Save the plot
-ggsave(filename = "results_fig04b.svg",
+ggsave(filename = "results_fig04b.png",
        plot = prc_combined,
        height = 5.5, 
        width = 5,
+       dpi = 600,
+       bg = "white",
+       path= "H:/nonwear_detection/preprint_figures/results/fig04")
+```
+
+### Combining the plots
+```{r}
+library(cowplot)
+
+
+medi_pim_fig <- cowplot::plot_grid(plot_marginal,
+                          prc_combined,
+                          labels = c("A", "B"),
+                          nrow = 1,
+                          align = "v",
+                          axis = "tblr",
+                          rel_widths = c(1,1),
+                          rel_heights = c(1,1))
+
+medi_pim_fig <- plot_marginal + prc_combined +
+  plot_annotation(tag_levels = list(c("A", "B")))
+
+# Save the plot
+ggsave(filename = "results_fig04_all.png",
+       plot = medi_pim_fig,
+       height = 5.5, 
+       width = 10,
        dpi = 600,
        bg = "white",
        path= "H:/nonwear_detection/preprint_figures/results/fig04")
@@ -348,10 +462,10 @@ prc_multiplot <- ggplot() +
    coord_fixed(ratio = 1)
 
 #Save the plot
-ggsave(filename = "results_fig05.svg",
+ggsave(filename = "results_fig05.png",
        plot = prc_multiplot,
-       height = 11, 
-       width = 11,
+       height = 10, 
+       width = 10,
        dpi = 600,
        bg = "white",
        path= "H:/nonwear_detection/preprint_figures/results/fig05")
