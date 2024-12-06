@@ -96,13 +96,13 @@ states_dist_jitter2 <- ggplot(data = int_duration, aes(x=id_duration_per, y = St
   ggpubr::rremove("ylab") +
   ggpubr::rremove("y.ticks") +
  # ggpubr::rremove("xlab")+ 
-  labs(title = "(Non-)wear time distribution across the week", x = "Percentage of time (%)") +
-  coord_fixed(ratio = 12) + # reduce white space between categorical variables on y axis
+  labs(title = "Wear status distribution across the week", x = "Percentage of time (%)") +
+  coord_fixed(ratio = 14) + # reduce white space between categorical variables on y axis
   theme(legend.position = "none",
-        plot.title = element_text(hjust = 0.5, size = 18),
+        plot.title = element_text(size = 18),
         axis.text.x = element_text(size = 14),
         axis.title = element_text(size = 16),
-        axis.text.y = element_text(size = 14))
+        axis.text.y = element_text(size = 14, colour = "black"))
 
 #We want to add a 2nd axis to the plot, where hours, instead of % of time, are specified
 
@@ -110,7 +110,7 @@ int_duration$tot_intlength_hours <- as.numeric(int_duration$tot_intlength) / 360
   
 second_x_axis <- ggplot(data = int_duration, aes(x = tot_intlength_hours, y = 0.01)) +
   geom_blank() +  # Create an empty plot
-  scale_x_continuous(limits = c(0, 166), breaks = c(0, 20, 40, 60, 80, 100, 120, 140, 166), 
+  scale_x_continuous(limits = c(0, 166), breaks = c(0, 40, 80, 120, 166), 
                      expand = c(0.05,0.05)) +
   coord_fixed(ratio = 4) +
   theme_ggdist() +
@@ -127,16 +127,16 @@ second_x_axis <- ggplot(data = int_duration, aes(x = tot_intlength_hours, y = 0.
 
 state_dist_2axis_2 <- states_dist_jitter2/second_x_axis
 
+state_dist_2axis_2 <- state_dist_2axis_2 + theme(plot.margin=margin(t = 0,
+                                                                  b = 10,
+                                                                  r = 10,
+                                                                  l = 10))
+
+
 ```
 
-## Save plots above
+## Save combined plot above
 ```{r}
-ggsave(filename = "states-distribution-1axis.png",
-       plot = states_dist_jitter2 ,
-       width =8,
-       height = 5,
-       dpi = 600,
-       path= "G:/cyepi/code/outputs/wrlg_plots")
 
 ggsave(filename = "results_fig02a.svg",
        plot = state_dist_2axis_2,
@@ -174,23 +174,28 @@ timing_off <- wrlg_int %>%
 timing_dens_plot <- ggplot(timing_off, aes(x = as.numeric(centre_point_h), y = after_stat(count))) +
   geom_histogram(color = "black", fill = "darkred", alpha = 0.6, position = "identity", bins = 24) +
   geom_density(color = "black", fill= "darkred", alpha = 0.3, outline.type = "upper") +
-  labs(x = "Centre point of non-wear interval", y = "Number of Wake 'off' events", title = "Timing of non-wear episodes across the day") +
+  labs(x = "Local time (HH:MM)", y = "Frequency of \nWake 'off' events", title = "Timing of non-wear episodes across the day") +
   scale_x_continuous(
     breaks = c(0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24),
     labels = c("00:00", "02:00", "04:00", "06:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00", "22:00", "24:00"),
     expand = c(0.0,0.0)) +
-   theme_ggdist() +
+  theme_ggdist() +
    theme(legend.position = "none",
-        plot.title = element_text(hjust = 0.5, size = 18),
+        plot.title = element_text(size = 18),
         axis.text.x = element_text(size = 14, angle = 45, hjust = 1),
-        axis.title = element_text(size = 16),
-        axis.text.y = element_text(size = 14))
+        axis.title = element_text(size = 14),
+        axis.text.y = element_text(size = 14),
+        plot.margin=margin(t = 0,
+                           b = 10,
+                           r = 10,
+                           l = 10)) +
+  coord_fixed(ratio = 0.6) 
 
 # Saving the plot
-ggsave(filename = "results_fig02b.pdf",
+ggsave(filename = "results_fig02c.png",
        plot = timing_dens_plot,
        width = 7,
-       height = 2,
+       height = 6,
        dpi = 600,
        path= "H:/nonwear_detection/preprint_figures/results/fig02")
 
@@ -257,6 +262,10 @@ wknd_wkday <- wknd_wkday.combined %>%
                                      as.numeric(off_length)/as.numeric(wk_duration)),
          perc_length = normalised_length * 100)
 
+# Turning day_type into factor for plotting
+wknd_wkday$day_type <- factor(wknd_wkday$day_type, levels = c("weekend", "weekday"))
+
+# Raincloud plot
  wknd_wk_dist <- ggplot(data = wknd_wkday, aes(x=perc_length, y = day_type, fill = day_type)) +
   scale_x_continuous(limits = c(0,100), expand = c(0.05,0.05)) +
   ggdist::stat_halfeye(
@@ -292,13 +301,17 @@ wknd_wkday <- wknd_wkday.combined %>%
   ggpubr::rremove("ylab") +
   ggpubr::rremove("y.ticks") +
  # ggpubr::rremove("xlab")+ 
-  labs(title = "Non-wear time distribution across \nweekdays and weekend days", x = "Percentage of time (%)") +
-  coord_fixed(ratio = 16) + # reduce white space between categorical variables on y axis
+  labs(title = "Wake 'off' status distribution", x = "Percentage of time (%)") +
+  coord_fixed(ratio = 18) + # reduce white space between categorical variables on y axis
   theme(legend.position = "none",
-        plot.title = element_text(hjust = 0.5, size = 18),
+        plot.title = element_text(hjust = 0, size = 18),
         axis.text.x = element_text(size = 14),
         axis.title = element_text(size = 16),
-        axis.text.y = element_text(size = 14))
+        axis.text.y = element_text(size = 14, colour = "black"),
+        plot.margin=margin(t = 0,
+                           b = 10,
+                           r = 10,
+                           l = 10))
  
 
 ```
@@ -306,7 +319,7 @@ wknd_wkday <- wknd_wkday.combined %>%
 ## Saving the plot
 ```{r}
  #Saving the plot
- ggsave(filename = "results_fig02c.svg",
+ ggsave(filename = "results_fig02b.png",
        plot =  wknd_wk_dist,
        width = 7,
        height = 4,
@@ -319,13 +332,23 @@ wknd_wkday <- wknd_wkday.combined %>%
 ```{r}
 library(patchwork)
 
-fig02_multiplot <- state_dist_2axis_2/wknd_wk_dist/timing_dens_plot 
+fig02_stacked <- state_dist_2axis_2/wknd_wk_dist/timing_dens_plot 
 
 
-ggsave(filename = "results_fig02_all.png",
+# Adding annotations
+fig02_multiplot <- fig02_stacked + patchwork::plot_annotation(
+  tag_levels = list(c("A", "", "B", "C")) # adding empty string because patchwork would otherwise recognise the 2nd axis of plot A as an additional plot
+) +
+  theme(plot.margin=margin(t = 0,
+                           b = 0,
+                           r = 0,
+                           l = 0)) 
+
+
+ggsave(filename = "results_fig02_all.svg",
        plot = fig02_multiplot,
        width = 8,
-       height = 10,
+       height = 11,
        dpi = 600,
        bg = "white",
        path= "H:/nonwear_detection/preprint_figures/results/fig02")
