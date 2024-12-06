@@ -447,16 +447,17 @@ prc_multiplot <- ggplot() +
   geom_text(data = per_bag_use, aes(x = 0.15, y = 0.90, label = paste(compliance_per,"%")), size = 3.3) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value (precision)",
-       title = "Precision-recall curve for detection of non-wear intervals based on activity \nand illuminance thresholds",
-       subtitle = "Min. length = 10 min, max. interruption = 1 min") +
+       title = "Precision-recall curve for detection of non-wear intervals",
+       ) +
    theme_bw() +
   theme(plot.title = element_text(hjust = 0.5, size = 18),
         plot.subtitle = element_text(hjust = 0.5, size = 16, colour = "grey33"),
-        axis.text = element_text(size = 14),
-        axis.title = element_text(size = 14),
-        legend.title = element_text(size = 12),
-        legend.text = element_text(size = 8),
-        legend.key.size = unit(4, "mm"),
+        axis.text = element_text(size = 16),
+        axis.title = element_text(size = 16),
+        axis.title.x = element_text(hjust = 0),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 10),
+        legend.key.size = unit(6, "mm"),
         legend.position = "top",
         legend.box = "horizontal") +
    coord_fixed(ratio = 1)
@@ -464,7 +465,7 @@ prc_multiplot <- ggplot() +
 #Save the plot
 ggsave(filename = "results_fig05.png",
        plot = prc_multiplot,
-       height = 10, 
+       height = 11, 
        width = 10,
        dpi = 600,
        bg = "white",
