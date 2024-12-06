@@ -124,7 +124,7 @@ interval_checker <- lapply(window_sizes, function(window) {
 bd_wrlg_df <- bind_rows(interval_checker) %>%
   group_by(window_size) %>% 
   count(classification) %>%
-  mutate(n_per = (n/199)*100) #calculate percentage of each interval type based on total number of interval, which we know is 199
+  mutate(n_per = (n/198)*100) #calculate percentage of each interval type based on total number of interval, which we know is 198
 
 
 ```
@@ -132,19 +132,21 @@ bd_wrlg_df <- bind_rows(interval_checker) %>%
 #Plotting the results
 Her, we plot % of open intervals and % of closed intervals based on different window sizes.
 ```{r}
+
 #Turn data in wide format for plotting
 bp_wrlg_df_wide <- bd_wrlg_df %>%
   pivot_wider(names_from = classification, values_from = c(n, n_per))
 
-#Create a  colour palette 
-val <- c("1" = "forestgreen",
-         "2" = "darkmagenta", 
-         "3" = "tomato1", 
-         "4" = "tomato2", 
-         "5" = "tomato3", 
-         "6" = "royalblue1", 
-         "7" = "royalblue2", 
-         "8" = "royalblue3") #self made palette
+#Create a  continuous colour palette 
+val <- c("1" = "#00366C", 
+         "2" = "#00467D",
+         "3" = "#005691", 
+         "4" = "#0067A7", 
+         "5" = "#0078BD", 
+         "6" = "#1581C6", 
+         "7" = "#5898D6", 
+         "8" = "#73A7E0") #self made palette
+
 
 #Plot
 wrlg_int_classified <- ggplot(bp_wrlg_df_wide, aes(x = n_per_bounded, y = n_per_unbounded, colour = as.factor(window_size))) +
@@ -160,9 +162,8 @@ wrlg_int_classified <- ggplot(bp_wrlg_df_wide, aes(x = n_per_bounded, y = n_per_
   theme(plot.title = element_text(hjust = 0.5, size = 24),
         axis.text = element_text(size = 16),
         axis.title = element_text(size = 18),
-        legend.title = element_text(size = 14),
-        legend.text = element_text(size = 14),
-        legend.title.align =0.5 ) +
+        legend.title = element_text(size = 14, hjust =0.5),
+        legend.text = element_text(size = 14)) +
   coord_fixed(ratio = 1) +
   ggpubr::rremove("xylab") +
   guides(color = guide_legend(nrow =1)) 
@@ -180,9 +181,9 @@ wrlg_int_classified_zoom <- ggplot(bp_wrlg_df_wide, aes(x = n_per_bounded, y = n
   labs(x = "Closed intervals (%)", y = "Open intervals (%)", color = "Window size\n(minutes)") +
   theme_bw()  +
   geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf), fill = "#FFC20A", colour = NA, alpha = 0.03) +
-  theme(plot.title = element_text(hjust = 0.5, size = 20),
-        axis.text = element_text(size = 16),
-        axis.title = element_text(size = 16),
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 14),
         legend.title = element_text(size = 14),
         legend.text = element_text(size = 14)) +
   coord_fixed(ratio = 1) +
@@ -206,11 +207,11 @@ wrlg_int_type_multipanel <- annotate_figure(plot,
                                                             size = 18,
                                                             hjust = 0.5),
                                             left = text_grob("Open intervals (%)",
-                                                             size = 16,
+                                                             size = 14,
                                                              rot = 90,
                                                              hjust = 0.6),
                                             bottom = text_grob("Closed intervals (%)",
-                                                               size = 16,
+                                                               size = 14,
                                                                hjust = 0.5))
 
 print(wrlg_int_type_multipanel)
