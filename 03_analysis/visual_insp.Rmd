@@ -294,9 +294,9 @@ p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
             #alpha = 0.7,
             group = date(Datetime),
             format.day = "%a",
-            x.axis.label = "Time", 
+            x.axis.label = "Local time (HH:MM)", 
             y.axis.label = "Illuminance (mEDI, lx)",
-            title = paste("Exemplary light exposure and (non-)wear time for n=1 participant")) +
+            title = paste("Light exposure and wear status")) +
   geom_point(aes(y = eventpoint, color = "Button press"), #adding button press as points
              size = 0.8) +
   geom_rect(data=states.combined, aes(xmin= xmin, xmax = xmax, ymin =0, ymax = Inf, fill = State), #adding wear log
@@ -310,7 +310,7 @@ p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
     name = "Event",
     values = c("Button press" = "red"),
     labels = c("Button press")) +
-  theme(plot.title = element_text(hjust = 0.5, size = 24, face = "plain"),
+  theme(plot.title = element_text(size = 24, face = "plain"),
         axis.text.x = element_text(size = 16),
         axis.title = element_text(size = 18),
         axis.text.y = element_text(size = 16),
@@ -321,13 +321,13 @@ p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
         legend.box.background = element_rect(fill = "white", colour = "darkgrey"),
         legend.margin = margin(c(1,1,1,1)))
 
-ggsave(filename = "results_fig01.png",
+ggsave(filename = "results_fig01.svg",
        plot = p,
        width = 11,
        height = 14,
        dpi = 600,
        bg = "white",
-       path= "H:/nonwear_detection/preprint_figures/results")
+       path= "H:/nonwear_detection/preprint_figures/results/fig01")
 
 ```
 
