@@ -93,6 +93,8 @@ is_all <- is_all %>%
 
 #### Plotting interdaily stability
 ```{r}
+library(patchwork)
+
 # Raw vs clean (wrlg) scatterplot
 clean_wrlg <- ggpubr::ggscatter(data = is_all,
           x = "IS_raw",
@@ -414,8 +416,8 @@ raw_vs_wrlg_vis <- visualize_comparison(
   data = mlit10_all, 
   x_col = "mean_raw", 
   y_col = "mean_wrlg", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean Wear log dataset)",
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (Wear log)",
 )
 
 ## Raw vs clusters
@@ -423,8 +425,8 @@ raw_vs_clusters_vis <- visualize_comparison(
   data = mlit10_all, 
   x_col = "mean_raw", 
   y_col = "mean_clusters", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean algorithm dataset)",
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (algorithm)",
 )
 
 ## Histogram of deltas 
@@ -456,8 +458,8 @@ raw_vs_wrlg_vis <- visualize_comparison(
   data = mlit250_all, 
   x_col = "mean_raw", 
   y_col = "mean_wrlg", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean Wear log dataset)",
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (Wear log)",
 )
 
 ## Raw vs clusters
@@ -465,8 +467,8 @@ raw_vs_clusters_vis <- visualize_comparison(
   data = mlit250_all, 
   x_col = "mean_raw", 
   y_col = "mean_clusters", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean algorithm dataset)",
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (algorithm)",
 )
 
 ## Histogram of deltas 
@@ -498,8 +500,8 @@ raw_vs_wrlg_vis <- visualize_comparison(
   data = mlit1000_all, 
   x_col = "mean_raw", 
   y_col = "mean_wrlg", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean Wear log dataset)",
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (Wear log)",
 )
 
 ## Raw vs clusters
@@ -507,8 +509,8 @@ raw_vs_clusters_vis <- visualize_comparison(
   data = mlit1000_all, 
   x_col = "mean_raw", 
   y_col = "mean_clusters", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean algorithm dataset)",
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (algorithm)",
 )
 
 ## Histogram of deltas 
@@ -540,8 +542,8 @@ raw_vs_wrlg_vis <- visualize_comparison(
   data = flit10_all, 
   x_col = "mean_raw", 
   y_col = "mean_wrlg", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean Wear log dataset)",
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (Wear log)",
 )
 
 ## Raw vs clusters
@@ -549,8 +551,8 @@ raw_vs_clusters_vis <- visualize_comparison(
   data = flit10_all, 
   x_col = "mean_raw", 
   y_col = "mean_clusters", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean algorithm dataset)",
+   x_label = "Raw dataset", 
+  y_label = "Clean dataset (algorithm)",
 )
 
 ## Histogram of deltas 
@@ -582,8 +584,8 @@ raw_vs_wrlg_vis <- visualize_comparison(
   data = flit250_all, 
   x_col = "mean_raw", 
   y_col = "mean_wrlg", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean Wear log dataset)",
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (Wear log)",
 )
 
 ## Raw vs clusters
@@ -591,8 +593,8 @@ raw_vs_clusters_vis <- visualize_comparison(
   data = flit250_all, 
   x_col = "mean_raw", 
   y_col = "mean_clusters", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean algorithm dataset)",
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (algorithm)",
 )
 
 ## Histogram of deltas 
@@ -625,8 +627,8 @@ raw_vs_wrlg_vis <- visualize_comparison(
   data = flit1000_all, 
   x_col = "mean_raw", 
   y_col = "mean_wrlg", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean Wear log dataset)",
+ x_label = "Raw dataset", 
+  y_label = "Clean dataset (Wear log)",
 )
 
 ## Raw vs clusters
@@ -634,8 +636,8 @@ raw_vs_clusters_vis <- visualize_comparison(
   data = flit1000_all, 
   x_col = "mean_raw", 
   y_col = "mean_clusters", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean algorithm dataset)",
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (algorithm)",
 )
 
 ## Histogram of deltas 
@@ -667,8 +669,8 @@ raw_vs_wrlg_vis <- visualize_comparison(
   data = llit10_all, 
   x_col = "mean_raw", 
   y_col = "mean_wrlg", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean Wear log dataset)",
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (Wear log)",
 )
 
 ## Raw vs clusters
@@ -676,8 +678,8 @@ raw_vs_clusters_vis <- visualize_comparison(
   data = llit10_all, 
   x_col = "mean_raw", 
   y_col = "mean_clusters", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean algorithm dataset)",
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (algorithm)",
 )
 
 ## Histogram of deltas 
@@ -710,8 +712,8 @@ raw_vs_wrlg_vis <- visualize_comparison(
   data = llit250_all, 
   x_col = "mean_raw", 
   y_col = "mean_wrlg", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean Wear log dataset)",
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (Wear log)",
 )
 
 ## Raw vs clusters
@@ -719,8 +721,8 @@ raw_vs_clusters_vis <- visualize_comparison(
   data = llit250_all, 
   x_col = "mean_raw", 
   y_col = "mean_clusters", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean algorithm dataset)",
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (algorithm)",
 )
 
 ## Histogram of deltas 
@@ -752,8 +754,8 @@ raw_vs_wrlg_vis <- visualize_comparison(
   data = llit1000_all, 
   x_col = "mean_raw", 
   y_col = "mean_wrlg", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean Wear log dataset)",
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (Wear log)",
 )
 
 ## Raw vs clusters
@@ -761,8 +763,8 @@ raw_vs_clusters_vis <- visualize_comparison(
   data = llit1000_all, 
   x_col = "mean_raw", 
   y_col = "mean_clusters", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean algorithm dataset)",
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (algorithm)",
 )
 
 ## Histogram of deltas 
@@ -794,8 +796,8 @@ raw_vs_wrlg_vis <- visualize_comparison(
   data = tat250_all, 
   x_col = "mean_raw", 
   y_col = "mean_wrlg", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean Wear log dataset)",
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (Wear log)",
 )
 
 ## Raw vs clusters
@@ -803,8 +805,8 @@ raw_vs_clusters_vis <- visualize_comparison(
   data = tat250_all, 
   x_col = "mean_raw", 
   y_col = "mean_clusters", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean algorithm dataset)",
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (algorithm)",
 )
 
 ## Histogram of deltas 
@@ -836,8 +838,8 @@ raw_vs_wrlg_vis <- visualize_comparison(
   data = tat1000_all, 
   x_col = "mean_raw", 
   y_col = "mean_wrlg", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean Wear log dataset)",
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (Wear log)",
 )
 
 ## Raw vs clusters
@@ -845,8 +847,8 @@ raw_vs_clusters_vis <- visualize_comparison(
   data = tat1000_all, 
   x_col = "mean_raw", 
   y_col = "mean_clusters", 
-  x_label = "Mean time (Raw dataset)", 
-  y_label = "Mean time (Clean algorithm dataset)",
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (algorithm)",
 )
 
 ## Histogram of deltas 
@@ -865,16 +867,47 @@ p13
 ```
 ### Combining this into one big multiplot
 ```{r}
-all_plots <- p1 / p2 / p3 / p4
 
-/ p7 / p8 / p9 / p10 / p11 / p12 / p13
+library(cowplot)
+
+plots1 <- plot_grid(p1,p2, p3, p4, p5, p6,
+                   align = "v",
+                   nrow = 6)
+
+plots2 <- plot_grid(p7, p8, p9, p10, p11, p12, p13,
+                   align = "v",
+                   nrow = 7)
 
 ggsave(filename = "results_fig08.png",
-       plot = all_plots, 
-       width = 210,
-       height = 297,
-       units = "mm",
-       path = "Z:/nonwear_detection/preprint_figures/results/fig08")
+       plot = plots1, 
+       width = 10,
+       height = 15,
+       dpi = 600,
+       path = "H:/nonwear_detection/preprint_figures/results/fig08")
+
+ggsave(filename = "results_fig08_2.png",
+       plot = plots2, 
+       width = 10,
+       height = 15,
+       dpi = 600,
+       path = "H:/nonwear_detection/preprint_figures/results/fig08")
 ```
 
+## Statistical analysis of the plots 
+```{r}
+# Create a list of the dfs containing the metrics 
+metrics_dfs <- list(mlit10_all, mlit250_all, mlit1000_all, llit10_all, llit250_all, llit1000_all, flit10_all, flit250_all, flit1000_all, tat1000_all, tat250_all)
+
+# Visualise normality for each df
+
+for (df in metrics_dfs) {
+  
+  print(norm_check(df))
+  
+}
+
+## It seems like they are all normally distributed
+
+
+```
 
