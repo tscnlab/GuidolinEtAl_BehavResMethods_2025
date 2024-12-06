@@ -270,7 +270,7 @@ library(gt)
 misclass_table <- misclass_summary %>%
   dplyr::arrange(count) %>% # Arranging in ascending order
   gt() %>% # Turning this into a gt object for further editing of the table 
-  gt::tab_header(title = md("**Algorithm performance and instances of misclassification**")) %>%
+  gt::tab_header(title = md("**Algorithm performance**")) %>%
   gt::tab_stubhead(label = "reason") %>%
   #Re-labelling the columns
   gt::cols_label(reason = "Instance",
