@@ -15,8 +15,8 @@ This script should be run after files in 01_import and 02_datapreparation have b
 # Aim
 To know whether we can precisely predict non-wear times (detected by the wear log) using information from the black back use (low mEDI) and/or activity (low PIM). To do this, we build a precision recall curve (PRC).
 
-## Testing steffen's function which indentifies clusters of non-wear time 
-These functions (find_clusters_funs, loaded in separately) identify clusters of low illuminance. The following parameters can be selected: 
+## Algorithm which indentifies clusters of non-wear time 
+These functions (find_clusters_funs, loaded in separately) identify clusters of low illuminance/activity (or an arbitrary variable). The following parameters can be selected: 
 1) logical values where clusters should be found - in this case, low illuminance or low activity values (below a certain threshold)
 2) minimum length of the clusters
 3) max interrpution length for the cluster to still be identified as such 
@@ -25,13 +25,15 @@ These functions (find_clusters_funs, loaded in separately) identify clusters of 
 ```{r}
 clean.LL.wrlg <- readRDS('clean_data.Rds')
 ```
-
-## First, let's explore the relationship between light and activity across wear log status
+## Before running the cluster detection algorithm
+First, let's explore the relationship between light and activity across wear log status. This visualisation step helps to understand whether it makes sense to even detect low activty or illuminance as a proxy of non-wear. 
 ```{r}
 #We will be plotting using log10 transformation, so we cannot have 0 values in our data set. For this reason, we add 1 to each value in MEDI and PIM
 
+# Create a dataset for plotting
 vis.LL.wrlg <- dataset.LL.wrlg
 
+# Add a value of 1 to the relevant columns
 vis.LL.wrlg$MEDI <- vis.LL.wrlg$MEDI + 1
 vis.LL.wrlg$PIM <- vis.LL.wrlg$PIM + 1
 
@@ -48,6 +50,7 @@ median.LL.wrlg <- vis.LL.wrlg %>%
             qr3_pim = quantile(log10(PIM), 3/4, na.rm = TRUE)) %>% #third quantile
   ungroup()
 
+# Plot
 set.seed(1) #we will use geom_jitter, which uses random sampling. For reproducibility we need to set.seed(1) so that running the script multiple times will lead to the same plot
 
 scatter <- ggplot(median.LL.wrlg, aes(x = median_medi, y = median_pim)) + 
@@ -81,11 +84,31 @@ scatter <- ggplot(median.LL.wrlg, aes(x = median_medi, y = median_pim)) +
         legend.title = element_text(size = 12, hjust = 0.5),
         legend.text = element_text(size = 10),
         legend.position = "bottom") +
-  guides(fill = guide_legend(nrow = 1))
+  guides(fill = guide_legend(nrow = 1)) 
   
 #Add a boxpot as a marginal plot using package ggExtra
-library(ggExtra)
-library(ggpubr)
+x_box <- ggplot(median.LL.wrlg, aes(x = median_medi, fill = State, color = State)) +
+  geom_boxplot(alpha = 0.6) +
+  scale_fill_manual(
+    values = c("off" = "darkred", "on" = "#0072B2", "sleep" = "darkgoldenrod2")
+  ) +
+  scale_color_manual(
+    values = c("off" = "darkred", "on" = "#0072B2", "sleep" = "darkgoldenrod2")
+  ) +
+  theme_void() +
+  theme(legend.position = "none")
+
+y_box <- ggplot(median.LL.wrlg, aes(x = median_pim, fill = State, colour = State)) +
+  geom_boxplot(alpha = 0.6) +
+  scale_fill_manual(
+    values = c("off" = "darkred", "on" = "#0072B2", "sleep" = "darkgoldenrod2")
+  ) +
+  scale_color_manual(
+    values = c("off" = "darkred", "on" = "#0072B2", "sleep" = "darkgoldenrod2")
+  ) +
+  coord_flip() +  # Flip for alignment along the y-axis
+  theme_void() +
+  theme(legend.position = "none")
 
 marginal <- ggExtra::ggMarginal(scatter, type = "boxplot", groupColour = TRUE, groupFill = TRUE)
 
@@ -95,19 +118,19 @@ plot_marginal <- ggpubr::annotate_figure(marginal,
                                  top = text_grob("Relationship between illuminance \nand activity across wear log states",
                                                             color = "black",
                                                             face = "plain",
-                                                            size = 18))
+                                                            size = 18)) 
 
 ```
 ### Saving the plot
 ```{r}
 
-ggsave(filename = "results_fig04a.svg",
+ggsave(filename = "results_fig04a.png",
        plot = plot_marginal ,
        width = 5,
        height = 5.5,
        dpi = 600,
        bg = "white",
-       path= "H:/nonwear_detection/preprint_figures/results/fig04")
+       path= "Z:/nonwear_detection/preprint_figures/results/fig04")
 ```
 
 ### Conclusion from this plot
@@ -120,8 +143,9 @@ df.LL.nosleep <- dataset.LL.wrlg %>%
   mutate(State = if_else(State == "sleep", NA_character_, State)) 
 ```
 
+## Proceed to apply cluster detection algoirthm for low activity (PIM)
 
-#Identifying clusters of low activity (PIM)
+### Identifying clusters of low activity (PIM)
 ```{r}
 
 #Create a sequence of PIM thresholds at 5 unit steps
@@ -157,7 +181,7 @@ prcurve_pim$threshold <- as.numeric(prcurve_pim$threshold)
 
 ```
 
-## Calculating F1 score
+### Calculating F1 score
 This scores is a metric to evaluate precision and recall. It is calculate as the harmonic mean of precision and recall. The F1 Score is useful when looking for the right balance between high precision and high recall, as it penalizes extreme negative values of either component. In other words, this score 
 ```{r}
 
@@ -166,8 +190,8 @@ prcurve_pim_f1 <- prcurve_pim %>%
 
 ```
 
-
-# Identifying clusters of low light levels (mEDI)
+## Proceed to apply cluster detection algorithm to low light levels (mEDI)
+### Identifying clusters of low light levels (mEDI)
 ```{r}
 
 medithresholds <- seq(1, 10, by = 1)
@@ -201,8 +225,7 @@ prcurve_medi$threshold <- as.numeric(prcurve_medi$threshold)
 
 ```
 
-
-## Calculate F1 score 
+### Calculate F1 score 
 ```{r}
 
 prcurve_medi_f1 <- prcurve_medi %>%
@@ -211,7 +234,7 @@ prcurve_medi_f1 <- prcurve_medi %>%
 ```
 
 
-# Visualisation of the precision recall curves for activity and light (all participants together)
+### Visualisation of the precision recall curves for activity and light (all participants together)
 ```{r}
 
 prc_combined <- ggplot() +
@@ -248,7 +271,6 @@ prc_combined <- ggplot() +
                arrow = arrow(length=unit(.2, "cm")), lwd = 0.8) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
-       title = "Precision-recall curve for detection of \nnon-wear intervals based on activity \nand illuminance thresholds",
       ) +
   #Adding the symbols for the arrows as text and the label
   annotate("text",
@@ -279,8 +301,14 @@ prc_combined <- ggplot() +
         legend.text = element_text(size = 8),
         legend.key.size = unit(4, "mm"),
         legend.position = "bottom",
-        legend.box = "horizontal") +
+        legend.box = "horizontal",
+        plot.margin = margin(t=0,
+                                   b=0,
+                                   r=0,
+                                   l=0)) +
   coord_fixed(ratio = 1) 
+
+
 
 #Save the plot
 ggsave(filename = "results_fig04b.png",
@@ -289,7 +317,7 @@ ggsave(filename = "results_fig04b.png",
        width = 5,
        dpi = 600,
        bg = "white",
-       path= "H:/nonwear_detection/preprint_figures/results/fig04")
+       path= "Z:/nonwear_detection/preprint_figures/results/fig04")
 ```
 
 ### Combining the plots
@@ -297,26 +325,44 @@ ggsave(filename = "results_fig04b.png",
 library(cowplot)
 
 
+
+
+combined_plot <- cowplot::plot_grid(
+  scatter_with_marginals_grob, # First plot with marginal
+  ggplotGrob(prc_combined),    # Second plot
+  ncol = 2, align = "h", axis = "tb" # Align horizontally
+)
+
 medi_pim_fig <- cowplot::plot_grid(plot_marginal,
                           prc_combined,
                           labels = c("A", "B"),
                           nrow = 1,
                           align = "v",
-                          axis = "tblr",
-                          rel_widths = c(1,1),
-                          rel_heights = c(1,1))
+                          axis = "b",
+                          rel_widths = c(1.5,0.9),
+                          rel_heights = c(1.5,0.9))
 
-medi_pim_fig <- plot_marginal + prc_combined +
-  plot_annotation(tag_levels = list(c("A", "B")))
 
+scatter_xbox <- (
+  x_box / scatter + # x_box above scatter
+    plot_layout(heights = c(0.7, 5),
+                widths = c(1,5))
+  ) | (y_box)  # Ensure y_box aligns with scatter
+
+
+p <- x_box + patchwork::plot_spacer() + scatter + y_box + 
+  plot_layout(widths = c(4,2), heights = c(1,5))
+
+  patchwork::plot_annotation(tag_levels = list(c("A", "B"))) +
+  patchwork::plot_layout(widths = c(1,0.5))
 # Save the plot
 ggsave(filename = "results_fig04_all.png",
        plot = medi_pim_fig,
        height = 5.5, 
-       width = 10,
+       width = 12,
        dpi = 600,
        bg = "white",
-       path= "H:/nonwear_detection/preprint_figures/results/fig04")
+       path= "Z:/nonwear_detection/preprint_figures/results/fig04")
 ```
 
 ##Visualisation of activity and light prc for each participant in a multiplot
