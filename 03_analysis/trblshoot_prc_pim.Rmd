@@ -64,18 +64,17 @@ prc_pim_thresholds <- ggplot() +
      guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
-       title = "Precision-recall curve for detection of \nnon-wear intervals based on activity thresholds",
-       subtitle = "Min. length = 10 min, max. interrupt = 0 min") +
+       title = "Activity threshold based detection") +
    theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5, size = 16),
-        plot.subtitle = element_text(hjust = 0.5, size = 14, color = "grey33"),
+  theme(plot.title = element_text(hjust = 0.5, size = 18),
         axis.text = element_text(size = 14),
-        axis.title = element_text(size = 14),
+        axis.title = element_text(size = 16),
         legend.title = element_text(size = 12),
-        legend.text = element_text(size = 8),
-        legend.key.size = unit(4, "mm"),
+        legend.text = element_text(size = 10),
+        legend.key.size = unit(6, "mm"),
         legend.position = "bottom",
-        legend.box = "horizontal") +
+        legend.box = "horizontal",
+        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
    coord_fixed(ratio = 1)
 
 ggsave(filename = "prc_pim_thresholds.png",
@@ -142,18 +141,17 @@ prc_pim_length <- ggplot() +
      labels = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
-       title = "Precision-recall curve for detection of \nnon-wear intervals based on min. length",
-       subtitle = "PIM threshold = 5, max. interrupt = 0 min") +
+       title = "Min. length based detection") +
    theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5, size = 16),
-        plot.subtitle = element_text(hjust = 0.5, size = 14, color = "grey33"),
+  theme(plot.title = element_text(hjust = 0.5, size = 18),
         axis.text = element_text(size = 14),
-        axis.title = element_text(size = 14),
+        axis.title = element_text(size = 16),
         legend.title = element_text(size = 12),
-        legend.text = element_text(size = 8),
-        legend.key.size = unit(4, "mm"),
+        legend.text = element_text(size = 10),
+        legend.key.size = unit(6, "mm"),
         legend.position = "bottom",
-        legend.box = "horizontal") +
+        legend.box = "horizontal",
+        plot.margin = unit(c(0,0.5,0,0.3), unit ="cm")) +
    coord_fixed(ratio = 1)
 
 ggsave(filename = "prc_pim_length.png",
@@ -218,24 +216,23 @@ prc_pim_interrupt <- ggplot() +
      labels = c(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
-       title = "Precision-recall curve for detection of \nnon-wear intervals based on max. interruption",
-       subtitle = "PIM threshold = 5, min. length = 10 min") +
+       title = "Max. interruption based detection") +
    theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5, size = 16),
-        plot.subtitle = element_text(hjust = 0.5, size = 14, color = "grey33"),
+  theme(plot.title = element_text(hjust = 0.5, size = 18),
         axis.text = element_text(size = 14),
-        axis.title = element_text(size = 14),
+        axis.title = element_text(size = 16),
         legend.title = element_text(size = 12),
-        legend.text = element_text(size = 8),
-        legend.key.size = unit(4, "mm"),
+        legend.text = element_text(size = 10),
+        legend.key.size = unit(6, "mm"),
         legend.position = "bottom",
-        legend.box = "horizontal") +
+        legend.box = "horizontal",
+        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
    coord_fixed(ratio = 1)
 
 ggsave(filename = "prc_pim_interrupt.png",
        plot = prc_pim_interrupt,
        height = 5.5, 
-       width = 6.3,
+       width = 6,
        dpi = 600,
        bg = "white",
        path= "Z:/nonwear_detection/preprint_figures/supplementary")
@@ -258,8 +255,8 @@ multiplot <- cowplot::plot_grid(prc_pim_length, prc_pim_thresholds, prc_pim_inte
 
 ggsave(filename = "pim_prc_parameters_multiplot.png",
        plot = multiplot,
-       width = 16.5, 
-       height = 5,
+       width = 14, 
+       height = 5.3,
        dpi = 600, 
        bg = "white",
        path = "Z:/nonwear_detection/preprint_figures/supplementary")
