@@ -109,8 +109,7 @@ p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
             format.day = "%a",
             x.axis.label = "Time", 
             y.axis.label = "Illuminance (mEDI, lx)",
-            title = "Algorithm performance for low mEDI clusters",
-            subtitle = "mEDI threshold = 1 lux, min. length = 10 minutes, max. interruption = 0 minutes") +
+            title = "Algorithm performance for low mEDI clusters") +
   geom_rect(data=alg.combined, aes(xmin= xmin, xmax = xmax, ymin =0, ymax = Inf, fill = classification), #adding classification output
                     inherit.aes = FALSE,
                     alpha = 0.15) +
@@ -120,7 +119,7 @@ p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
                 "TN" = "#0072B2",
                 "FP" = "darkred",
                 "FN" = "darkgoldenrod2"),
-                na.value = "white") +
+                na.value = "lightgrey") +
   scale_color_manual(
     name = "Wear log 'state'",
     values = c("on" = "#0072B2", "off" = "darkred", "sleep" = "black"),
@@ -144,7 +143,7 @@ ggsave(filename = filename,
        height = 14,
        dpi = 600,
        bg = "white",
-       path= "H:/nonwear_detection/preprint_figures/alg_class")
+       path= "Z:/nonwear_detection/preprint_figures/alg_class")
 }
 ```
 
