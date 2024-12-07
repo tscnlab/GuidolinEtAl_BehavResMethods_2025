@@ -86,39 +86,20 @@ scatter <- ggplot(median.LL.wrlg, aes(x = median_medi, y = median_pim)) +
         legend.position = "bottom") +
   guides(fill = guide_legend(nrow = 1)) 
   
-#Add a boxpot as a marginal plot using package ggExtra
-x_box <- ggplot(median.LL.wrlg, aes(x = median_medi, fill = State, color = State)) +
-  geom_boxplot(alpha = 0.6) +
-  scale_fill_manual(
-    values = c("off" = "darkred", "on" = "#0072B2", "sleep" = "darkgoldenrod2")
-  ) +
-  scale_color_manual(
-    values = c("off" = "darkred", "on" = "#0072B2", "sleep" = "darkgoldenrod2")
-  ) +
-  theme_void() +
-  theme(legend.position = "none")
-
-y_box <- ggplot(median.LL.wrlg, aes(x = median_pim, fill = State, colour = State)) +
-  geom_boxplot(alpha = 0.6) +
-  scale_fill_manual(
-    values = c("off" = "darkred", "on" = "#0072B2", "sleep" = "darkgoldenrod2")
-  ) +
-  scale_color_manual(
-    values = c("off" = "darkred", "on" = "#0072B2", "sleep" = "darkgoldenrod2")
-  ) +
-  coord_flip() +  # Flip for alignment along the y-axis
-  theme_void() +
-  theme(legend.position = "none")
 
 marginal <- ggExtra::ggMarginal(scatter, type = "boxplot", groupColour = TRUE, groupFill = TRUE)
 
 
 plot_marginal <- ggpubr::annotate_figure(marginal,
                                  #Add title
-                                 top = text_grob("Relationship between illuminance \nand activity across wear log states",
+                                 top = text_grob("Illuminance and activity \nacross wear log states",
                                                             color = "black",
                                                             face = "plain",
                                                             size = 18)) 
+
+plot_marginal <- plot_marginal + theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
+
+plot_marginal
 
 ```
 ### Saving the plot
@@ -270,8 +251,7 @@ prc_combined <- ggplot() +
                  yend = 0.33),
                arrow = arrow(length=unit(.2, "cm")), lwd = 0.8) +
   labs(x="True positive rate (recall)",
-       y = "Positive predictive value \n(precision)",
-      ) +
+       y = "Positive predictive value \n(precision)") +
   #Adding the symbols for the arrows as text and the label
   annotate("text",
            x = 0.67,
@@ -293,9 +273,7 @@ prc_combined <- ggplot() +
             color = "darkgrey",
             size = 3.8) +
   theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5, size = 18),
-        plot.subtitle = element_text(hjust = 0.5, size = 14, colour = "grey33"),
-        axis.text = element_text(size = 14),
+  theme(axis.text = element_text(size = 14),
         axis.title = element_text(size = 14),
         legend.title = element_text(size = 12),
         legend.text = element_text(size = 8),
@@ -324,45 +302,31 @@ ggsave(filename = "results_fig04b.png",
 ```{r}
 library(cowplot)
 
+prc_combined_titled <- ggpubr::annotate_figure(prc_combined,
+                                 #Add title
+                                 top = text_grob("Precision recall curve for \ndetection of non-wear intervals",
+                                                            color = "black",
+                                                            face = "plain",
+                                                            size = 18,
+                                                 just = 0.35)) 
 
-
-
-combined_plot <- cowplot::plot_grid(
-  scatter_with_marginals_grob, # First plot with marginal
-  ggplotGrob(prc_combined),    # Second plot
-  ncol = 2, align = "h", axis = "tb" # Align horizontally
-)
+prc_combined_titled <- prc_combined_titled + theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
 
 medi_pim_fig <- cowplot::plot_grid(plot_marginal,
-                          prc_combined,
+                          prc_combined_titled,
                           labels = c("A", "B"),
                           nrow = 1,
-                          align = "v",
-                          axis = "b",
-                          rel_widths = c(1.5,0.9),
-                          rel_heights = c(1.5,0.9))
-
-
-scatter_xbox <- (
-  x_box / scatter + # x_box above scatter
-    plot_layout(heights = c(0.7, 5),
-                widths = c(1,5))
-  ) | (y_box)  # Ensure y_box aligns with scatter
-
-
-p <- x_box + patchwork::plot_spacer() + scatter + y_box + 
-  plot_layout(widths = c(4,2), heights = c(1,5))
-
-  patchwork::plot_annotation(tag_levels = list(c("A", "B"))) +
-  patchwork::plot_layout(widths = c(1,0.5))
+                          align = "hv",
+                          axis = "tblr")
 # Save the plot
-ggsave(filename = "results_fig04_all.png",
+ggsave(filename = "results_fig04_all.pdf",
        plot = medi_pim_fig,
        height = 5.5, 
-       width = 12,
+       width = 10,
        dpi = 600,
        bg = "white",
        path= "Z:/nonwear_detection/preprint_figures/results/fig04")
+
 ```
 
 ##Visualisation of activity and light prc for each participant in a multiplot
