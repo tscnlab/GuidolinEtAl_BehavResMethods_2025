@@ -107,9 +107,9 @@ p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
             geom = "line",
             group = date(Datetime),
             format.day = "%a",
-            x.axis.label = "Time", 
+            x.axis.label = "Local time (HH:MM)", 
             y.axis.label = "Illuminance (mEDI, lx)",
-            title = "Algorithm performance for low mEDI clusters") +
+            title = "Algorithm performance for low illuminance clusters") +
   geom_rect(data=alg.combined, aes(xmin= xmin, xmax = xmax, ymin =0, ymax = Inf, fill = classification), #adding classification output
                     inherit.aes = FALSE,
                     alpha = 0.15) +
@@ -128,7 +128,7 @@ p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
     color = guide_legend(override.aes = list(linewidth = 2)) # Make lines thicker in Wear log legend
   ) +
   guides(linetype = guide_legend(override.aes = list(size = 4))) +
-  theme(plot.title = element_text(hjust = 0.5, size = 24, face = "plain"),
+  theme(plot.title = element_text(hjust = 0, size = 24, face = "plain"),
         plot.subtitle = element_text(hjust = 0.5, size = 16),
         axis.text.x = element_text(size = 16),
         axis.title = element_text(size = 18),
@@ -139,7 +139,7 @@ p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
 filename <- paste0("p", selected_id, "alg_perf_mEDI.png")
 ggsave(filename = filename,
        plot = p,
-       width = 10,
+       width = 11,
        height = 14,
        dpi = 600,
        bg = "white",
