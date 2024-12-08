@@ -13,6 +13,12 @@ style_time <- function(x){
     round_hms()
 }
 
+# We need one more function to format time so that it displayed as HH:MM
+format_time <- function(x) {
+  hours <- floor(x / 3600)
+  minutes <- floor((x %% 3600) / 60)
+  paste0(sprintf("%02d", hours), ":", sprintf("%02d", minutes))
+}
 
 # Function used to calculate timing metrics across three datasets
 # Takes three datasets (raw, wrlg, clusters) where non-wear has been calculated differently, and a metric that has to be calculated
@@ -70,12 +76,23 @@ calculate_metric <- function(raw_df, wrlg_df, clusters_df, metric) {
 ## Function for visualising comparison of metrics across two datasets
 visualize_comparison <- function(data, x_col, y_col, x_label, y_label, title) {
   
+  # Get the range of the x-axis and y-axis values (numeric)
+  x_range <- range(as.numeric(data[[x_col]]), na.rm = TRUE)
+  y_range <- range(as.numeric(data[[y_col]]), na.rm = TRUE)
+  
+  # Create breaks to display only n_labels on the x-axis and y-axis
+  x_breaks <- seq(from = x_range[1], to = x_range[2], length.out = 3) # choosing to only show 3 labels
+  y_breaks <- seq(from = x_range[1], to = x_range[2], length.out = 3) # choosing to only show 3 labels
+  
   # Plot the data
   p <- ggplot(data, aes(x = as.numeric(.data[[x_col]]), y = as.numeric(.data[[y_col]]), colour = Id)) +
     geom_jitter() +
     geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + 
-    scale_y_continuous(labels = function(x) hms::as_hms(x)) + 
-    scale_x_continuous(labels = function(x) hms::as_hms(x)) + 
+    scale_y_continuous(labels = function(x) format_time(x),
+                       breaks = y_breaks) +  # Use custom HH:MM formatting for y-axis
+    scale_x_continuous(labels = function(x) format_time(x), # Use custom HH:MM formatting for x-axis
+                       breaks = x_breaks,
+                       guide = guide_axis(check.overlap = TRUE)) +  
     labs(x = x_label, y = y_label) +
     coord_fixed(ratio = 1) +
     theme_bw() +
@@ -94,18 +111,34 @@ vis_deltas <- function (df, delta_col, metric_col) {
                names_to = "metric",
                values_to = "delta")
   
+  # Convert delta from difftime to numeric (in seconds)
+  df_long$delta <- as.numeric(df_long$delta, units = "secs")  
+  
+  # Calculate x-axis limits to center around 0
+  max_abs_delta <- max(abs(df_long[[delta_col]]), na.rm = TRUE)
+  
+  # Set the breaks to the -max_abs_delta, 0, and max_abs_delta
+  x_breaks <- c(-max_abs_delta, 0, max_abs_delta)
+  
   # Create histogram
   b <- ggplot(df_long, aes(x = (.data[[delta_col]]), fill = (.data[[metric_col]]))) +
   geom_histogram(position = "identity", alpha = 0.5, bins = 50, color = "black") +
-  labs(x = "Delta", y = "Frequency") +
+  labs(x = "Delta (HH:MM)", y = "Frequency") +
   scale_fill_manual(
     name = "Metric",
     values = c("#0072B2", "#D55E00"),
     labels = c("Algorithm dataset", "Wear log dataset")
   ) +
+  scale_x_continuous(
+    limits = c(-max_abs_delta, max_abs_delta),
+    labels = function(x) format_neg_time(x),
+    breaks = x_breaks,
+    guide = guide_axis(check.overlap = TRUE)) +  # Apply custom HH:MM format
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5), 
-        aspect.ratio = 1) 
+        aspect.ratio = 1) +
+    ggpubr::rremove("legend")
   
   return(b)
 }
+
