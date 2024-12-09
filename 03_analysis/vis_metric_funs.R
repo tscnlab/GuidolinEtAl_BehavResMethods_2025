@@ -96,7 +96,8 @@ visualize_comparison <- function(data, x_col, y_col, x_label, y_label, title) {
     labs(x = x_label, y = y_label) +
     coord_fixed(ratio = 1) +
     theme_bw() +
-    ggpubr::rremove("legend") 
+    ggpubr::rremove("legend") +
+    theme(plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))
   
   print(p)
 }
@@ -131,12 +132,14 @@ vis_deltas <- function (df, delta_col, metric_col) {
   ) +
   scale_x_continuous(
     limits = c(-max_abs_delta, max_abs_delta),
-    labels = function(x) format_neg_time(x),
+    labels = function(x) format_time(x), # Apply custom HH:MM format
     breaks = x_breaks,
-    guide = guide_axis(check.overlap = TRUE)) +  # Apply custom HH:MM format
+    guide = guide_axis(check.overlap = TRUE),
+    oob = scales::oob_keep) +  # Add this to keep values at the axis limits
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5), 
-        aspect.ratio = 1) +
+        aspect.ratio = 1,
+        plot.margin = unit(c(t=0,r=0.2,b=0.2,l=0), "cm")) +
     ggpubr::rremove("legend")
   
   return(b)

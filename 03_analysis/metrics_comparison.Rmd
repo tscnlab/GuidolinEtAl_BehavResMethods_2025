@@ -100,7 +100,8 @@ clean_wrlg <- ggpubr::ggscatter(data = is_all,
           x = "IS_raw",
           y = "IS_wrlg",
           color = "Id",
-          ggtheme = theme_bw()) +
+          ggtheme = theme_bw(),
+          size = 1.5) +
    # ggpubr::stat_cor(aes(label = after_stat(r.label)), # add r coefficient but not p value
    #                method = "pearson",
    #                label.x = 0.03,
@@ -117,14 +118,16 @@ clean_wrlg <- ggpubr::ggscatter(data = is_all,
   ) + 
   labs(x = "Raw dataset", y = "Clean dataset (Wear log)") +
   coord_fixed(ratio = 1) +
-  ggpubr::rremove("legend")
+  ggpubr::rremove("legend") +
+  theme(plot.margin = unit(c(t=0,r=0.2,b=0.2,l=0), "cm"))
 
 # Raw vs clean (clusters) scatterplot
 clean_clusters <- ggpubr::ggscatter(data = is_all,
           x = "IS_raw",
           y = "IS_clusters",
           color = "Id",
-          ggtheme = theme_bw()) +
+          ggtheme = theme_bw(),
+          size = 1.5) +
    # ggpubr::stat_cor(aes(label = after_stat(r.label)), # add r coefficient but not p value
     #               method = "pearson",
     #               label.x = 0.03,
@@ -141,7 +144,8 @@ clean_clusters <- ggpubr::ggscatter(data = is_all,
   ) + 
   labs(x = "Raw dataset", y = "Clean dataset (algorithm)") +
   coord_fixed(ratio = 1) +
-  ggpubr::rremove("legend")
+  ggpubr::rremove("legend") +
+  theme(plot.margin = unit(c(t=0,r=0.2,b=0.2,l=0), "cm"))
 
 # Histogram of deltas
 ## First, do some re-structuring
@@ -159,15 +163,19 @@ delta_hist <- ggplot(is_all_long, aes(x = delta, fill = metric)) +
     values = c("#0072B2", "#D55E00"),
     labels = c("Algorithm dataset", "Wear log dataset")
     ) +
+  scale_x_continuous(breaks = c(-0.10, 0.00, 0.10),
+                     labels = c("-0.10", 0, "0.10")) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5), 
-        aspect.ratio = 1) 
+        aspect.ratio = 1,
+        plot.margin = unit(c(t=0,r=0.2,b=0.2,l=0), "cm")) + 
+  ggpubr::rremove("legend")
 
 
 # Combining the plots
 ## Make sure you have patchwork loaded in
 p1 <- clean_wrlg + clean_clusters + delta_hist + 
-  plot_annotation("Interdaily stability",
+  patchwork::plot_annotation("IS",
   tag_levels = list(c("A1", "A2", "A3")),
   theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
@@ -226,7 +234,8 @@ clean_wrlg <- ggpubr::ggscatter(data = iv_all,
           x = "IV_raw",
           y = "IV_wrlg",
           color = "Id",
-          ggtheme = theme_bw()) +
+          ggtheme = theme_bw(),
+          size = 1.5) +
    # ggpubr::stat_cor(aes(label = after_stat(r.label)), # add r coefficient but not p value
    #                method = "pearson",
     #               label.x = 0.03,
@@ -234,24 +243,26 @@ clean_wrlg <- ggpubr::ggscatter(data = iv_all,
   geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
   ggplot2::scale_x_continuous(
     limits = c(0, 2),
-    breaks = c(0, 0.50, 1, 1.5, 2), 
-    labels = c("0", "0.50", "1", "1.5", "2")
+    breaks = c(0, 1, 2), 
+    labels = c("0", "1", "2")
   ) +
   scale_y_continuous(
    limits = c(0, 2),
-    breaks = c(0, 0.50, 1, 1.5, 2), 
-    labels = c("0", "0.50", "1", "1.5", "2")
+    breaks = c(0, 1, 2), 
+    labels = c("0", "1", "2")
   ) + 
   labs(x = "Raw dataset", y = "Clean dataset (Wear log)") +
   coord_fixed(ratio = 1) + 
-  ggpubr::rremove("legend")
+  ggpubr::rremove("legend")+
+  theme(plot.margin = unit(c(t=0,r=0.2,b=0.2,l=0), "cm"))
 
 # Raw vs clean (clusters) 
 clean_clusters <- ggpubr::ggscatter(data = iv_all,
           x = "IV_raw",
           y = "IV_clusters",
           color = "Id",
-          ggtheme = theme_bw()) +
+          ggtheme = theme_bw(),
+          size = 1.5) +
     #ggpubr::stat_cor(aes(label = after_stat(r.label)), # add r coefficient but not p value
    #                method = "pearson",
     #               label.x = 0.03,
@@ -259,17 +270,18 @@ clean_clusters <- ggpubr::ggscatter(data = iv_all,
    geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
   ggplot2::scale_x_continuous(
     limits = c(0, 2),
-    breaks = c(0, 0.50, 1, 1.5, 2), 
-    labels = c("0", "0.50", "1", "1.5", "2")
+    breaks = c(0, 1, 2), 
+    labels = c("0", "1", "2")
   ) +
   scale_y_continuous(
    limits = c(0, 2),
-    breaks = c(0, 0.50, 1, 1.5, 2), 
-    labels = c("0", "0.50", "1", "1.5", "2")
+    breaks = c(0, 1, 2), 
+    labels = c("0", "1", "2")
   ) + 
   labs(x = "Raw dataset", y = "Clean dataset (algorithm)") +
   coord_fixed(ratio = 1) + 
-  ggpubr::rremove("legend")
+  ggpubr::rremove("legend") +
+  theme(plot.margin = unit(c(t=0,r=0.2,b=0.2,l=0), "cm"))
 
 # Histogram of deltas
 ## First, do some re-structuring
@@ -280,27 +292,31 @@ iv_all_long <- iv_all %>%
                         values_to = "delta")
 
   # Calculate x-axis limits to center around 0
-  delta_range <- iv_all_long[[delta]]
   max_abs_delta <- max(abs(iv_all_long$delta), na.rm = TRUE)
+  
 
 delta_hist <- ggplot(iv_all_long, aes(x = delta, fill = metric)) +
   geom_histogram(position = "identity", alpha = 0.5, bins = 50, color = "black") +
-  xlim(-max_abs_delta, max_abs_delta) +
   labs(x = "Delta", y = "Frequency") +
   scale_fill_manual(
     name = "Metric",
     values = c("#0072B2", "#D55E00"),
     labels = c("Algorithm dataset", "Wear log dataset")
     ) +
+  scale_x_continuous(breaks = c(-max_abs_delta, 0, max_abs_delta), # make sure x axis is centred around 0 
+                     limits = c(-max_abs_delta, max_abs_delta),
+                     labels = c("-1.0", "0", "1.0")) + # manually selecting labels
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5), 
-        aspect.ratio = 1) 
+        aspect.ratio = 1,
+        plot.margin = unit(c(t=0,r=0.2,b=0.2,l=0), "cm")) +
+  ggpubr::rremove("legend")
 
 
 # Combining the plots
 ## Make sure you have patchwork loaded in
 p2 <- clean_wrlg + clean_clusters + delta_hist + 
-  plot_annotation("Intradaily variability",
+  patchwork::plot_annotation("IV",
   tag_levels = list(c("B1", "B2", "B3")),
   theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
@@ -442,7 +458,7 @@ delta_hist <- vis_deltas(df = mlit10_all,
 
 ## Combining the plots
 p3 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
-  plot_annotation("Mean timing of light above 10 lux",
+  patchwork::plot_annotation("MLiT 10 lx",
   tag_levels = list(c("C1", "C2", "C3")),
   theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
@@ -484,7 +500,7 @@ delta_hist <- vis_deltas(df = mlit250_all,
 
 ## Combining the plots
 p4 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
-  plot_annotation("Mean timing of light above 250 lux",
+  patchwork::plot_annotation("MLiT 250 lx",
   tag_levels = list(c("D1", "D2", "D3")),
   theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
@@ -526,7 +542,7 @@ delta_hist <- vis_deltas(df = mlit1000_all,
 
 ## Combining the plots
 p5 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
-  plot_annotation("Mean timing of light above 1000 lux",
+  patchwork::plot_annotation("MLiT 1000 lx",
   tag_levels = list(c("E1", "E2", "E3")),
   theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
@@ -568,7 +584,7 @@ delta_hist <- vis_deltas(df = flit10_all,
 
 ## Combining the plots
 p6 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
-  plot_annotation("First timing of light above 10 lux",
+  plot_annotation("FLitT 10 lux",
   tag_levels = list(c("F1", "F2", "F3")),
   theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
@@ -610,7 +626,7 @@ delta_hist <- vis_deltas(df = flit250_all,
 
 ## Combining the plots
 p7 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
-  plot_annotation("First timing of light above 250 lux",
+  plot_annotation("FLitT 250 lux",
   tag_levels = list(c("G1", "G2", "G3")),
   theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
@@ -653,7 +669,7 @@ delta_hist <- vis_deltas(df = flit1000_all,
 
 ## Combining the plots
 p8 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
-  plot_annotation("First timing of light above 1000 lux",
+  patchwork::plot_annotation("FLitT 1000 lx",
   tag_levels = list(c("H1", "H2", "H3")),
   theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
@@ -695,7 +711,7 @@ delta_hist <- vis_deltas(df = llit10_all,
 
 ## Combining the plots
 p9 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
-  plot_annotation("Last timing of light above 10 lux",
+  plot_annotation("LLiT 10 lx",
   tag_levels = list(c("I1", "I2", "I3")),
   theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
@@ -738,7 +754,7 @@ delta_hist <- vis_deltas(df = llit250_all,
 
 ## Combining the plots
 p10 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
-  plot_annotation("Last timing of light above 250 lux",
+  patchwork::plot_annotation("LLiT 250 lx",
   tag_levels = list(c("J1", "J2", "J3")),
   theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
@@ -780,7 +796,7 @@ delta_hist <- vis_deltas(df = llit1000_all,
 
 ## Combining the plots
 p11 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
-  plot_annotation("Last timing of light above 1000 lux",
+  plot_annotation("LLiT 1000 lx",
   tag_levels = list(c("K1", "K2", "K3")),
   theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
@@ -822,7 +838,7 @@ delta_hist <- vis_deltas(df = tat250_all,
 
 ## Combining the plots
 p12 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
-  plot_annotation("Time above 250 lux",
+  plot_annotation("TAT 250 lx",
   tag_levels = list(c("M1", "M2", "M3")),
   theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
@@ -864,7 +880,7 @@ delta_hist <- vis_deltas(df = tat1000_all,
 
 ## Combining the plots
 p13 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
-  plot_annotation("Time above 1000 lux",
+  plot_annotation("TAT 1000 lx",
   tag_levels = list(c("N1", "N2", "N3")),
   theme = theme(plot.title = element_text(hjust = .5, size = 16)))
 
@@ -876,27 +892,27 @@ p13
 
 library(cowplot)
 
-plots1 <- plot_grid(p1,p2, p3, p4, p5, p6,
+plots1 <- plot_grid(p1,p2,p4, p5, p6, p7,
                    align = "v",
                    nrow = 6)
 
-plots2 <- plot_grid(p7, p8, p9, p10, p11, p12, p13,
+plots2 <- plot_grid(p8, p9, p10, p11, p12, p13,
                    align = "v",
-                   nrow = 7)
+                   nrow = 6)
 
-ggsave(filename = "results_fig08.png",
+ggsave(filename = "results_fig08_1.png",
        plot = plots1, 
        width = 10,
        height = 15,
        dpi = 600,
-       path = "H:/nonwear_detection/preprint_figures/results/fig08")
+       path = "Z:/nonwear_detection/preprint_figures/results/fig08")
 
 ggsave(filename = "results_fig08_2.png",
        plot = plots2, 
-       width = 10,
-       height = 15,
+       width = 15,
+       height = 24,
        dpi = 600,
-       path = "H:/nonwear_detection/preprint_figures/results/fig08")
+       path = "Z:/nonwear_detection/preprint_figures/results/fig08")
 ```
 
 ## Statistical analysis of the plots 
@@ -912,7 +928,7 @@ for (df in metrics_dfs) {
   
 }
 
-## It seems like they are all normally distributed
+## The distribution looks more or less normal, and we can proceed with a paired t-test
 
 
 ```
