@@ -1,0 +1,143 @@
+---
+title: "metrics_stats"
+author: "Carolina Guidolin"
+date: "2024-12-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Aim
+To calculate differences between metrics calculated in the script metrics_comparison.Rmd. Specifically, we will be using a t-test to do this.
+
+## Let's first check the normality of our data
+Import the function norm_check before running this. The function is contained in the norm_check_fun.R script.
+```{r}
+# Create a list of the dfs containing the metrics 
+metrics_dfs <- list(mlit250_all, mlit1000_all, llit10_all, llit250_all, llit1000_all, flit10_all, flit250_all, flit1000_all, tat1000_all, tat250_all)
+
+# Visualise normality for each df
+
+for (df in metrics_dfs) {
+
+    print(norm_check(df))
+  
+}
+
+## The distribution looks more or less normal, and we can proceed with a paired t-test
+```
+### Performing the paired sample Student t-test
+#### First, we  create a function to perform the t-test for all metrics 
+```{r}
+## First, we create a function for the metrics that have been calculated as average of 6 participation days
+## These are: mlit250, mlit1000, llit10, llit250, llit1000, flit10, flit250, flit1000, tat1000, tat250
+ttest_means <- function (df) {
+  
+  # Get the name of the input df as a string
+  df_name <- deparse(substitute(df))
+  
+# Turning df into long form to perform computations
+  df_long <- df %>%
+  pivot_longer(cols = c(mean_raw, mean_wrlg, mean_clusters),
+               names_to = "dataset",
+               values_to = "mean")
+  
+  # Turn mean column to numeric (seconds)
+    df_long <- df_long %>%
+    mutate(mean = as.numeric(mean))
+  
+    # Performing t-test
+  t_test <- df_long %>%
+    rstatix::t_test(mean ~ dataset, paired = TRUE) %>%
+    rstatix::add_significance()
+  
+  # Adding a column indicating which metric the t-test corresponds
+  t_test$metric <- (df_name)
+  
+ # Assigning dfs to dynamically named variables in the global environment
+  assign(paste0(df_name, "_long"), df_long, envir = .GlobalEnv)
+  assign(paste0("t_test_", df_name), t_test, envir = .GlobalEnv)
+
+}    
+
+## For the two remaining metrics (IS and IV), we are calculating t-test staistics separately
+
+```
+
+#### Applying the function to the metrics dfs
+```{r}
+
+#MLiT250
+ttest_means(mlit250_all)
+
+# MLiT1000
+ttest_means(mlit1000_all)
+
+# FLitT 10
+ttest_means(flit10_all)
+
+#FLitT250
+ttest_means(flit250_all)
+
+#FLiT1000
+ttest_means(flit1000_all)
+
+# LLitT 10
+ttest_means(llit10_all)
+
+# LLitT 250
+ttest_means(llit250_all)
+
+# LLitT 1000
+ttest_means(llit1000_all)
+
+# TAT 250
+ttest_means(tat250_all)
+
+# TAT 1000
+ttest_means(tat1000_all)
+
+
+```
+
+### Peform t-test on remaining metrics (IV and IS)
+```{r}
+# Turning into long format
+iv_means_long <- iv_all %>%
+  pivot_longer(cols = c(IV_raw, IV_wrlg, IV_clusters),
+               names_to = "dataset",
+               values_to = "mean") 
+
+is_means_long <- is_all %>%
+  pivot_longer(cols = c(IS_raw, IS_wrlg, IS_clusters),
+               names_to = "dataset",
+               values_to = "mean")
+
+# Performing the t-test
+iv_ttest <- iv_means_long %>%
+    rstatix::t_test(mean ~ dataset, paired = TRUE) %>%
+    rstatix::add_significance() %>%
+  mutate(metric = "iv")
+
+is_ttest <- is_means_long %>%
+    rstatix::t_test(mean ~ dataset, paired = TRUE) %>%
+    rstatix::add_significance() %>%
+  mutate(metric = "is")
+
+#Combining all dfs into one
+ttest_all <- dplyr::bind_rows(t_test_mlit1000_all,
+                              t_test_mlit250_all,
+                              t_test_flit10_all,
+                              t_test_flit1000_all,
+                              t_test_flit250_all,
+                              t_test_llit10_all,
+                              t_test_llit250_all,
+                              t_test_llit1000_all,
+                              t_test_tat250_all,
+                              t_test_tat1000_all,
+                              iv_ttest,
+                              is_ttest)
+```
+

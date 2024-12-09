@@ -13,11 +13,24 @@ style_time <- function(x){
     round_hms()
 }
 
-# We need one more function to format time so that it displayed as HH:MM
+# We need one more function to format time so that it displayed as HH:MM and that handles negative time differences
 format_time <- function(x) {
-  hours <- floor(x / 3600)
-  minutes <- floor((x %% 3600) / 60)
-  paste0(sprintf("%02d", hours), ":", sprintf("%02d", minutes))
+  # Apply the formatting to each element of x
+  sapply(x, function(x_value) {
+    is_negative <- x_value < 0
+    # Use the absolute value for formatting the time
+    x_value <- abs(x_value)
+    # Format the time in HH:MM
+    hours <- floor(x_value / 3600)
+    minutes <- floor((x_value %% 3600) / 60)
+    # Create formatted time
+    formatted_time <- paste0(sprintf("%02d", hours), ":", sprintf("%02d", minutes))
+    # If the value was negative, add the negative sign back
+    if (is_negative) {
+      formatted_time <- paste0("-", formatted_time)
+    }
+    return(formatted_time)
+  })
 }
 
 # Function used to calculate timing metrics across three datasets
@@ -123,7 +136,7 @@ vis_deltas <- function (df, delta_col, metric_col) {
   
   # Create histogram
   b <- ggplot(df_long, aes(x = (.data[[delta_col]]), fill = (.data[[metric_col]]))) +
-  geom_histogram(position = "identity", alpha = 0.5, bins = 50, color = "black") +
+  geom_histogram(position = "identity", alpha = 0.5, bins = 50) +
   labs(x = "Delta (HH:MM)", y = "Frequency") +
   scale_fill_manual(
     name = "Metric",
@@ -135,11 +148,11 @@ vis_deltas <- function (df, delta_col, metric_col) {
     labels = function(x) format_time(x), # Apply custom HH:MM format
     breaks = x_breaks,
     guide = guide_axis(check.overlap = TRUE),
-    oob = scales::oob_keep) +  # Add this to keep values at the axis limits
+    oob= scales::oob_keep) +  # Add this to keep values at the axis limits
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5), 
         aspect.ratio = 1,
-        plot.margin = unit(c(t=0,r=0.2,b=0.2,l=0), "cm")) +
+        plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm")) +
     ggpubr::rremove("legend")
   
   return(b)
