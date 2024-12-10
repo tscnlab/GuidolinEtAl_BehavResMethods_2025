@@ -44,6 +44,7 @@ for (df in metrics_dfs) {
 # T-test for the means
 ## First, we create a function for the metrics that have been calculated as average of 6 participation days
 ## These are: mlit250, mlit1000, llit10, llit250, llit1000, flit10, flit250, flit1000, tat1000, tat250
+
 ttest_means <- function (df) {
   
   # Get the name of the input df as a string
@@ -62,17 +63,15 @@ ttest_means <- function (df) {
     # Performing t-test
   t_test <- df_long %>%
     rstatix::t_test(mean ~ dataset, paired = TRUE) %>%
-    rstatix::add_significance()
+    rstatix::add_significance("p") %>%
+    select(-c(p.adj, p.adj.signif))
   
   # Adding a column indicating which metric the t-test corresponds
   t_test$metric <- (df_name)
   
- # Assigning dfs to dynamically named variables in the global environment
-  assign(paste0(df_name, "_long"), df_long, envir = .GlobalEnv)
-  assign(paste0("t_test_", df_name), t_test, envir = .GlobalEnv)
-
+  return(t_test)
+  
 }    
-
 
 ## For the two remaining metrics (IS and IV), we are calculating t-test staistics separately
 
@@ -83,34 +82,34 @@ ttest_means <- function (df) {
 ```{r}
 
 #MLiT250
-ttest_means(mlit250_all)
+mlit250_ttest <- ttest_means(mlit250_all)
 
 # MLiT1000
-ttest_means(mlit1000_all)
+mlit1000_ttest <- ttest_means(mlit1000_all)
 
 # FLitT 10
-ttest_means(flit10_all)
+flit10_ttest <- ttest_means(flit10_all)
 
 #FLitT250
-ttest_means(flit250_all)
+flit250_ttest <- ttest_means(flit250_all)
 
 #FLiT1000
-ttest_means(flit1000_all)
+flit1000_ttest <- ttest_means(flit1000_all)
 
 # LLitT 10
-ttest_means(llit10_all)
+llit10_ttest <- ttest_means(llit10_all)
 
 # LLitT 250
-ttest_means(llit250_all)
+llit250_ttest <- ttest_means(llit250_all)
 
 # LLitT 1000
-ttest_means(llit1000_all)
+llit1000_ttest <- ttest_means(llit1000_all)
 
 # TAT 250
-ttest_means(tat250_all)
+tat250_ttest <- ttest_means(tat250_all)
 
 # TAT 1000
-ttest_means(tat1000_all)
+tat1000_ttest <- ttest_means(tat1000_all)
 
 
 ```
@@ -131,27 +130,40 @@ is_means_long <- is_all %>%
 # Performing the t-test
 iv_ttest <- iv_means_long %>%
     rstatix::t_test(mean ~ dataset, paired = TRUE) %>%
-    rstatix::add_significance() %>%
-  mutate(metric = "iv")
+    mutate(metric = "iv") %>%
+    rstatix::add_significance("p") %>%
+    select(-c(p.adj, p.adj.signif))
 
 is_ttest <- is_means_long %>%
-    rstatix::t_test(mean ~ dataset, paired = TRUE) %>%
-    rstatix::add_significance() %>%
-  mutate(metric = "is")
+    rstatix::t_test(mean ~ dataset, paired = TRUE)  %>%
+    mutate(metric = "is") %>%
+    rstatix::add_significance("p") %>%
+    select(-c(p.adj, p.adj.signif))
+
 
 #Combining all dfs into one
-ttest_all <- dplyr::bind_rows(t_test_mlit1000_all,
-                              t_test_mlit250_all,
-                              t_test_flit10_all,
-                              t_test_flit1000_all,
-                              t_test_flit250_all,
-                              t_test_llit10_all,
-                              t_test_llit250_all,
-                              t_test_llit1000_all,
-                              t_test_tat250_all,
-                              t_test_tat1000_all,
+ttest_all <- dplyr::bind_rows(mlit250_ttest,
+                              mlit1000_ttest,
+                              flit10_ttest,
+                              flit250_ttest,
+                              flit1000_ttest,
+                              llit10_ttest,
+                              llit250_ttest,
+                              llit1000_ttest,
+                              tat250_ttest,
+                              tat1000_ttest,
                               iv_ttest,
                               is_ttest)
+
+# Apply multiple corrections
+
+ttest_final <- ttest_all %>% 
+  mutate(p.adj = stats::p.adjust(p,
+                           "fdr", # we choose FDR (or BH - same thing) as method
+                           n=length(p))) %>% # we want to correct for all comparisons, i.e. n=36
+  rstatix::add_significance("p.adj") %>%
+  dplyr::relocate(metric, .before= .y.) 
+
 ```
 
 ### Investigating differences in the delta using a sign test
@@ -176,7 +188,7 @@ signtest_deltas <- function (df) {
     # Performing t-test
   signtest <- df_long %>%
     rstatix::sign_test(delta ~ metric) %>%
-    rstatix::add_significance()
+    rstatix::add_significance("p")
   
   # Adding a column indicating which metric the t-test corresponds
   signtest$metric <- (df_name)
@@ -241,6 +253,14 @@ signest_all <- dplyr::bind_rows(signtest_mlit1000_all,
                               signtest_tat1000_all,
                               signtest_is_all,
                               signtest_iv_all)
+
+# Apply multiple corrections
+signtest_final <- signest_all %>% 
+  mutate(p.adj = stats::p.adjust(p,
+                           "fdr", # we choose FDR (or BH - same thing) as method
+                           n=length(p))) %>% # we want to correct for all comparisons, i.e. n=12
+  rstatix::add_significance("p.adj") %>%
+  dplyr::relocate(metric, .before= .y.) 
 ```
 
 ### Investigating the significant differences
