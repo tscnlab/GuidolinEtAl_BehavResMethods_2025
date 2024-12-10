@@ -161,8 +161,8 @@ delta_hist <- ggplot(is_all_long, aes(x = delta, fill = metric)) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5), 
         aspect.ratio = 1,
-        plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))  +
-  ggpubr::rremove("legend")
+        plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))  
+ # ggpubr::rremove("legend")
 
 
 # Combining the plots
@@ -304,7 +304,7 @@ delta_hist <- ggplot(iv_all_long, aes(x = delta, fill = metric)) +
   theme(plot.title = element_text(hjust = 0.5), 
         aspect.ratio = 1,
         plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm")) +
- # ggpubr::rremove("legend")
+  ggpubr::rremove("legend")
 
 
 # Combining the plots
@@ -322,7 +322,7 @@ p2
 ```
 ### Calculating batch metrics for each participants on each day of the experimental week 
 - MLIT250, FLIT250, LLIT250
-- MLIT10, FLIT10, LLIT10
+-  FLIT10, LLIT10
 - TAT250, TAT1000
 - Average MEDI
 - LE
@@ -854,48 +854,6 @@ p13
 ### Combining this into one big multiplot
 ```{r}
 
-# We still need to add a legend to all of the plots - one for the Id and one for the histogram of the deltas. We can extract this from a plot
-## First, extra the Id legend by creating a scatterplot for this purpose
-clean_wrlg <- ggpubr::ggscatter(data = is_all,
-          x = "IS_raw",
-          y = "IS_wrlg",
-          color = "Id") +
-  guides(color = guide_legend(nrow = 4)) + # Set the number of rows
-  theme(legend.position = "top",
-        legend.title = element_text((size =14))) 
-
-#Extract legend
-legend_ids <- ggpubr::get_legend(clean_wrlg)
-# Turn it into a ggplot item
-legend_ids_ggplot <- ggpubr::as_ggplot(legend_ids) 
-
-## Second, extract the legend for the histogram of the deltas
-delta_hist <- ggplot(is_all_long, aes(x = delta, fill = metric)) +
-  geom_histogram() +
-  labs(x = "Delta", y = "Frequency") +
-  scale_fill_manual(
-    name = "Metric",
-    values = c("#0072B2", "#D55E00"),
-    labels = c("Algorithm dataset", "Wear log dataset")
-    ) + # Set the number of rows
-  theme(legend.position = "right",
-        legend.title = element_text(size =14, face = "plain"))
-
-#Extract legend
-legend_metric <- ggpubr::get_legend(delta_hist)
-# Turn it into a ggplot item
-legend_metrics_ggplot <- ggpubr::as_ggplot(legend_metric) 
-
-
-# Combine the two legends into a single row
-combined_legends <- cowplot::plot_grid(
-  legend_ids_ggplot, NULL, legend_metrics_ggplot,
-  ncol = 3, # Arrange in a single row
-  nrow = 1,
-  rel_widths = c(1.7, 0.1, 1) # Adjust relative widths if needed
-)
-
-
 # Create multiplots with the plots - we create two of them as one would not fit all 12 plots
 plots1 <- ggpubr::ggarrange(p1,p2,p4, p5, p6, p7,
                    align = "v",
@@ -905,42 +863,24 @@ plots2 <- ggpubr::ggarrange(p8, p9, p10, p11, p12, p13,
                    align = "v",
                    nrow = 6)
 
-## Adding the legend on top of the first plot
-final_plot_1 <- plot_grid(
-  combined_legends, plots1,
-  ncol = 1, 
-  nrow = 2, 
-  rel_heights = c(0.5,6.5) # Adjust the relative heights iso legend is small
-)
-
-## Adding the legend on top of the second plot
-final_plot_2 <- plot_grid(
-  combined_legends, plots2,
-  ncol = 1, 
-  nrow = 2, 
-  rel_heights = c(0.5,6.5) # Adjust the relative heights iso legend is small
-)
-
 ```
 
 #### Saving the multiplot
 ```{r}
-ggsave(filename = "results_fig08_1.png",
-       plot = final_plot_1, 
-       width = 8,
+ggsave(filename = "results_fig08_3.png",
+       plot = plots1, 
+       width = 10,
        height = 15.5,
        dpi = 600,
        bg = "white",
        path = "H:/nonwear_detection/preprint_figures/results/fig08")
 
-ggsave(filename = "results_fig08_2.png",
-       plot = final_plot_2, 
-       width = 8,
+ggsave(filename = "results_fig08_4.png",
+       plot = plots2, 
+       width = 10,
        height = 15.5,
        dpi = 600,
        bg = "white",
        path = "H:/nonwear_detection/preprint_figures/results/fig08")
 ```
-
-
 
