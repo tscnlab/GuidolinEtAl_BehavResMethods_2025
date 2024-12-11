@@ -48,6 +48,11 @@ prc_medi_1 <- bind_rows(prc_m_list)
 #Turn threshold to numeric for plotting
 prc_medi_1$threshold <- as.numeric(prc_medi_1$threshold)
 
+
+#Calculate F1 score
+prcmedi1_fscore <- prc_medi_1 %>%
+  mutate(f1_score = (2 * PPV * TPR)/(PPV + TPR))
+
 #Let's plot to see what the result looks like
 
 prc_medi_thresholds <- ggplot() +
@@ -126,6 +131,10 @@ prc_medi_2 <- bind_rows(prc_m_list)
 #Turning min_length into a factor for plotting
 prc_medi_2$min_length <- as.factor(prc_medi_2$min_length) 
 
+#Calculate F1 score
+prcmedi2_fscore <- prc_medi_2 %>%
+  mutate(f1_score = (2 * PPV * TPR)/(PPV + TPR))
+
 #Let's plot to see the results
 prc_medi_length <- ggplot() +
    xlim(0,1) + 
@@ -199,6 +208,10 @@ prc_medi_3 <- bind_rows(prc_m_list)
 
 #Turning max_interrupt into a factor for plotting
 prc_medi_3$max_int <- as.factor(prc_medi_3$max_int) 
+
+#Calculate F1 score
+prcmedi3_fscore <- prc_medi_3 %>%
+  mutate(f1_score = (2 * PPV * TPR)/(PPV + TPR))
 
 #Let's plot to see the results
 prc_medi_interrupt <- ggplot() +
