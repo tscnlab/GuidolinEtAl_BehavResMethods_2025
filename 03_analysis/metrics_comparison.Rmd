@@ -540,7 +540,7 @@ delta_hist <- vis_deltas(df = flit10_all,
 
 ## Combining the plots
 p6 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
-  plot_annotation("FLitT 10 lx",
+  patchwork::plot_annotation("FLitT 10 lx",
   tag_levels = list(c("E1", "E2", "E3")),
   theme = theme(plot.title = element_text(hjust = .5, size = 16),
                 plot.margin = unit(c(t=0.1,r=0.1,b=0.1,l=0.1), "cm")))
@@ -583,7 +583,7 @@ delta_hist <- vis_deltas(df = flit250_all,
 
 ## Combining the plots
 p7 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
-  plot_annotation("FLitT 250 lx",
+  patchwork::plot_annotation("FLitT 250 lx",
   tag_levels = list(c("F1", "F2", "F3")),
   theme = theme(plot.title = element_text(hjust = .5, size = 16),
                 plot.margin = unit(c(t=0.1,r=0.1,b=0.1,l=0.1), "cm")))
@@ -670,7 +670,7 @@ delta_hist <- vis_deltas(df = llit10_all,
 
 ## Combining the plots
 p9 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
-  plot_annotation("LLiT 10 lx",
+  patchwork::plot_annotation("LLiT 10 lx",
   tag_levels = list(c("H1", "H2", "H3")),
   theme = theme(plot.title = element_text(hjust = .5, size = 16),
                 plot.margin = unit(c(t=0.1,r=0.1,b=0.1,l=0.1), "cm")))
@@ -757,7 +757,7 @@ delta_hist <- vis_deltas(df = llit1000_all,
 
 ## Combining the plots
 p11 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
-  plot_annotation("LLiT 1000 lx",
+  patchwork::plot_annotation("LLiT 1000 lx",
   tag_levels = list(c("J1", "J2", "J3")),
   theme = theme(plot.title = element_text(hjust = .5, size = 16),
                 plot.margin = unit(c(t=0.1,r=0.1,b=0.1,l=0.1), "cm")))
@@ -800,7 +800,7 @@ delta_hist <- vis_deltas(df = tat250_all,
 
 ## Combining the plots
 p12 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
-  plot_annotation("TAT 250 lx",
+  patchwork::plot_annotation("TAT 250 lx",
   tag_levels = list(c("K1", "K2", "K3")),
   theme = theme(plot.title = element_text(hjust = .5, size = 16),
                 plot.margin = unit(c(t=0.1,r=0.1,b=0.1,l=0.1), "cm")))
@@ -843,7 +843,7 @@ delta_hist <- vis_deltas(df = tat1000_all,
 
 ## Combining the plots
 p13 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
-  plot_annotation("TAT 1000 lx",
+  patchwork::plot_annotation("TAT 1000 lx",
   tag_levels = list(c("M1", "M2", "M3")),
   theme = theme(plot.title = element_text(hjust = .5, size = 16),
                 plot.margin = unit(c(t=0.1,r=0.0,b=0.1,l=0), "cm")))
