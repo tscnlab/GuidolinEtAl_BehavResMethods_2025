@@ -1,0 +1,886 @@
+---
+title: "metrics_comparison"
+author: "Carolina Guidolin"
+date: "2024-11-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Calculating metrics using different datasets
+This script should be run after classification_summary. 
+
+The aim of this script is to calculate and compare light metrics on three different datasets:
+1. A raw dataset, where non-wear information is ignored (i.e., we include all data regardless of whether it is wear or non-wear)
+2. A dataset where non-wear information is identified using self-reported non-wear time (wear log)
+3. A dataset where non-wear information is identified by detecting clusters of low illuminance
+
+### Creation of the three datasets
+Before performing the comparison, we need to identify these three datasets. 
+```{r}
+# 1. Raw dataset: this is the raw data, i.e. dataset.LL.wrlg
+raw_dataset <- dataset.LL.wrlg
+
+# 2. Non-wear by wear log dataset. We need to create this from dataset.LL.wrlg
+nw_wrlg <- dataset.LL.wrlg %>% 
+  mutate(MEDI = if_else(State == "off", NA, MEDI))
+
+#3. Non-wear by detection of clusters of low illuminance. We will use the dataset where padding has been added to transition states (see script classification_summary.Rmd). 
+nw_clusters <- nw_alg_padded %>%
+  mutate(MEDI = case_when(
+    is.na(is_low_medi_cluster) ~ MEDI, # When is_low_medi_cluster is NA, retain MEDI
+    is_low_medi_cluster == 0 ~ NA, # When is_low_medi_cluster is 0, set MEDI to NA
+    TRUE ~ MEDI # For all other cases, retain MEDI
+  ))
+
+```
+
+### Data prep
+```{r}
+# Exclude Monday since this day does not contain full data. Do this for all three data frames
+raw_dataset <- raw_dataset %>% dplyr::filter(weekdays(Datetime) != "Monday")
+nw_wrlg <- nw_wrlg %>% dplyr::filter(weekdays(Datetime) != "Monday")
+nw_clusters <- nw_clusters %>% dplyr::filter(weekdays(Datetime) != "Monday")
+```
+
+### 1. Calculating interdaily stability 
+```{r}
+# 1a. raw dataset
+is_raw_dataset <- raw_dataset %>% 
+  dplyr::summarise(
+    IS_raw = interdaily_stability(
+      Light.vector = MEDI,
+      Datetime.vector = Datetime
+    )
+  )
+
+# 1b. With Wear log based non-wear 
+is_nw_wrlg <- nw_wrlg %>% 
+  dplyr::summarise(
+    IS_wrlg = interdaily_stability(
+      Light.vector = MEDI,
+      Datetime.vector = Datetime,
+      na.rm = TRUE
+    )
+  )
+
+# 1c. With cluster based non-wear
+is_nw_clusters <- nw_clusters %>%
+  group_by(Id) %>% #we need to group here, because this df is not directly generate in LightLogR
+  # and hence the data is not grouped by Id by default (as is the case for the other 2 data frames)
+  dplyr::summarise(
+    IS_clusters = interdaily_stability(
+      Light.vector = MEDI,
+      Datetime.vector = Datetime,
+      na.rm = TRUE
+    )
+  ) %>% 
+  ungroup()
+
+# Combining the dfs 
+temp <- dplyr::full_join(is_raw_dataset, is_nw_wrlg, by = "Id") #first, combine raw and wrlg data sets
+is_all <- dplyr::full_join(temp, is_nw_clusters, by = "Id") #second, add clusters data set
+
+# Calculating deltas
+is_all <- is_all %>%
+  mutate(delta_wrlg = IS_wrlg - IS_raw,
+         delta_clusters = IS_clusters - IS_raw)
+
+
+```
+
+#### Plotting interdaily stability
+```{r}
+library(patchwork)
+
+# Raw vs clean (wrlg) scatterplot
+clean_wrlg <- ggpubr::ggscatter(data = is_all,
+          x = "IS_raw",
+          y = "IS_wrlg",
+          color = "Id",
+          ggtheme = theme_bw(),
+          size = 1.5) +
+  geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
+  ggplot2::scale_x_continuous(
+    limits = c(0, 1),
+    breaks = c(0, 0.50, 1), 
+    labels = c("0", "0.50", "1")
+  ) +
+  scale_y_continuous(limits = c(0, 1),
+    breaks = c(0, 0.50, 1), 
+    labels = c("0", "0.50", "1")
+  ) + 
+  labs(x = "Raw dataset", y = "Clean dataset (Wear log)") +
+  coord_fixed(ratio = 1) +
+  ggpubr::rremove("legend") +
+  theme(plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))
+
+# Raw vs clean (clusters) scatterplot
+clean_clusters <- ggpubr::ggscatter(data = is_all,
+          x = "IS_raw",
+          y = "IS_clusters",
+          color = "Id",
+          ggtheme = theme_bw(),
+          size = 1.5) +
+   geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
+  ggplot2::scale_x_continuous(
+    limits = c(0, 1),
+    breaks = c(0, 0.50, 1), 
+    labels = c("0", "0.50", "1")
+  ) +
+  scale_y_continuous(limits = c(0, 1),
+    breaks = c(0, 0.50, 1), 
+    labels = c("0", "0.50", "1")
+  ) + 
+  labs(x = "Raw dataset", y = "Clean dataset (algorithm)") +
+  coord_fixed(ratio = 1) +
+  ggpubr::rremove("legend") +
+  theme(plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))
+
+# Histogram of deltas
+## First, do some re-structuring
+# Turning df into long form to perform computations
+is_all_long <- is_all %>%
+  pivot_longer(cols = c(delta_wrlg, delta_clusters),
+                        names_to = "metric",
+                        values_to = "delta") 
+
+
+delta_hist <- ggplot(is_all_long, aes(x = delta, fill = metric)) +
+  geom_histogram(position = "identity", alpha = 0.5, bins = 50) +
+  labs(x = "Delta", y = "Frequency") +
+  scale_fill_manual(
+    name = "Metric",
+    values = c("#0072B2", "#D55E00"),
+    labels = c("Algorithm dataset", "Wear log dataset")
+    ) +
+  scale_x_continuous(breaks = c(-0.10, 0.00, 0.10),
+                     labels = c("-0.10", 0, "0.10")) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5), 
+        aspect.ratio = 1,
+        plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))  
+ # ggpubr::rremove("legend")
+
+
+# Combining the plots
+## Make sure you have patchwork loaded in
+p1 <- clean_wrlg + clean_clusters + delta_hist + 
+  patchwork::plot_annotation("IS",
+  tag_levels = list(c("A1", "A2", "A3")),
+  theme = theme(plot.title = element_text(hjust = 0.5, size = 16),
+                plot.margin = unit(c(t=0.1,r=0.1,b=0.1,l=0.1), "cm")))
+
+p1
+
+```
+
+### 2. Calculating intradaily variability
+```{r}
+# 1a. raw dataset
+iv_raw_dataset <- raw_dataset %>% 
+  dplyr::summarise(
+    IV_raw = intradaily_variability(
+      Light.vector = MEDI,
+      Datetime.vector = Datetime
+    )
+  )
+
+# 1b. With Wear log based non-wear 
+iv_nw_wrlg <- nw_wrlg %>% 
+  dplyr::summarise(
+    IV_wrlg = intradaily_variability(
+      Light.vector = MEDI,
+      Datetime.vector = Datetime,
+      na.rm = TRUE
+    )
+  )
+
+# 1c. With cluster based non-wear
+iv_nw_clusters <- nw_clusters %>%
+  group_by(Id) %>% #we need to group here, because this df is not directly generate in LightLogR
+  # and hence the data is not grouped by Id by default (as is the case for the other 2 data frames)
+  dplyr::summarise(
+    IV_clusters = intradaily_variability(
+      Light.vector = MEDI,
+      Datetime.vector = Datetime,
+      na.rm = TRUE
+    )
+  ) %>% 
+  ungroup()
+
+# Combining the dfs 
+temp <- full_join(iv_raw_dataset, iv_nw_wrlg, by = "Id") #first, combine raw and wrlg data sets
+iv_all <- full_join(temp, iv_nw_clusters, by = "Id") #second, add clusters data set
+
+# Calculating delta
+iv_all <- iv_all %>%
+    mutate(delta_wrlg = IV_wrlg - IV_raw,
+          delta_clusters = IV_clusters - IV_raw)
+```
+
+#### Plotting intradaily variability 
+```{r}
+# Raw vs clean (wrlg)
+clean_wrlg <- ggpubr::ggscatter(data = iv_all,
+          x = "IV_raw",
+          y = "IV_wrlg",
+          color = "Id",
+          ggtheme = theme_bw(),
+          size = 1.5) +
+   # ggpubr::stat_cor(aes(label = after_stat(r.label)), # add r coefficient but not p value
+   #                method = "pearson",
+    #               label.x = 0.03,
+     #               label.y = 1.95) +
+  geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
+  ggplot2::scale_x_continuous(
+    limits = c(0, 2),
+    breaks = c(0, 1, 2), 
+    labels = c("0", "1", "2")
+  ) +
+  scale_y_continuous(
+   limits = c(0, 2),
+    breaks = c(0, 1, 2), 
+    labels = c("0", "1", "2")
+  ) + 
+  labs(x = "Raw dataset", y = "Clean dataset (Wear log)") +
+  coord_fixed(ratio = 1) + 
+  ggpubr::rremove("legend")+
+  theme(plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))
+
+# Raw vs clean (clusters) 
+clean_clusters <- ggpubr::ggscatter(data = iv_all,
+          x = "IV_raw",
+          y = "IV_clusters",
+          color = "Id",
+          ggtheme = theme_bw(),
+          size = 1.5) +
+    #ggpubr::stat_cor(aes(label = after_stat(r.label)), # add r coefficient but not p value
+   #                method = "pearson",
+    #               label.x = 0.03,
+    #               label.y = 1.95) +
+   geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
+  ggplot2::scale_x_continuous(
+    limits = c(0, 2),
+    breaks = c(0, 1, 2), 
+    labels = c("0", "1", "2")
+  ) +
+  scale_y_continuous(
+   limits = c(0, 2),
+    breaks = c(0, 1, 2), 
+    labels = c("0", "1", "2")
+  ) + 
+  labs(x = "Raw dataset", y = "Clean dataset (algorithm)") +
+  coord_fixed(ratio = 1) + 
+  ggpubr::rremove("legend") +
+  theme(plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))
+
+# Histogram of deltas
+## First, do some re-structuring
+# Turning df into long form to perform computations
+iv_all_long <- iv_all %>%
+  pivot_longer(cols = c(delta_wrlg, delta_clusters),
+                        names_to = "metric",
+                        values_to = "delta")
+
+  # Calculate x-axis limits to center around 0
+  max_abs_delta <- max(abs(iv_all_long$delta), na.rm = TRUE)
+  
+
+delta_hist <- ggplot(iv_all_long, aes(x = delta, fill = metric)) +
+  geom_histogram(position = "identity", alpha = 0.5, bins = 50) +
+  labs(x = "Delta", y = "Frequency") +
+  scale_fill_manual(
+    name = "Metric",
+    values = c("#0072B2", "#D55E00"),
+    labels = c("Algorithm dataset", "Wear log dataset")
+    ) +
+  scale_x_continuous(breaks = c(-max_abs_delta, 0, max_abs_delta), # make sure x axis is centred around 0 
+                     limits = c(-max_abs_delta, max_abs_delta),
+                     labels = c("-1.0", "0", "1.0")) + # manually selecting labels
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5), 
+        aspect.ratio = 1,
+        plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm")) +
+  ggpubr::rremove("legend")
+
+
+# Combining the plots
+## Make sure you have patchwork loaded in
+p2 <- clean_wrlg + clean_clusters + delta_hist + 
+  patchwork::plot_annotation("IV",
+  tag_levels = list(c("B1", "B2", "B3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16),
+                plot.margin = unit(c(t=0.1,r=0.1,b=0.1,l=0.1), "cm")))
+
+p2
+
+
+
+```
+### Calculating batch metrics for each participants on each day of the experimental week 
+- MLIT250, FLIT250, LLIT250
+-  FLIT10, LLIT10
+- TAT250, TAT1000
+- Average MEDI
+- LE
+```{r}
+batch_raw <- raw_dataset %>%
+  LightLogR::create_Timedata() %>%
+  mutate(wDay = wday(Datetime, label = TRUE, week_start = 1))
+
+batch_wrlg <- nw_wrlg %>%
+  LightLogR::create_Timedata() %>%
+  mutate(wDay = wday(Datetime, label = TRUE, week_start = 1))
+
+batch_clusters <- nw_clusters %>%
+  LightLogR::create_Timedata() %>%
+  mutate(wDay = wday(Datetime, label = TRUE, week_start = 1))
+
+# Batch metrics for raw dataset
+batch_raw <- 
+  batch_raw %>% 
+  group_by(Id, wDay) %>% 
+  summarize(
+    MLIT10 = #Note: This creates 1) mean timing above threshold, 2) first timing above threshold, 3) last timing above threshold
+      timing_above_threshold(MEDI, Time.data, threshold = 10, as.df = TRUE, na.rm = TRUE),
+    MLIT250 = 
+      timing_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+    MLIT1000 = 
+      timing_above_threshold(MEDI, Time.data, threshold = 1000, as.df = TRUE, na.rm = TRUE),
+    TAT250 = 
+      duration_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+    TAT1000 = 
+      duration_above_threshold(MEDI, Time.data, threshold = 1000, as.df = TRUE, na.rm = TRUE),
+    average_MEDI = 
+      mean(MEDI, na.rm = TRUE),
+    light_exposure = 
+      sum(MEDI, na.rm = TRUE)/360, # 10 second epochs means 360 epochs in one hour. dividing by 360 gives the light exposure in lx·h
+    .groups = "drop_last"
+    ) %>% 
+  unnest(-Id)
+
+# Batch metrics for nw_wrlg dataset
+batch_wrlg <- 
+  batch_wrlg %>% 
+  group_by(Id, wDay) %>% 
+  summarize(
+     MLIT10 =
+      timing_above_threshold(MEDI, Time.data, threshold = 10, as.df = TRUE, na.rm = TRUE),
+    MLIT250 = 
+      timing_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+    MLIT1000 = 
+      timing_above_threshold(MEDI, Time.data, threshold = 1000, as.df = TRUE, na.rm = TRUE),
+    TAT250 = 
+      duration_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+    TAT1000 = 
+      duration_above_threshold(MEDI, Time.data, threshold = 1000, as.df = TRUE, na.rm = TRUE),
+    average_MEDI = 
+      mean(MEDI, na.rm = TRUE),
+    light_exposure = 
+      sum(MEDI, na.rm = TRUE)/360, # 10 second epochs means 360 epochs in one hour. dividing by 360 gives the light exposure in lx·h
+    .groups = "drop_last"
+    ) %>% 
+  unnest(-Id)
+
+# Batch metrics for nw_clusters dataset
+batch_clusters <- 
+  batch_clusters %>% 
+  group_by(Id, wDay) %>% 
+  summarize(
+     MLIT10 = 
+      timing_above_threshold(MEDI, Time.data, threshold = 10, as.df = TRUE, na.rm = TRUE),
+    MLIT250 = 
+      timing_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+    MLIT1000 = 
+      timing_above_threshold(MEDI, Time.data, threshold = 1000, as.df = TRUE, na.rm = TRUE),
+    TAT250 = 
+      duration_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+    TAT1000 = 
+      duration_above_threshold(MEDI, Time.data, threshold = 1000, as.df = TRUE, na.rm = TRUE),
+    average_MEDI = 
+      mean(MEDI, na.rm = TRUE),
+    light_exposure = 
+      sum(MEDI, na.rm = TRUE)/360, # 10 second epochs means 360 epochs in one hour. dividing by 360 gives the light exposure in lx·h
+    .groups = "drop_last"
+    ) %>% 
+  unnest(-Id)
+
+```
+
+## Calculating timing metrics
+In the following chunks, we will calculate "timing metrics":
+- MLiT250, MLiT1000
+- FLiT 10, FLiT 250, FLiT 1000
+- LLit 10, LLiT 250, LLit 1000
+To facilitate these calculations, we wrote a function (calculate_metric_fun.R script) that takes the tree datasets and calculates ean and sd for the timing metric of interest. 
+
+
+### MLiT250 analysis
+```{r}
+# Calculation 
+mlit250_all <- calculate_metric(
+  raw_df = batch_raw,
+  wrlg_df = batch_wrlg,
+  clusters_df = batch_clusters,
+  metric = "mean_timing_above_250"
+)
+
+# Plotting
+## Raw vs wrlg
+raw_vs_wrlg_vis <- visualize_comparison(
+  data = mlit250_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_wrlg", 
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (Wear log)",
+)
+
+## Raw vs clusters
+raw_vs_clusters_vis <- visualize_comparison(
+  data = mlit250_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_clusters", 
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (algorithm)",
+)
+
+## Histogram of deltas 
+delta_hist <- vis_deltas(df = mlit250_all,
+           delta_col = "delta",
+           metric_col = "metric") 
+
+## Combining the plots
+p4 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
+  patchwork::plot_annotation("MLiT 250 lx",
+  tag_levels = list(c("C1", "C2", "C3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16),
+                plot.margin = unit(c(t=0.1,r=0.1,b=0.1,l=0.1), "cm")))
+
+p4
+```
+#### MLiT 1000 analysis
+```{r}
+# Calculation 
+mlit1000_all <- calculate_metric(
+  raw_df = batch_raw,
+  wrlg_df = batch_wrlg,
+  clusters_df = batch_clusters,
+  metric = "mean_timing_above_1000"
+)
+
+# Plotting
+## Raw vs wrlg
+raw_vs_wrlg_vis <- visualize_comparison(
+  data = mlit1000_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_wrlg", 
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (Wear log)",
+)
+
+## Raw vs clusters
+raw_vs_clusters_vis <- visualize_comparison(
+  data = mlit1000_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_clusters", 
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (algorithm)",
+)
+
+## Histogram of deltas 
+delta_hist <- vis_deltas(df = mlit1000_all,
+           delta_col = "delta",
+           metric_col = "metric") 
+
+## Combining the plots
+p5 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
+  patchwork::plot_annotation("MLiT 1000 lx",
+  tag_levels = list(c("D1", "D2", "D3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16),
+                plot.margin = unit(c(t=0.1,r=0.1,b=0.1,l=0.1), "cm")))
+
+p5
+```
+### FLiT 10 analysis
+```{r}
+# Calculation 
+flit10_all <- calculate_metric(
+  raw_df = batch_raw,
+  wrlg_df = batch_wrlg,
+  clusters_df = batch_clusters,
+  metric = "first_timing_above_10"
+)
+
+# Plotting
+## Raw vs wrlg
+raw_vs_wrlg_vis <- visualize_comparison(
+  data = flit10_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_wrlg", 
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (Wear log)",
+)
+
+## Raw vs clusters
+raw_vs_clusters_vis <- visualize_comparison(
+  data = flit10_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_clusters", 
+   x_label = "Raw dataset", 
+  y_label = "Clean dataset (algorithm)",
+)
+
+## Histogram of deltas 
+delta_hist <- vis_deltas(df = flit10_all,
+           delta_col = "delta",
+           metric_col = "metric") 
+
+## Combining the plots
+p6 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
+  patchwork::plot_annotation("FLitT 10 lx",
+  tag_levels = list(c("E1", "E2", "E3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16),
+                plot.margin = unit(c(t=0.1,r=0.1,b=0.1,l=0.1), "cm")))
+
+p6
+```
+### FLiT 250 analysis
+```{r}
+# Calculation 
+flit250_all <- calculate_metric(
+  raw_df = batch_raw,
+  wrlg_df = batch_wrlg,
+  clusters_df = batch_clusters,
+  metric = "first_timing_above_250"
+)
+
+# Plotting
+## Raw vs wrlg
+raw_vs_wrlg_vis <- visualize_comparison(
+  data = flit250_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_wrlg", 
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (Wear log)",
+)
+
+## Raw vs clusters
+raw_vs_clusters_vis <- visualize_comparison(
+  data = flit250_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_clusters", 
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (algorithm)",
+)
+
+## Histogram of deltas 
+delta_hist <- vis_deltas(df = flit250_all,
+           delta_col = "delta",
+           metric_col = "metric") 
+
+## Combining the plots
+p7 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
+  patchwork::plot_annotation("FLitT 250 lx",
+  tag_levels = list(c("F1", "F2", "F3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16),
+                plot.margin = unit(c(t=0.1,r=0.1,b=0.1,l=0.1), "cm")))
+
+p7
+```
+
+### FLiT 1000 comparison 
+```{r}
+# Calculation 
+flit1000_all <- calculate_metric(
+  raw_df = batch_raw,
+  wrlg_df = batch_wrlg,
+  clusters_df = batch_clusters,
+  metric = "first_timing_above_1000"
+)
+
+# Plotting
+## Raw vs wrlg
+raw_vs_wrlg_vis <- visualize_comparison(
+  data = flit1000_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_wrlg", 
+ x_label = "Raw dataset", 
+  y_label = "Clean dataset (Wear log)",
+)
+
+## Raw vs clusters
+raw_vs_clusters_vis <- visualize_comparison(
+  data = flit1000_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_clusters", 
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (algorithm)",
+)
+
+## Histogram of deltas 
+delta_hist <- vis_deltas(df = flit1000_all,
+           delta_col = "delta",
+           metric_col = "metric") 
+
+## Combining the plots
+p8 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
+  patchwork::plot_annotation("FLitT 1000 lx",
+  tag_levels = list(c("G1", "G2", "G3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16),
+                plot.margin = unit(c(t=0.1,r=0.1,b=0.1,l=0.1), "cm")))
+
+p8
+```
+### LLiT 10 analysis
+```{r}
+# Calculation 
+llit10_all <- calculate_metric(
+  raw_df = batch_raw,
+  wrlg_df = batch_wrlg,
+  clusters_df = batch_clusters,
+  metric = "last_timing_above_10"
+)
+
+# Plotting
+## Raw vs wrlg
+raw_vs_wrlg_vis <- visualize_comparison(
+  data = llit10_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_wrlg", 
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (Wear log)",
+)
+
+## Raw vs clusters
+raw_vs_clusters_vis <- visualize_comparison(
+  data = llit10_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_clusters", 
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (algorithm)",
+)
+
+## Histogram of deltas 
+delta_hist <- vis_deltas(df = llit10_all,
+           delta_col = "delta",
+           metric_col = "metric") 
+
+## Combining the plots
+p9 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
+  patchwork::plot_annotation("LLiT 10 lx",
+  tag_levels = list(c("H1", "H2", "H3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16),
+                plot.margin = unit(c(t=0.1,r=0.1,b=0.1,l=0.1), "cm")))
+
+p9
+
+```
+### LLiT 250 analysis
+```{r}
+# Calculation 
+llit250_all <- calculate_metric(
+  raw_df = batch_raw,
+  wrlg_df = batch_wrlg,
+  clusters_df = batch_clusters,
+  metric = "last_timing_above_250"
+)
+
+# Plotting
+## Raw vs wrlg
+raw_vs_wrlg_vis <- visualize_comparison(
+  data = llit250_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_wrlg", 
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (Wear log)",
+)
+
+## Raw vs clusters
+raw_vs_clusters_vis <- visualize_comparison(
+  data = llit250_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_clusters", 
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (algorithm)",
+)
+
+## Histogram of deltas 
+delta_hist <- vis_deltas(df = llit250_all,
+           delta_col = "delta",
+           metric_col = "metric") 
+
+## Combining the plots
+p10 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
+  patchwork::plot_annotation("LLiT 250 lx",
+  tag_levels = list(c("I1", "I2", "I3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16),
+                plot.margin = unit(c(t=0.1,r=0.1,b=0.1,l=0.1), "cm")))
+
+p10
+```
+### LLiT 1000 analysis
+```{r}
+# Calculation 
+llit1000_all <- calculate_metric(
+  raw_df = batch_raw,
+  wrlg_df = batch_wrlg,
+  clusters_df = batch_clusters,
+  metric = "last_timing_above_1000"
+)
+
+# Plotting
+## Raw vs wrlg
+raw_vs_wrlg_vis <- visualize_comparison(
+  data = llit1000_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_wrlg", 
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (Wear log)",
+)
+
+## Raw vs clusters
+raw_vs_clusters_vis <- visualize_comparison(
+  data = llit1000_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_clusters", 
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (algorithm)",
+)
+
+## Histogram of deltas 
+delta_hist <- vis_deltas(df = llit1000_all,
+           delta_col = "delta",
+           metric_col = "metric") 
+
+## Combining the plots
+p11 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
+  patchwork::plot_annotation("LLiT 1000 lx",
+  tag_levels = list(c("J1", "J2", "J3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16),
+                plot.margin = unit(c(t=0.1,r=0.1,b=0.1,l=0.1), "cm")))
+
+p11
+```
+### TAT 250 analysis
+```{r}
+# Calculation 
+tat250_all <- calculate_metric(
+  raw_df = batch_raw,
+  wrlg_df = batch_wrlg,
+  clusters_df = batch_clusters,
+  metric = "duration_above_250"
+)
+
+# Plotting
+## Raw vs wrlg
+raw_vs_wrlg_vis <- visualize_comparison(
+  data = tat250_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_wrlg", 
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (Wear log)",
+)
+
+## Raw vs clusters
+raw_vs_clusters_vis <- visualize_comparison(
+  data = tat250_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_clusters", 
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (algorithm)",
+)
+
+## Histogram of deltas 
+delta_hist <- vis_deltas(df = tat250_all,
+           delta_col = "delta",
+           metric_col = "metric") 
+
+## Combining the plots
+p12 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
+  patchwork::plot_annotation("TAT 250 lx",
+  tag_levels = list(c("K1", "K2", "K3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16),
+                plot.margin = unit(c(t=0.1,r=0.1,b=0.1,l=0.1), "cm")))
+
+p12
+```
+### TAT 1000 comparison
+```{r}
+# Calculation 
+tat1000_all <- calculate_metric(
+  raw_df = batch_raw,
+  wrlg_df = batch_wrlg,
+  clusters_df = batch_clusters,
+  metric = "duration_above_1000"
+)
+
+# Plotting
+## Raw vs wrlg
+raw_vs_wrlg_vis <- visualize_comparison(
+  data = tat1000_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_wrlg", 
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (Wear log)",
+)
+
+## Raw vs clusters
+raw_vs_clusters_vis <- visualize_comparison(
+  data = tat1000_all, 
+  x_col = "mean_raw", 
+  y_col = "mean_clusters", 
+  x_label = "Raw dataset", 
+  y_label = "Clean dataset (algorithm)",
+)
+
+## Histogram of deltas 
+delta_hist <- vis_deltas(df = tat1000_all,
+           delta_col = "delta",
+           metric_col = "metric") 
+
+## Combining the plots
+p13 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
+  patchwork::plot_annotation("TAT 1000 lx",
+  tag_levels = list(c("M1", "M2", "M3")),
+  theme = theme(plot.title = element_text(hjust = .5, size = 16),
+                plot.margin = unit(c(t=0.1,r=0.0,b=0.1,l=0), "cm")))
+
+p13
+
+```
+### Combining this into one big multiplot
+```{r}
+
+# Create multiplots with the plots - we create two of them as one would not fit all 12 plots
+plots1 <- ggpubr::ggarrange(p1,p2,p4, p5, p6, p7,
+                   align = "v",
+                   nrow = 6)
+
+plots2 <- ggpubr::ggarrange(p8, p9, p10, p11, p12, p13,
+                   align = "v",
+                   nrow = 6)
+
+```
+
+#### Saving the multiplot
+```{r}
+ggsave(filename = "results_fig08_3.png",
+       plot = plots1, 
+       width = 10,
+       height = 15.5,
+       dpi = 600,
+       bg = "white",
+       path = "H:/nonwear_detection/preprint_figures/results/fig08")
+
+ggsave(filename = "results_fig08_4.png",
+       plot = plots2, 
+       width = 10,
+       height = 15.5,
+       dpi = 600,
+       bg = "white",
+       path = "H:/nonwear_detection/preprint_figures/results/fig08")
+```
+
