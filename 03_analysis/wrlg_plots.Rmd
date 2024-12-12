@@ -171,6 +171,10 @@ timing_off <- wrlg_int %>%
          centre_point = as.POSIXct(start + difftime(end,start)/2, tz = tz),
          centre_point_h = hour(centre_point))
 
+summary_timing <- timing_off %>%
+  group_by(centre_point_h) %>%
+  summarise(count = n())
+
 timing_dens_plot <- ggplot(timing_off, aes(x = as.numeric(centre_point_h), y = after_stat(count))) +
   geom_histogram(color = "black", fill = "darkred", alpha = 0.6, position = "identity", bins = 24) +
   geom_density(color = "black", fill= "darkred", alpha = 0.3, outline.type = "upper") +
@@ -352,5 +356,18 @@ ggsave(filename = "results_fig02_all.svg",
        dpi = 600,
        bg = "white",
        path= "H:/nonwear_detection/preprint_figures/results/fig02")
+```
+
+### Descriptive statistics for weekday vs weekend difference
+```{r}
+daytype_summary <- wknd_wkday %>%
+  group_by(day_type) %>%
+  summarise(mean = mean(perc_length),
+            sd = sd(perc_length),
+            min = min(perc_length),
+            max = max(perc_length),
+            median = median(perc_length),
+            range = max-min) %>%
+  ungroup()
 ```
 
