@@ -39,7 +39,7 @@ vis.LL.wrlg$PIM <- vis.LL.wrlg$PIM + 1
 
 #To be able to visually observe how light and activity relate to each other in our data set, we cannot plot all our data points (too many). So, we take median values of each Id, for each State (off/on/sleep)
 
-median.LL.wrlg <- vis.LL.wrlg %>%
+plot.median.LL.wrlg <- vis.LL.wrlg %>%
 #  filter(!State == "sleep") %>%
   group_by(Id, State) %>%
   summarise(median_medi = median(log10(MEDI), na.rm = TRUE),
@@ -53,7 +53,7 @@ median.LL.wrlg <- vis.LL.wrlg %>%
 # Plot
 set.seed(1) #we will use geom_jitter, which uses random sampling. For reproducibility we need to set.seed(1) so that running the script multiple times will lead to the same plot
 
-scatter <- ggplot(median.LL.wrlg, aes(x = median_medi, y = median_pim)) + 
+scatter <- ggplot(plot.median.LL.wrlg, aes(x = median_medi, y = median_pim)) + 
   geom_jitter(aes(fill = State, color = State), size = 2.5, alpha = 0.6,
               position = position_jitter(width = .3, height = .3)) + #adjust position of points to avoid overlap
    scale_fill_manual(
@@ -116,6 +116,36 @@ ggsave(filename = "results_fig04a.png",
 
 ### Conclusion from this plot
 It seems like during wear time, activity and light are high, while during non-wear time, they are low. Hence, we will next implement a method to detect clusters of low illuminance and low activity as a way of classifing non-wear time. 
+
+### Calculating descrptive metrics from this plot
+We want to know range of median values for each Wear log state
+```{r}
+#Because we had added a 1 to the original dataset for plotting, we want to revert this back when calculating metrics - so we recalculate median.LL.wrlg directly on dataset.LL.wrlg
+calc.median.LL.wrlg <- dataset.LL.wrlg %>%
+  group_by(Id, State) %>%
+  summarise(median_medi = median(MEDI, na.rm = TRUE),
+            median_pim = median(PIM, na.rm = TRUE)) %>%
+  ungroup()
+
+#Now, we can calculate some descriptive statistics
+medi_pim_bystate <- calc.median.LL.wrlg %>%
+  group_by(State) %>%
+  summarise(mean_medi = mean(median_medi),
+            sd_medi = sd(median_medi),
+            mean_pim = mean(median_pim),
+            sd_pim = sd(median_pim),
+            max_medi = max(median_medi),
+            min_medi = min(median_medi),
+            max_pim = max(median_pim),
+            min_pim = min(median_pim),
+            median_medi = median(median_medi),
+            median_pim = median(median_pim),
+            range_medi = max_medi-min_medi,
+            range_pim = max_pim-min_pim) %>%
+  ungroup()
+
+```
+
 
 ### Creating a dataframe without sleep states
 Since we want to classify wear and non-wear based on clusters of low illuminance, we do not care about the time that the participants are sleeping. In other words, the wear and non-wear classification does not apply to this period. To be able to use the dataset.LL.wrlg and run the classification on it, we first need to set all "sleep" values (based on Wear log data) as NA
