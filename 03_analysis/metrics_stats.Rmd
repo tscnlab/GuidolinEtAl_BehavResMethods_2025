@@ -66,6 +66,14 @@ ttest_means <- function (df) {
     rstatix::add_significance("p") %>%
     select(-c(p.adj, p.adj.signif))
   
+ # Computing Cohen's D
+  cohens_d <- df_long %>%
+    rstatix::cohens_d(mean ~ dataset, paired = TRUE)
+  
+  # Merging Cohen's D into t-test results
+  t_test <- t_test %>%
+    mutate(cohens_d = cohens_d$effsize)  # Add Cohen's D as a new column
+  
   # Adding a column indicating which metric the t-test corresponds
   t_test$metric <- (df_name)
   
@@ -138,7 +146,22 @@ is_ttest <- is_means_long %>%
     rstatix::t_test(mean ~ dataset, paired = TRUE)  %>%
     mutate(metric = "is") %>%
     rstatix::add_significance("p") %>%
-    select(-c(p.adj, p.adj.signif))
+    select(-c(p.adj, p.adj.signif)) 
+  
+
+cohens_d_iv <- iv_means_long %>%
+  rstatix::cohens_d(mean ~ dataset, paired = TRUE)
+
+cohens_d_is <- is_means_long %>%
+    rstatix::cohens_d(mean ~ dataset, paired = TRUE)
+
+iv_ttest <- iv_ttest %>%
+    mutate(cohens_d = cohens_d_iv$effsize)  # Add Cohen's D as a new column
+ 
+is_ttest <- is_ttest %>%
+    mutate(cohens_d = cohens_d_is$effsize)  # Add Cohen's D as a new column
+ 
+  
 
 
 #Combining all dfs into one
@@ -162,7 +185,7 @@ ttest_final <- ttest_all %>%
                            "fdr", # we choose FDR (or BH - same thing) as method
                            n=length(p))) %>% # we want to correct for all comparisons, i.e. n=36
   rstatix::add_significance("p.adj") %>%
-  dplyr::relocate(metric, .before= .y.) 
+  dplyr::relocate(metric, .before= .y.) # re-order columns
 
 ```
 
@@ -192,6 +215,14 @@ signtest_deltas <- function (df) {
   
   # Adding a column indicating which metric the t-test corresponds
   signtest$metric <- (df_name)
+  
+   # Computing Cohen's D
+  cohens_d <- df_long %>%
+    rstatix::cohens_d(delta ~ metric)
+  
+  # Merging Cohen's D into t-test results
+  signtest <- signtest %>%
+    mutate(cohens_d = cohens_d$effsize)  # Add Cohen's D as a new column
   
  # Assigning dfs to dynamically named variables in the global environment
   assign(paste0(df_name, "_delta_long"), df_long, envir = .GlobalEnv)
@@ -332,5 +363,38 @@ ggplot(tat1000_deltas_long, aes(x = as.numeric(delta), y = compliance_per, colou
     labs(x = "Delta TAT 1000", y = "Percentage bag use (%)", title = "TAT 1000 lx") +
     theme_bw() +
     theme(aspect.ratio = 1)
+```
+## Calculating mean and sd of TAT250 in order to report result of the t-test
+```{r}
+# dfs list
+metrics_dfs <- list(mlit250_all = mlit250_all,
+                    mlit1000_all = , llit10_all, llit250_all, llit1000_all, flit10_all, flit250_all, flit1000_all, tat1000_all, tat250_all)
+
+metrics_means <- function(df) {
+  df %>%
+    summarise(
+      mean_ids_raw = style_time(mean(as.numeric(mean_raw), na.rm = TRUE)),
+      sd_ids_raw = style_time(sd(as.numeric(mean_raw), na.rm = TRUE)),
+      mean_ids_wrlg = style_time(mean(as.numeric(mean_wrlg), na.rm = TRUE)),
+      sd_ids_wrlg = style_time(sd(as.numeric(mean_wrlg), na.rm = TRUE)),
+      mean_ids_clusters = style_time(mean(as.numeric(mean_clusters), na.rm = TRUE)),
+      sd_ids_clusters = style_time(sd(as.numeric(mean_clusters), na.rm = TRUE))
+    )
+}
+
+#Empty list to store results
+
+metrics_list <- list()
+
+#For loop to pass all dfs
+
+for (i in seq_along(metrics_dfs)) {
+  metrics_list[[i]] <- metrics_means(metrics_dfs[[i]])
+}
+
+# Convert the list of data frames to a single data frame
+metrics_means_df <- bind_rows(metrics_list, .id = "dataset_id")
+  
+
 ```
 
