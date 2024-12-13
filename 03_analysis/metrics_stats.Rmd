@@ -13,7 +13,13 @@ knitr::opts_chunk$set(echo = TRUE)
 To calculate differences between metrics calculated in the script metrics_comparison.Rmd. Specifically, we will be using a t-test to do this.
 
 ## Let's first check the normality of our data
-Import the function norm_check before running this. The function is contained in the norm_check_fun.R script.
+### Import the norm_check functions before running this. 
+```{r}
+# Function to check normality
+base::source("D:/cyepi/code/03_analysis/functions/norm_check_funs.R")
+```
+
+
 ```{r}
 # Create a list of the dfs containing the metrics 
 metrics_dfs <- list(mlit250_all, mlit1000_all, llit10_all, llit250_all, llit1000_all, flit10_all, flit250_all, flit1000_all, tat1000_all, tat250_all)
@@ -35,10 +41,10 @@ for (df in metrics_dfs) {
   
 }
 
-## The deltas are not normally distributed, hence we cannot run a t-test but rather a sign-test
+## The deltas are not normally distributed
 
 ```
-### Performing the paired sample Student t-test
+### Performing the paired sample Student t-test on the means 
 #### First, we  create a function to perform the t-test for all metrics
 ```{r}
 # T-test for the means
@@ -81,7 +87,7 @@ ttest_means <- function (df) {
   
 }    
 
-## For the two remaining metrics (IS and IV), we are calculating t-test staistics separately
+## For the two remaining metrics (IS and IV), we are calculating t-test statistics separately
 
 
 ```
@@ -187,7 +193,47 @@ ttest_final <- ttest_all %>%
   rstatix::add_significance("p.adj") %>%
   dplyr::relocate(metric, .before= .y.) # re-order columns
 
+
+# Rename some columns to eliminate the "_all" from the metric col
+ttest_final <- ttest_final %>%
+  mutate(metric = stringr::str_replace(metric, "_all$", ""))
 ```
+
+## Turning this into a gt table
+```{r}
+ttest_table <- ttest_final %>%
+  select(-c(.y., cohens_d)) %>% #we do not need these col in the final summary
+  gt::gt() %>%
+  gt::tab_header(title = gt::md("**T-test results**")) %>% #Add title
+  gt::cols_label(metric = "Metric",
+             group1 = "Group 1",
+             group2 = "Group 2",
+             n1 = "N1",
+             n2 = "N2",
+             statistic = "Statistic",
+             df = "Df",
+             p.signif = "Significance",
+             p.adj = "Adjusted p",
+             p.adj.signif = "Significance") %>%
+  gt::cols_align(align = "center",
+                 columns = dplyr::everything()) %>%
+  gt::tab_options(table.width=gt::pct(70)) #increasing table width so that it does not get croppes when saving
+  
+```
+### Saving this gt object
+```{r}
+# Load chromote, needed to save using g
+library(chromote)
+
+# Make sure you set your path to Chrome using Sys.setenv(CHROMOTE_CHROME = "path/to/chrome.exe") and check this was correct by running chromote::find_chrome()
+
+gt::gtsave(ttest_table,
+           filename = "ttest_table.png",
+           path = "Z:/nonwear_detection/preprint_figures/supplementary/",
+           vwidth = 1570,
+           vheight = 1000)
+```
+
 
 ### Investigating differences in the delta using a sign test
 First, we need to write a function for this 
@@ -292,6 +338,8 @@ signtest_final <- signest_all %>%
                            n=length(p))) %>% # we want to correct for all comparisons, i.e. n=12
   rstatix::add_significance("p.adj") %>%
   dplyr::relocate(metric, .before= .y.) 
+
+
 ```
 
 ### Investigating the significant differences
@@ -364,14 +412,16 @@ ggplot(tat1000_deltas_long, aes(x = as.numeric(delta), y = compliance_per, colou
     theme_bw() +
     theme(aspect.ratio = 1)
 ```
-## Calculating mean and sd of TAT250 in order to report result of the t-test
-```{r}
-# dfs list
-metrics_dfs <- list(mlit250_all = mlit250_all,
-                    mlit1000_all = , llit10_all, llit250_all, llit1000_all, flit10_all, flit250_all, flit1000_all, tat1000_all, tat250_all)
 
-metrics_means <- function(df) {
-  df %>%
+## Calculating mean and sd of all timing functions in order to report result of the t-test
+```{r}
+# Define a function that calculates the mean of each id metric
+## Note that this function uses the function style_time, which is already imported in metrics_comparison.Rmd from the file vis_metrics_funs.R
+
+metrics_means <- function(df, df_name) {
+  
+  # Compute means and sds
+  df <- df %>%
     summarise(
       mean_ids_raw = style_time(mean(as.numeric(mean_raw), na.rm = TRUE)),
       sd_ids_raw = style_time(sd(as.numeric(mean_raw), na.rm = TRUE)),
@@ -380,21 +430,121 @@ metrics_means <- function(df) {
       mean_ids_clusters = style_time(mean(as.numeric(mean_clusters), na.rm = TRUE)),
       sd_ids_clusters = style_time(sd(as.numeric(mean_clusters), na.rm = TRUE))
     )
+  
+  #Adding col to specify which metric and rename the df
+  df$metric <- df_name
+  
+  return(df)
 }
 
-#Empty list to store results
+# Now we run a for loop on different metric dfs to calculate the mean 
 
-metrics_list <- list()
+# Create a named list of data frames
+metrics_dfs <- list(
+  mlit250_all = mlit250_all,
+  mlit1000_all = mlit1000_all,
+  llit10_all = llit10_all,
+  llit250_all = llit250_all,
+  llit1000_all = llit1000_all,
+  flit10_all = flit10_all,
+  flit250_all = flit250_all,
+  flit1000_all = flit1000_all,
+  tat1000_all = tat1000_all,
+  tat250_all = tat250_all
+)
 
-#For loop to pass all dfs
+# Initiate empty list to store results
+means_metric_list <- list()
 
-for (i in seq_along(metrics_dfs)) {
-  metrics_list[[i]] <- metrics_means(metrics_dfs[[i]])
+# Create for loop 
+for (df_name in names(metrics_dfs)) {
+ 
+   df <- metrics_dfs[[df_name]]
+  
+  # Compute the means for the current data frame
+  df_means <- metrics_means(df, df_name)
+  
+  # Store the resulting data frame in the list, using the index i
+  means_metric_list[[df_name]] <- df_means
 }
 
 # Convert the list of data frames to a single data frame
-metrics_means_df <- bind_rows(metrics_list, .id = "dataset_id")
-  
+means_metrics_df <- bind_rows(means_metric_list)
+```
+
+## Calculating mean and sd of is and iv
+```{r}
+is_means <- is_all %>%
+    summarise(
+      mean_ids_raw = mean(IS_raw, na.rm = TRUE),
+      sd_ids_raw = sd(IS_raw, na.rm = TRUE),
+      mean_ids_wrlg = mean(IS_wrlg, na.rm = TRUE),
+      sd_ids_wrlg = sd(IS_wrlg, na.rm = TRUE),
+      mean_ids_clusters = mean(IS_clusters, na.rm = TRUE),
+      sd_ids_clusters = sd(IS_clusters, na.rm = TRUE),
+    ) %>%
+  mutate(metric = "is")
+
+iv_means <- iv_all %>%
+  summarise(
+      mean_ids_raw = mean(IV_raw, na.rm = TRUE),
+      sd_ids_raw = sd(IV_raw, na.rm = TRUE),
+      mean_ids_wrlg = mean(IV_wrlg, na.rm = TRUE),
+      sd_ids_wrlg = sd(IV_wrlg, na.rm = TRUE),
+      mean_ids_clusters = mean(IV_clusters, na.rm = TRUE),
+      sd_ids_clusters = sd(IV_clusters, na.rm = TRUE),
+    ) %>%
+  mutate(metric = "iv")
+
+```
+
+## Now we would like to have a single table for all metrics.
+The issue with this is that bind_rows() will not merge cols that are of different data types (hms and numeric, in our case). Hence, we first convert everything to character, and then combine. We can do this since we are creating this table for display only, and not for any calculations.
+```{r}
+# Convert means_metrics_df cols to character
+means_metrics_df <- means_metrics_df %>%
+  mutate(dplyr::across(.fns = as.character))
+
+# Convert numeric cols to character and round to 4 digits
+iv_means <- iv_means %>%
+  mutate(dplyr::across(where(is.numeric), ~ format(.x, digits = 4)))
+
+# Convert numeric cols to character and round to 4 digits
+is_means <- is_means %>%
+  mutate(dplyr::across(where(is.numeric), ~ format(.x, digits = 4)))
+
+
+# Combine the data using bind_rows
+means_dfs <- dplyr::bind_rows(means_metrics_df, is_means, iv_means)
+
+# Rename some columns to eliminate the "_all" from the metric col
+means_dfs <- means_dfs %>%
+  mutate(metric = stringr::str_replace(metric, "_all$", "")) %>%
+  dplyr::relocate(metric, .before= mean_ids_raw) # re-order columns so that metric is first one
+```
+
+### Create gt table for this dataframe
+```{r}
+means_table <- means_dfs %>%
+  gt::gt() %>%
+  gt::tab_header(title = gt::md("**Means and SDs of light exposure metrics (n=12)**")) %>% #Add title
+  gt::cols_label(metric = "Metric",
+             mean_ids_raw = "Raw dataset (mean)",
+             sd_ids_raw = "Raw dataset (SD)",
+             mean_ids_wrlg = "Clean (Wear log) dataset (mean)",
+             sd_ids_wrlg = "Clean (Wear log) dataset (SD)",
+             mean_ids_clusters = "Clean (algorithm) dataset (mean)",
+             sd_ids_clusters = "Clean (algorithm) dataset (SD)") %>%
+  gt::cols_align(align = "center",
+                 columns = dplyr::everything()) 
+
+# Save the gt table
+## Make sure you set your path to Chrome using Sys.setenv(CHROMOTE_CHROME = "path/to/chrome.exe") and check this was correct by running chromote::find_chrome()
+
+gt::gtsave(means_table,
+           filename = "means_table.png",
+           path = "Z:/nonwear_detection/preprint_figures/supplementary/")
+
 
 ```
 
