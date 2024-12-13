@@ -415,7 +415,14 @@ In the following chunks, we will calculate "timing metrics":
 - MLiT250, MLiT1000
 - FLiT 10, FLiT 250, FLiT 1000
 - LLit 10, LLiT 250, LLit 1000
-To facilitate these calculations, we wrote a function (calculate_metric_fun.R script) that takes the tree datasets and calculates ean and sd for the timing metric of interest. 
+To facilitate these calculations, we wrote a function (calculate_metric in the vis_metric_funs.R script) that takes the tree datasets and calculates mean and sd for the timing metric of interest. We also wrotea function to visualise the three plots as done for IS and IV above. Here, we first import these functions.
+
+### Importing functions for metric calculation and viz
+```{r}
+# Function to calculate metrics and visualise them - same R script
+base::source("D:/cyepi/code/03_analysis/functions/vis_metric_funs.R")
+```
+
 
 
 ### MLiT250 analysis

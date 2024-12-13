@@ -16,6 +16,13 @@ knitr::opts_chunk$set(echo = TRUE)
 - Minimum length of the cluster: 10 minutes 
 - Maximum interruption within cluster: 0 minutes
 
+### Importing function
+```{r}
+# Function to visualise algorithm performance 
+base::source("D:/cyepi/code/03_analysis/functions/alg_perf_fun.R")
+```
+
+
 ```{r}
 
 #Empty list to store classification results
@@ -344,6 +351,14 @@ We want to use a function that performs the following operations:
 4. Set is_low_medi_cluster = 0 for all rows from the start of the "transition state" to the row just before the detected change from 1 to 0.
 
 We create this function in the file add_pad_fun.R, where each step is described. Here, we call the function and apply to the relevant dataset.
+
+#### Import the function
+
+```{r}
+# Function to add pad to transition states
+base::source("D:/cyepi/code/03_analysis/functions/add_pad_fun.R")
+```
+
 ```{r}
 # Apply function that adds padding to non-wear intervals, when they are preceded by a transition state
 # Note that this will automatically print all instances where the values of is_low_medi_cluster are modified

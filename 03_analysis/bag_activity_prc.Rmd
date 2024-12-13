@@ -25,6 +25,7 @@ These functions (find_clusters_funs, loaded in separately) identify clusters of 
 ```{r}
 clean.LL.wrlg <- readRDS('clean_data.Rds')
 ```
+
 ## Before running the cluster detection algorithm
 First, let's explore the relationship between light and activity across wear log status. This visualisation step helps to understand whether it makes sense to even detect low activty or illuminance as a proxy of non-wear. 
 ```{r}
@@ -156,6 +157,19 @@ df.LL.nosleep <- dataset.LL.wrlg %>%
 
 ## Proceed to apply cluster detection algoirthm for low activity (PIM)
 
+### First, import functions
+```{r}
+# Fuction to identify clusters
+base::source("D:/cyepi/code/03_analysis/functions/find_clusters_fun.R")
+
+#Function to generate aggregate pr curve
+base::source("D:/cyepi/code/03_analysis/functions/generate_prc_funs.R")
+
+#Function to generate individual pr curve
+base::source("D:/cyepi/code/03_analysis/functions/generate_indiv_prc_funs.R")
+```
+
+
 ### Identifying clusters of low activity (PIM)
 ```{r}
 
@@ -193,7 +207,7 @@ prcurve_pim$threshold <- as.numeric(prcurve_pim$threshold)
 ```
 
 ### Calculating F1 score
-This scores is a metric to evaluate precision and recall. It is calculate as the harmonic mean of precision and recall. The F1 Score is useful when looking for the right balance between high precision and high recall, as it penalizes extreme negative values of either component. In other words, this score 
+This scores is a metric to evaluate precision and recall. It is calculate as the harmonic mean of precision and recall. The F1 Score is useful when looking for the right balance between high precision and high recall, as it penalizes extreme negative values of either component. 
 ```{r}
 
 prcurve_pim_f1 <- prcurve_pim %>%
