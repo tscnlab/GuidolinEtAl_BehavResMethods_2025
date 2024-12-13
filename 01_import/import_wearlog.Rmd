@@ -15,7 +15,7 @@ knitr::opts_chunk$set(echo = TRUE)
 Here, we import the raw data from the wear log
 
 ```{r}
-filepath <- here("G:/cyepi/code/pre-processing/nonwear_detection/wearlog")
+filepath <- here::here("Z:/nonwear_detection/00_raw_data/wearlog")
 
 # Get the files names from directory
 wearlogfiles = list.files(filepath, pattern="*.csv", full.names = TRUE)
