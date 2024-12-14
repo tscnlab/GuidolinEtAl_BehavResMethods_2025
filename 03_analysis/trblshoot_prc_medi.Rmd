@@ -16,6 +16,16 @@ In this script, we produce precision-recall curves for each input parameter of t
 
 In the chunks that follow, we vary each of these three parameters while keeping the other constant.
 
+### First, import functions - if not in the environment yet
+```{r}
+# Fuction to identify clusters
+base::source("D:/cyepi/code/03_analysis/functions/find_clusters_fun.R")
+
+#Function to generate aggregate pr curve
+base::source("D:/cyepi/code/03_analysis/functions/generate_prc_funs.R")
+```
+
+
 ## Step 1: vary mEDI thresholds
 Minimum interval length and maximum interruption remain constant.
 ```{r}
@@ -67,14 +77,14 @@ prc_medi_thresholds <- ggplot() +
      guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
-       title = "mEDI threshold based detection") +
+       title = "Illuminance threshold \nbased detection") +
    theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5, size = 18),
-        axis.text = element_text(size = 14),
+  theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 16),
         axis.title = element_text(size = 16),
-        legend.title = element_text(size = 12),
-        legend.text = element_text(size = 10),
-        legend.key.size = unit(6, "mm"),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.key.size = unit(8, "mm"),
         legend.position = "bottom",
         legend.box = "horizontal",
         plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
@@ -86,7 +96,7 @@ ggsave(filename = "prc_medi_thresholds.png",
        width = 6,
        dpi = 600,
        bg = "white",
-       path= "Z:/nonwear_detection/preprint_figures/supplementary")
+       path= "H:/nonwear_detection/preprint_figures/supplementary")
 
 ```
 
@@ -146,18 +156,18 @@ prc_medi_length <- ggplot() +
      labels = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
-       title = "Min. length based detection",
+       title = "Minimum length \nbased detection",
        ) +
    theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5, size = 18),
-        axis.text = element_text(size = 14),
+  theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 16),
         axis.title = element_text(size = 16),
-        legend.title = element_text(size = 12),
-        legend.text = element_text(size = 10),
-        legend.key.size = unit(6, "mm"),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.key.size = unit(8, "mm"),
         legend.position = "bottom",
         legend.box = "horizontal",
-        plot.margin = unit(c(0,0.5,0,0.3), unit ="cm")) +
+        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
    coord_fixed(ratio = 1)
 
 ggsave(filename = "prc_medi_length.png",
@@ -166,7 +176,7 @@ ggsave(filename = "prc_medi_length.png",
        width = 6,
        dpi = 600,
        bg = "white",
-       path= "Z:/nonwear_detection/preprint_figures/supplementary")
+       path= "H:/nonwear_detection/preprint_figures/supplementary")
 
 ```
 
@@ -224,14 +234,14 @@ prc_medi_interrupt <- ggplot() +
      labels = c(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
-       title = "Max. interruption based detection") +
+       title = "Maximum interruption \nbased detection") +
    theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5, size = 18),
-        axis.text = element_text(size = 14),
+  theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 16),
         axis.title = element_text(size = 16),
-        legend.title = element_text(size = 12),
-        legend.text = element_text(size = 10),
-        legend.key.size = unit(6, "mm"),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.key.size = unit(8, "mm"),
         legend.position = "bottom",
         legend.box = "horizontal",
         plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
@@ -243,7 +253,7 @@ ggsave(filename = "prc_medi_interrupt.png",
        width = 6.3,
        dpi = 600,
        bg = "white",
-       path= "Z:/nonwear_detection/preprint_figures/supplementary")
+       path= "H:/nonwear_detection/preprint_figures/supplementary")
 
 ```
 
@@ -253,21 +263,27 @@ Different interruption lengths of the non-wear interval do not affect the precis
 ## One plot with all the three curves 
 ```{r}
 
-library(cowplot)
+library(patchwork)
 
-multiplot <- cowplot::plot_grid(prc_medi_length, prc_medi_thresholds, prc_medi_interrupt,
+multiplot <- cowplot::plot_grid(prc_medi_length, prc_medi_interrupt, prc_medi_thresholds,
                                 labels = c("A", "B", "C"),
                                 ncol = 3,
                                 nrow = 1,
                                 align = "hv")
 
+multiplot <- prc_medi_length + prc_medi_interrupt + prc_medi_thresholds + 
+  patchwork::plot_annotation("IS",
+  tag_levels = list(c("A1", "A2", "A3")),
+  theme = theme(plot.title = element_text(hjust = 0.5, size = 16),
+                plot.margin = unit(c(t=0.1,r=0.1,b=0.1,l=0.1), "cm"))))
+
 ggsave(filename = "medi_prc_parameters_multiplot.png",
        plot = multiplot,
        width = 14, 
-       height = 5.3,
+       height = 6,
        dpi = 600, 
        bg = "white",
-       path = "Z:/nonwear_detection/preprint_figures/supplementary")
+       path = "H:/nonwear_detection/preprint_figures/supplementary")
 
 ```
 ## Conclusion

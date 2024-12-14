@@ -42,7 +42,7 @@ for (threshold in pimthresholds) {
   prc_result <- generate_prc(
     dataset = df.LL.nosleep,
     low_var = "PIM",
-    min_length = 60, #10 minutes (n of observations)
+    min_length = 54, #9 minutes (n of observations)
     max_interrupt = 0, #0 minutes (n of observations)
     threshold = threshold
   )
@@ -74,14 +74,14 @@ prc_pim_thresholds <- ggplot() +
      guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
-       title = "Activity threshold based detection") +
+       title = "Activity threshold \nbased detection") +
    theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5, size = 18),
-        axis.text = element_text(size = 14),
+ theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 16),
         axis.title = element_text(size = 16),
-        legend.title = element_text(size = 12),
-        legend.text = element_text(size = 10),
-        legend.key.size = unit(6, "mm"),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.key.size = unit(8, "mm"),
         legend.position = "bottom",
         legend.box = "horizontal",
         plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
@@ -155,17 +155,17 @@ prc_pim_length <- ggplot() +
      labels = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
-       title = "Min. length based detection") +
+       title = "Minimum length \nbased detection") +
    theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5, size = 18),
-        axis.text = element_text(size = 14),
+   theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 16),
         axis.title = element_text(size = 16),
-        legend.title = element_text(size = 12),
-        legend.text = element_text(size = 10),
-        legend.key.size = unit(6, "mm"),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.key.size = unit(8, "mm"),
         legend.position = "bottom",
         legend.box = "horizontal",
-        plot.margin = unit(c(0,0.5,0,0.3), unit ="cm")) +
+        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
    coord_fixed(ratio = 1)
 
 ggsave(filename = "prc_pim_length.png",
@@ -189,7 +189,7 @@ max_interrupts <- seq(0, 54, by = 6)
 #From the first plot, we know that lower PIM thresholds are better so we keep it to 5
 pim_threshold = 5
 
-#We know also know that we should keep the min_length to 10 minutes 
+#We know also know that we should keep the min_length to 9 minutes 
 min_length = 54 # 9 minutes (n observations)
 
 
@@ -234,14 +234,14 @@ prc_pim_interrupt <- ggplot() +
      labels = c(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
-       title = "Max. interruption based detection") +
+       title = "Maximum interruption \nbased detection") +
    theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5, size = 18),
-        axis.text = element_text(size = 14),
+   theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 16),
         axis.title = element_text(size = 16),
-        legend.title = element_text(size = 12),
-        legend.text = element_text(size = 10),
-        legend.key.size = unit(6, "mm"),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.key.size = unit(8, "mm"),
         legend.position = "bottom",
         legend.box = "horizontal",
         plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
@@ -265,7 +265,7 @@ Varying the maximum interval does not seem to change the precision and the recal
 
 library(cowplot)
 
-multiplot <- cowplot::plot_grid(prc_pim_length, prc_pim_thresholds, prc_pim_interrupt,
+multiplot <- cowplot::plot_grid(prc_pim_length, prc_pim_interrupt, prc_pim_thresholds,
                                 labels = c("A", "B", "C"),
                                 ncol = 3,
                                 nrow = 1,
@@ -274,9 +274,9 @@ multiplot <- cowplot::plot_grid(prc_pim_length, prc_pim_thresholds, prc_pim_inte
 ggsave(filename = "pim_prc_parameters_multiplot.png",
        plot = multiplot,
        width = 14, 
-       height = 5.3,
+       height = 6,
        dpi = 600, 
        bg = "white",
-       path = "Z:/nonwear_detection/preprint_figures/supplementary")
+       path = "H:/nonwear_detection/preprint_figures/supplementary")
 
 ```

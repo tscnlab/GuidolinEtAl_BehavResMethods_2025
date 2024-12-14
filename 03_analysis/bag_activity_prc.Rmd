@@ -58,11 +58,11 @@ scatter <- ggplot(plot.median.LL.wrlg, aes(x = median_medi, y = median_pim)) +
   geom_jitter(aes(fill = State, color = State), size = 2.5, alpha = 0.6,
               position = position_jitter(width = .3, height = .3)) + #adjust position of points to avoid overlap
    scale_fill_manual(
-    name = "Wear log \n'state'",
+    name = "Wear log \nstate",
     values = c("off" = "darkred", "on" = "#0072B2", "sleep" = "darkgoldenrod2"),
     labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
   scale_color_manual(
-    name = "Wear log \n'state'",
+    name = "Wear log \nstate",
     values = c("off" = "darkred", "on" = "#0072B2", "sleep" = "darkgoldenrod2"),
     labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
   scale_x_continuous(
@@ -160,13 +160,13 @@ df.LL.nosleep <- dataset.LL.wrlg %>%
 ### First, import functions
 ```{r}
 # Fuction to identify clusters
-base::source("D:/cyepi/code/03_analysis/functions/find_clusters_fun.R")
+base::source("G:/cyepi/code/03_analysis/functions/find_clusters_fun.R")
 
 #Function to generate aggregate pr curve
-base::source("D:/cyepi/code/03_analysis/functions/generate_prc_funs.R")
+base::source("G:/cyepi/code/03_analysis/functions/generate_prc_funs.R")
 
 #Function to generate individual pr curve
-base::source("D:/cyepi/code/03_analysis/functions/generate_indiv_prc_funs.R")
+base::source("G:/cyepi/code/03_analysis/functions/generate_indiv_prc_funs.R")
 ```
 
 
@@ -185,7 +185,7 @@ for (threshold in pimthresholds) {
   prc_result <- generate_prc(
     dataset = df.LL.nosleep,
     low_var = "PIM",
-    min_length = 60, #10 minutes (n of observations)
+    min_length = 54, #9 minutes (n of observations)
     max_interrupt = 0, #0 minute (n of observations)
     threshold = threshold
   )
@@ -298,14 +298,14 @@ prc_combined <- ggplot() +
        y = "Positive predictive value \n(precision)") +
   #Adding the symbols for the arrows as text and the label
   annotate("text",
-           x = 0.67,
+           x = 0.689,
            y = 0.79,
            label = sprintf('\u2191')) + #arrow pointing upwards for Illuminance
   geom_text(aes(x= 0.83,
                 y = 0.78,
                 label = "Illuminance")) + #label of illuminance
   annotate("text",
-           x = 0.399,
+           x = 0.42,
            y = 0.44,
            label = sprintf('\u2191')) + #arrow pointing upwards for activity
   geom_text(aes(x = 0.51,
@@ -339,7 +339,7 @@ ggsave(filename = "results_fig04b.png",
        width = 5,
        dpi = 600,
        bg = "white",
-       path= "Z:/nonwear_detection/preprint_figures/results/fig04")
+       path= "H:/nonwear_detection/preprint_figures/results/fig04")
 ```
 
 ### Combining the plots
@@ -363,13 +363,13 @@ medi_pim_fig <- cowplot::plot_grid(plot_marginal,
                           align = "hv",
                           axis = "tblr")
 # Save the plot
-ggsave(filename = "results_fig04_all.pdf",
+ggsave(filename = "results_fig04_all.png",
        plot = medi_pim_fig,
        height = 5.5, 
-       width = 10,
+       width = 8.9,
        dpi = 600,
        bg = "white",
-       path= "Z:/nonwear_detection/preprint_figures/results/fig04")
+       path= "H:/nonwear_detection/preprint_figures/results/fig04")
 
 ```
 
