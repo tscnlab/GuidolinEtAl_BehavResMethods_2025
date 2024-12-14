@@ -303,7 +303,7 @@ p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
                     inherit.aes = FALSE,
                     alpha = 0.15) +
    scale_fill_manual(
-     name = "Wear log 'state'",
+     name = "Wear log state",
      values = c("on" = "#0072B2", "off" = "darkred", "sleep" = "darkgoldenrod2"),
      labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
   scale_color_manual(
@@ -321,7 +321,7 @@ p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
         legend.box.background = element_rect(fill = "white", colour = "darkgrey"),
         legend.margin = margin(c(1,1,1,1)))
 
-ggsave(filename = "results_fig01.svg",
+ggsave(filename = "results_fig01.png",
        plot = p,
        width = 11,
        height = 14,
