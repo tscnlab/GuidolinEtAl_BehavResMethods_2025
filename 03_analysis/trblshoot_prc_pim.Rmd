@@ -16,6 +16,16 @@ In this script, we produce precision-recall curves for each input parameter of t
 
 In the chunks that follow, we vary each of these three parameters while keeping the other constant.
 
+### First, import functions - if not in the environment yet
+```{r}
+# Fuction to identify clusters
+base::source("D:/cyepi/code/03_analysis/functions/find_clusters_fun.R")
+
+#Function to generate aggregate pr curve
+base::source("D:/cyepi/code/03_analysis/functions/generate_prc_funs.R")
+```
+
+
 ## Step 1: vary PIM thresholds
 Minimum interval length and maximum interruption remain constant.
 ```{r}
@@ -130,6 +140,10 @@ prc_pim_2 <- bind_rows(prc_m_list)
 #Turning min_length into a factor for plotting
 prc_pim_2$min_length <- as.factor(prc_pim_2$min_length) 
 
+#Calculate F1 score
+prcpim2_fscore <- prc_pim_2 %>%
+  mutate(f1_score = (2 * PPV * TPR)/(PPV + TPR))
+
 #Let's plot to see the results
 prc_pim_length <- ggplot() +
    xlim(0,1) + 
@@ -176,7 +190,7 @@ max_interrupts <- seq(0, 54, by = 6)
 pim_threshold = 5
 
 #We know also know that we should keep the min_length to 10 minutes 
-min_length = 60 # 10 minutes (n observations)
+min_length = 54 # 9 minutes (n observations)
 
 
 #Empty list to store classification results
@@ -204,6 +218,10 @@ prc_pim_3 <- bind_rows(prc_m_list)
 
 #Turning max_int into a factor for plotting
 prc_pim_3$max_int <- as.factor(prc_pim_3$max_int) 
+
+#Calculate F1 score
+prcpim3_fscore <- prc_pim_3 %>%
+  mutate(f1_score = (2 * PPV * TPR)/(PPV + TPR))
 
 #Let's plot to see the results
 prc_pim_interrupt <- ggplot() +
