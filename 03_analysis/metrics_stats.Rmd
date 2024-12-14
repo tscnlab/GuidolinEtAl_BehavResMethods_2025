@@ -202,7 +202,7 @@ ttest_final <- ttest_final %>%
 ## Turning this into a gt table
 ```{r}
 ttest_table <- ttest_final %>%
-  select(-c(.y., cohens_d)) %>% #we do not need these col in the final summary
+  select(-c(.y., p.signif)) %>% #we do not need this col in the final summary
   gt::gt() %>%
   gt::tab_header(title = gt::md("**T-test results**")) %>% #Add title
   gt::cols_label(metric = "Metric",
@@ -212,12 +212,13 @@ ttest_table <- ttest_final %>%
              n2 = "N2",
              statistic = "Statistic",
              df = "Df",
-             p.signif = "Significance",
+             cohens_d = "Cohen's d",
              p.adj = "Adjusted p",
              p.adj.signif = "Significance") %>%
   gt::cols_align(align = "center",
                  columns = dplyr::everything()) %>%
-  gt::tab_options(table.width=gt::pct(70)) #increasing table width so that it does not get croppes when saving
+  gt::tab_options(table.width=gt::pct(80)) #increasing table width so that it does not get cropped when saving
+                
   
 ```
 ### Saving this gt object
@@ -230,8 +231,8 @@ library(chromote)
 gt::gtsave(ttest_table,
            filename = "ttest_table.png",
            path = "Z:/nonwear_detection/preprint_figures/supplementary/",
-           vwidth = 1570,
-           vheight = 1000)
+           vwidth = 1450,
+           vheight = 800)
 ```
 
 

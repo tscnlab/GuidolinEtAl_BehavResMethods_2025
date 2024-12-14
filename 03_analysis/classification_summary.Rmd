@@ -129,7 +129,7 @@ p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
                 na.value = "lightgrey") +
   guides(fill = guide_legend(ncol = 2)) +
   scale_color_manual(
-    name = "Wear log 'state'",
+    name = "Wear log state",
     values = c("on" = "#0072B2", "off" = "darkred", "sleep" = "black"),
     labels = c("Wake 'off'", "Wake 'on'", "Sleep 'off'")) +
    guides(
@@ -150,10 +150,10 @@ filename <- paste0("p", selected_id, "alg_perf_mEDI.png")
 ggsave(filename = filename,
        plot = p,
        width = 11,
-       height = 15,
+       height = 14,
        dpi = 600,
        bg = "white",
-       path= "H:/nonwear_detection/preprint_figures/alg_class")
+       path= "Z:/nonwear_detection/preprint_figures/alg_class")
 }
 ```
 
