@@ -548,4 +548,9 @@ gt::gtsave(means_table,
 
 
 ```
+## Calculating the unstandardised effect size for the significant result, as we need to report this in the paper
+```{r}
+tat250_unst_effsize <- tat250_all %>%
+  summarise(mean = mean(delta_clusters))
+```
 
