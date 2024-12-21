@@ -417,7 +417,7 @@ for (threshold in pimthresholds) {
   prc_result <- generate_indiv_prc(
     dataset = df.LL.nosleep,
     low_var = "PIM",
-    min_length = 60, #10 minutes (n of observations)
+    min_length = 54, #9 minutes (n of observations)
     max_interrupt = 0, #0 minute (n of observations)
     threshold = threshold
   )
@@ -523,7 +523,7 @@ ggsave(filename = "results_fig05.png",
        width = 10,
        dpi = 600,
        bg = "white",
-       path= "H:/nonwear_detection/preprint_figures/results/fig05")
+       path= "Z:/nonwear_detection/preprint_figures/results/fig05")
 
 ```
 

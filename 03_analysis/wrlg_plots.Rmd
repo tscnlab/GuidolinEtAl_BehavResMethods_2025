@@ -342,20 +342,20 @@ fig02_stacked <- state_dist_2axis_2/wknd_wk_dist/timing_dens_plot
 # Adding annotations
 fig02_multiplot <- fig02_stacked + patchwork::plot_annotation(
   tag_levels = list(c("A", "", "B", "C")) # adding empty string because patchwork would otherwise recognise the 2nd axis of plot A as an additional plot
-) +
+) & theme(plot.tag = element_text(face = "bold")) + #need to add this with & operator to get labels in bold
   theme(plot.margin=margin(t = 0,
                            b = 0,
                            r = 0,
                            l = 0)) 
 
 
-ggsave(filename = "results_fig02_all.svg",
+ggsave(filename = "results_fig02_all.png",
        plot = fig02_multiplot,
        width = 8,
        height = 11,
        dpi = 600,
        bg = "white",
-       path= "H:/nonwear_detection/preprint_figures/results/fig02")
+       path= "Z:/nonwear_detection/preprint_figures/results/fig02")
 ```
 
 ### Descriptive statistics for weekday vs weekend difference

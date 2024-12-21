@@ -554,3 +554,32 @@ tat250_unst_effsize <- tat250_all %>%
   summarise(mean = mean(delta_clusters))
 ```
 
+### Investigating correlation between off time based on ground truth and metrics
+Note that you need wrlg_plots to be loaded and run.
+
+```{r}
+off_wrlg_duration <- int_duration %>%
+  filter(State == "off") %>%
+  select(Id, tot_intlength) 
+
+off_wrlg_duration <-  off_wrlg_duration %>%
+  mutate(tot_intlength = as.POSIXct(tot_intlength, format="%H:%M"))
+```
+
+## Start with IS
+```{r}
+is_off <- is_all %>%
+  left_join(off_wlrg_duration, by = "Id")
+
+p1 <- ggplot(is_off, aes(x=tot_intlength, y = delta_wrlg, color = Id)) +
+  geom_jitter() +
+  theme_bw() +
+  scale_x_datetime() + 
+  labs(x="Total non-wear timeduring the experiment (HH:MM)",
+       y="Delta of X",
+       title ="Difference in by amount of non-wear")
+
+p2 <- ggplot(is_off, aes(x=tot_intlength, y = delta_clusters, color = Id)) +
+  geom_jitter()
+```
+
