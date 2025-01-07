@@ -1,0 +1,373 @@
+---
+title: "activity_transformations"
+author: "Carolina Guidolin"
+date: "2025-01-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Aim of this script
+We want to undretand two things:
+1) Should we use PIM, TAT or ZCM for operationalising activity levels?
+2) Should we apply a pre-processing on the activity variable of choice (PIM/TAT/ZCM) prior to using our algorithm for detecting low activity clusters on the data?
+
+## Let's start with the first point: PIM, TAT, or ZCM to quantify activity?
+Citing Pilz et al. (2023): PIM is a measure of activity levels, ZCM is a measure of frequency of moevemnt, and TAT is a measure of time spent in motion in a given epoch. To get an idea of the difference in distributions between these three variables, we calculate descriptive statistics for each of them.
+
+```{r}
+pim_summary <- df.LL.nosleep %>%
+  group_by(Id) %>%
+  summarise(mean_pim = mean(PIM),
+            sd_pim = sd(PIM),
+            median_pim = median(PIM),
+            min_pim = min(PIM),
+            max_pim = max(PIM))
+
+tat_summary <- df.LL.nosleep %>%
+  group_by(Id) %>%
+  summarise(mean_tat = mean(TAT),
+            sd_tat = sd(TAT),
+            median_tat = median(TAT),
+            min_tat = min(TAT),
+            max_tat = max(TAT))
+
+zcm_summary <- df.LL.nosleep %>%
+  group_by(Id) %>%
+  summarise(mean_zcm = mean(ZCM),
+            sd_zcm = sd(ZCM),
+            median_zcm = median(ZCM),
+            min_zcm = min(ZCM),
+            max_zcm = max(ZCM))
+
+```
+
+### Next, we want to create PR curves for each of these variables
+
+#### PIM
+Since mean PIM values range from 50 (PID 206) to 234 (PID 204), we create a sequence of low values from 5 to 50, at 5 increment steps
+```{r}
+#Create a sequence of PIM thresholds at 5 unit steps
+pimthresholds <- c(5,10, 15, 20, 25, 30, 35, 40, 45, 50)
+
+#Empty list to store classification results
+prc_list <- list()
+
+#Running a for loop to generate a prc for all selected PIM thresholds 
+for (threshold in pimthresholds) {
+  
+  prc_result <- generate_prc(
+    dataset = df.LL.nosleep,
+    low_var = "PIM",
+    min_length = 54, #9 minutes (n of observations)
+    max_interrupt = 0, #0 minute (n of observations)
+    threshold = threshold
+  )
+  
+  # Add the current threshold as a column in prc_result
+  prc_result <- prc_result %>%
+    mutate(threshold = threshold) # Add threshold column
+  
+  prc_list[[as.character(threshold)]] <- prc_result
+  
+}
+
+#Turn into a df
+prcurve_pim <- bind_rows(prc_list)
+
+#Turn threshold to numeric for plotting
+prcurve_pim$threshold <- as.numeric(prcurve_pim$threshold)
+
+# Adding f1 value
+prcurve_pim_f1 <- prcurve_pim %>%
+  mutate(f1_score = (2 * PPV * TPR)/(PPV + TPR))
+
+```
+
+#### TAT
+For TAT, the distribution is not as large and mean values range from 0.97 (PID 214) to 7.44 (PID 210). Thus, we choose smaller values ranging from 0.5 to 5.0 as thresholds
+```{r}
+#Create a sequence of TAT thresholds at 0.5 unit steps
+tatthresholds <- c(0.5,1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5.0)
+
+#Empty list to store classification results
+prc_list <- list()
+
+#Running a for loop to generate a prc for all selected TAT thresholds 
+for (threshold in tatthresholds) {
+  
+  prc_result <- generate_prc(
+    dataset = df.LL.nosleep,
+    low_var = "TAT",
+    min_length = 54, #9 minutes (n of observations)
+    max_interrupt = 0, #0 minute (n of observations)
+    threshold = threshold
+  )
+  
+  # Add the current threshold as a column in prc_result
+  prc_result <- prc_result %>%
+    mutate(threshold = threshold) # Add threshold column
+  
+  prc_list[[as.character(threshold)]] <- prc_result
+  
+}
+
+#Turn into a df
+prcurve_tat <- bind_rows(prc_list)
+
+#Turn threshold to numeric for plotting
+prcurve_tat$threshold <- as.numeric(prcurve_tat$threshold)
+
+# Adding f1 value
+
+prcurve_tat_f1 <- prcurve_tat %>%
+  mutate(f1_score = (2 * PPV * TPR)/(PPV + TPR))
+
+```
+
+#### ZCM
+Simialr to TAT, the values here range from 3.0 (PID 206) to 16.2 (PID 204). Hence, we will use the same threshold sequence. 
+```{r}
+#Create a sequence of ZCM thresholds at 5 unit steps
+zcmthresholds <- c(0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5.0)
+
+#Empty list to store classification results
+prc_list <- list()
+
+#Running a for loop to generate a prc for all selected PIM thresholds 
+for (threshold in zcmthresholds) {
+  
+  prc_result <- generate_prc(
+    dataset = df.LL.nosleep,
+    low_var = "ZCM",
+    min_length = 54, #9 minutes (n of observations)
+    max_interrupt = 0, #0 minute (n of observations)
+    threshold = threshold
+  )
+  
+  # Add the current threshold as a column in prc_result
+  prc_result <- prc_result %>%
+    mutate(threshold = threshold) # Add threshold column
+  
+  prc_list[[as.character(threshold)]] <- prc_result
+  
+}
+
+#Turn into a df
+prcurve_zcm <- bind_rows(prc_list)
+
+#Turn threshold to numeric for plotting
+prcurve_zcm$threshold <- as.numeric(prcurve_zcm$threshold)
+
+# Adding f1 value
+
+prcurve_zcm_f1 <- prcurve_zcm %>%
+  mutate(f1_score = (2 * PPV * TPR)/(PPV + TPR))
+```
+
+### Let's plot the three curves together to visualise them 
+```{r}
+# PIM
+prc_pim_thresholds <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  geom_point(data = prcurve_pim, aes(x = TPR, y = PPV, colour = threshold)) +
+  scale_colour_gradient(
+     name = "PIM threshold",
+     low = "blue", high = "lightblue",
+     limits= c(5,50),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "PIM threshold \nbased detection") +
+   theme_bw() +
+ theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 16),
+        axis.title = element_text(size = 16),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.key.size = unit(8, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal",
+        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
+   coord_fixed(ratio = 1)
+
+# TAT
+prc_tat_thresholds <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  geom_point(data = prcurve_tat, aes(x = TPR, y = PPV, colour = threshold)) +
+  scale_colour_gradient(
+     name = "TAT threshold",
+     low = "blue", high = "lightblue",
+     limits= c(0.5,5),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "TAT threshold \nbased detection") +
+   theme_bw() +
+ theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 16),
+        axis.title = element_text(size = 16),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.key.size = unit(8, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal",
+        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
+   coord_fixed(ratio = 1)
+
+# ZCM
+prc_zcm_thresholds <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  geom_point(data = prcurve_zcm, aes(x = TPR, y = PPV, colour = threshold)) +
+  scale_colour_gradient(
+     name = "ZCM threshold",
+     low = "blue", high = "lightblue",
+     limits= c(0.5,5),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "ZCM threshold \nbased detection") +
+   theme_bw() +
+ theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 16),
+        axis.title = element_text(size = 16),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.key.size = unit(8, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal",
+        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
+   coord_fixed(ratio = 1)
+
+# Combining in one single plot
+multiplot <- cowplot::plot_grid(prc_pim_thresholds, prc_tat_thresholds, prc_zcm_thresholds,
+                                labels = c("A", "B", "C"),
+                                ncol = 3,
+                                nrow = 1,
+                                align = "hv")
+
+# Saving the comined plot
+ggsave(filename = "pim_tat_zcm_comparison.png",
+       plot = multiplot,
+       width = 14, 
+       height = 6,
+       dpi = 600, 
+       bg = "white",
+       path = "H:/nonwear_detection/preprint_figures/supplementary")
+
+```
+
+### What does this tell us?
+Using PIM, TAT, or ZCM does not lead to huge differences in the output of out algorithm.
+
+## Now let's move to the second point: should we pre-process PIM data prior to applying our cluster-detecting algorithm?
+Since PIM data contains many small values (including 0) and large values, it would be a good idea to:
+1) Transform it into log scale;
+2) Normalise each value to the maximum value for each participant
+
+```{r}
+# Step 1: Transforming PIM to logarithmic scale
+
+log.df.LL.nosleep <- df.LL.nosleep %>%
+  mutate(PIM = PIM+0.1, #first, add a small value of 0.1 to enable log transformation
+         log.PIM = log10(PIM)) # apply transformation 
+
+# Step 2: Apply min-max tranformation to the log data
+
+## Function that will normalise
+min_max_normalisation <- function(x) {
+  return ((x - min(x)) / (max(x) - min(x)))
+}
+
+## Normalise activity within each Id
+normalised_pim_df <- log.df.LL.nosleep %>% 
+  group_by(Id) %>%
+  mutate(norm_pim = min_max_normalisation(log.PIM)) %>%
+  ungroup()
+  
+  
+```
+
+
+# Apply cluster algorithm
+
+# Try with one threshold only
+```{r}
+pim_thr_log = log10(15)
+min_length = 54
+max_interrupt = 0
+
+pim_clust_log <- normalised_pim_df %>%
+    ungroup() %>%
+   mutate(low_pim = norm_pim < pim_thr_log) %>% 
+   # Nest by groups, e.g., participant, period. Replace with grouping variables 
+   # in your data, such that the function is applied separately per consecutive 
+   # timeseries (e.g., from one subject during one period).
+    nest_by(Id) %>% 
+   mutate(
+    # Replace `low_activity` by the (logical) variable for which the clusters 
+    # should be found.
+    data = list(
+      data_find_clusters(
+        data, 
+        low_pim, 
+        min_length = min_length, 
+        max_interrupt = max_interrupt, 
+        cluster_name = "low_pim_cluster"
+      )
+    )
+  ) %>%
+  unnest(cols = data) %>%
+  ungroup() 
+
+
+  pimclusters_clean_log <- pim_clust_log %>%
+   select(Id, Datetime, State, bag, is_low_pim_cluster) %>%
+    mutate(
+      State = case_when(
+      State == "on" ~ 1, 
+      State == "off" ~ 0,
+      is.na(State) ~ NA_real_), # keep sleep states as NA
+    is_low_pim_cluster = case_when(
+      is_low_pim_cluster == TRUE ~ 0,
+      is_low_pim_cluster == FALSE ~ 1
+    )) 
+
+#We want to build a precision recall curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
+#1) State = 0, cluster = 0 -> true positive
+#2) State = 0, cluster = 1 -> false negative
+#3) State = 1, cluster = 1 -> false positive
+#4) State = 1, cluster = 0 -> true negative
+  
+   pimclusters_class_log <- pimclusters_clean_log %>%
+   mutate(classification = case_when(
+      State == 0 & is_low_pim_cluster == 0 ~ "TP",
+      State == 0 & is_low_pim_cluster == 1 ~ "FN",
+      State == 1 & is_low_pim_cluster == 0 ~ "FP",
+      State == 1 & is_low_pim_cluster == 1 ~ "TN",
+     .default = NA_character_))
+   
+   prc_pim_log <- pimclusters_class_log %>%
+   group_by(classification) %>%
+   summarise(count = n())  %>%
+   pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
+   mutate(TPR = TP/(TP+FN), #true positive rate
+          FPR = FP/(FP+TN), #false positive rate
+          PPV = TP/(TP+FP), #positive predictive value
+          NPV = TN/(FN+TN),
+          threshold = pim_thr_log,
+          f1_score = (2* PPV * TPR)/(PPV + TPR)) #negative predictive value  
+
+
+#Turn threshold to numeric for plotting
+prcurve_pim$threshold <- as.numeric(prcurve_pim$threshold)
+```
+
