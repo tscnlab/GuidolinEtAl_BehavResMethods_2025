@@ -353,7 +353,7 @@ ggplot(log.df.LL.nosleep) +
   geom_histogram(aes(x=log.PIM))
 ```
 
-We see that because a lot of the raw values correspond to zero values, there is a hgh frequency of log.PIM = -1. The distribution is definitely non-normal. For this reason, it would be useful to normalise our data so that it can assume a value between 0 and 1. This can be done using a min-max normalisation.
+We see that because a lot of the raw values correspond to zero values, there is a high frequency of log.PIM = -1. The distribution is definitely non-normal. For this reason, we choose to normalise our data using a min-max normalisation.
 
 ```{r}
 # Step 2: Apply min-max transformation to the log data
@@ -441,7 +441,7 @@ prc_pim_log_norm <- ggplot() +
    coord_fixed(ratio = 1)
 ```
 
-### What des this tell us? 
+### What does this tell us? 
 The f1 score of the cluster algorithm applied to the normalised log data is similar to that of the a) raw data and b) log data, with values all close to 0.52, regardless of the chosen threshold. 
 
 ### What if we normalised the data without any log transformation?
@@ -459,13 +459,13 @@ normalised_raw_pim_df <- df.LL.nosleep %>%
   mutate(norm_pim = min_max_normalisation(PIM)) %>%
   ungroup()
 
-## Let's visualise th distribution of the normalised raw PIM
+## Let's visualise the distribution of the normalised raw PIM
 ggplot(normalised_raw_pim_df) +
   geom_histogram(aes(x=norm_pim))
 ```
 Now we apply our cluster algorithm to the normalised raw PIM data
 ```{r}
-#Create a sequence of PIM thresholds at 0.001 unit steps (because PIM values only range from 0 to 1, and thy are heavily skewed towards 0)
+#Create a sequence of PIM thresholds at 0.001 unit steps (because PIM values only range from 0 to 1, and they are heavily skewed towards 0)
 norm_pimthresholds <- c(0.001, 0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.009, 0.01)
 
 #Empty list to store classification results
@@ -621,10 +621,11 @@ prc_pim_rolled_raw <- ggplot() +
 ```
 
 ### What does this tell us?
-Smoothing on raw data is actually not benefitting the performance of the algorithm.
+Smoothing on raw data is actually not benefiting the performance of the algorithm.
 
 ## What if we smooth the log data and apply the algorithm after the log transformation? 
 ```{r}
+# First, we have to apply a rolling median to the log transformed data
 rolled.log.pim <- log.df.LL.nosleep %>%
   group_by(Id) %>%
   mutate(rolled_median_PIM = zoo::rollapplyr(log.PIM, width = 60, FUN = median, fill = NA, align = "center")) %>%
@@ -710,20 +711,14 @@ Then, we apply the algorithm
 na_min_max_normalisation <- function(x) {
   # Apply the normalisation only if the value is not NA
   if (all(is.na(x))) {
-    return(rep(NA, length(x)))  # If all values are NA, return a vector of NAs
+    return(rep(NA_real_, length(x)))  # If values are NA, return a vector of NAs
   } else {
     # Normalise only the non-NA values and handle each element
     min_val <- min(x, na.rm = TRUE)
     max_val <- max(x, na.rm = TRUE)
-    
-    # Handle the case where min and max are equal, preventing division by zero
-    if (min_val == max_val) {
-      return(rep(0, length(x))) 
-    } else {
-      return((x - min_val) / (max_val - min_val))
+    return((x - min_val) / (max_val - min_val))
     }
   }
-}
 
 # Apply the normalisation
 norm_rolled_log_pim <- rolled.log.pim %>%
