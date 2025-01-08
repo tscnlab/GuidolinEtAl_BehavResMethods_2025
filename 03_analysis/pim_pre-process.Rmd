@@ -128,7 +128,7 @@ prcurve_tat_f1 <- prcurve_tat %>%
 ```
 
 #### ZCM
-Simialr to TAT, the values here range from 3.0 (PID 206) to 16.2 (PID 204). Hence, we will use the same threshold sequence. 
+Similar to TAT, the values here range from 3.0 (PID 206) to 16.2 (PID 204). Hence, we will use the same threshold sequence. 
 ```{r}
 #Create a sequence of ZCM thresholds at 5 unit steps
 zcmthresholds <- c(0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5.0)
@@ -182,7 +182,7 @@ prc_pim_thresholds <- ggplot() +
      guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
-       title = "PIM threshold \nbased detection") +
+       title = "Raw PIM threshold \nbased detection") +
    theme_bw() +
  theme(plot.title = element_text(hjust = 0.5, size = 20),
         axis.text = element_text(size = 16),
@@ -280,7 +280,83 @@ log.df.LL.nosleep <- df.LL.nosleep %>%
   mutate(PIM = PIM+0.1, #first, add a small value of 0.1 to enable log transformation
          log.PIM = log10(PIM)) # apply transformation 
 
-# Step 2: Apply min-max tranformation to the log data
+# Before proceeding to step 2: what would happen if we apply our algorithm here?
+
+## Create a sequence of PIM thresholds in log scale, at 5 unit steps
+log_pimthresholds <- log10(c(5,10, 15, 20, 25, 30, 35, 40, 45, 50))
+
+## Empty list to store classification results
+prc_list <- list()
+
+## Running a for loop to generate a prc for all selected PIM thresholds (log scale)
+for (threshold in log_pimthresholds) {
+  
+  prc_result <- generate_prc(
+    dataset = log.df.LL.nosleep,
+    low_var = "log.PIM",
+    min_length = 54, #9 minutes (n of observations)
+    max_interrupt = 0, #0 minute (n of observations)
+    threshold = threshold
+  )
+  
+  # Add the current threshold as a column in prc_result
+  prc_result <- prc_result %>%
+    mutate(threshold = threshold) # Add threshold column
+  
+  prc_list[[as.character(threshold)]] <- prc_result
+  
+}
+
+## Turn into a df
+log_prcurve_pim <- bind_rows(prc_list)
+
+## Adding f1 value
+log_prcurve_pim_f1 <- log_prcurve_pim %>%
+  mutate(f1_score = (2 * PPV * TPR)/(PPV + TPR))
+
+# Plotting this pr curve
+prc_pim_log <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  geom_point(data = log_prcurve_pim, aes(x = TPR, y = PPV, colour = threshold)) +
+  scale_colour_gradient(
+     name = "Log PIM threshold",
+     low = "blue", high = "lightblue",
+     limits= c(log10(5),log10(50)),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Log PIM threshold \nbased detection") +
+   theme_bw() +
+ theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 16),
+        axis.title = element_text(size = 16),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.key.size = unit(8, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal",
+        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
+   coord_fixed(ratio = 1)
+
+
+```
+
+### What does this tell us? 
+The f1 scores for the log transformed PIM, using the same thresholds of the raw PIM (but taking the log10 of them, i.e. log10(5) instead of 5, and so on), is equivalent to the f1 score for the raw data. This can be seen if you compare the data frames prcurve_pim_f1 and log_prcurve_pim_f1: the f1 scores are the same for the corresponding PIM thresholds. This result is to be expected, and can be used as a sanity check. 
+
+## We can proceed to step 2: the normalisation
+There are several ways of applying a normalisation to the data. To understand which one we want to apply, let's first take a look at the data by plotting a simple histogram of the log.PIM to understand its distribution.
+```{r}
+ggplot(log.df.LL.nosleep) +
+  geom_histogram(aes(x=log.PIM))
+```
+
+We see that because a lot of the raw values correspond to zero values, there is a hgh frequency of log.PIM = -1. The distribution is definitely non-normal. For this reason, it would be useful to normalise our data so that it can assume a value between 0 and 1. This can be done using a min-max normalisation.
+
+```{r}
+# Step 2: Apply min-max transformation to the log data
 
 ## Function that will normalise
 min_max_normalisation <- function(x) {
@@ -288,86 +364,459 @@ min_max_normalisation <- function(x) {
 }
 
 ## Normalise activity within each Id
-normalised_pim_df <- log.df.LL.nosleep %>% 
-  group_by(Id) %>%
-  mutate(norm_pim = min_max_normalisation(log.PIM)) %>%
+normalised_log_pim_df <- log.df.LL.nosleep %>% 
+  group_by(Id) %>% # we want to normalise within each Id 
+  mutate(norm_log.pim = min_max_normalisation(log.PIM)) %>%
   ungroup()
-  
-  
+
+## Let's visualise th distribution of the normalised log.PIM
+ggplot(normalised_log_pim_df) +
+  geom_histogram(aes(x=norm_log.pim))
 ```
+As expected, the dirtibution of the data per se has not changed, but the values on the x axis have been transformed so that they fall between 0 and 1. 
 
-
-# Apply cluster algorithm
-
-# Try with one threshold only
+## Apply cluster algorithm to normalised log PIM
 ```{r}
-pim_thr_log = log10(15)
-min_length = 54
-max_interrupt = 0
+#Create a sequence of PIM thresholds at 0.01 unit steps (because PIM values only range from 0 to 1)
+norm_pimthresholds <- c(0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1)
 
-pim_clust_log <- normalised_pim_df %>%
-    ungroup() %>%
-   mutate(low_pim = norm_pim < pim_thr_log) %>% 
-   # Nest by groups, e.g., participant, period. Replace with grouping variables 
-   # in your data, such that the function is applied separately per consecutive 
-   # timeseries (e.g., from one subject during one period).
-    nest_by(Id) %>% 
-   mutate(
-    # Replace `low_activity` by the (logical) variable for which the clusters 
-    # should be found.
-    data = list(
-      data_find_clusters(
-        data, 
-        low_pim, 
-        min_length = min_length, 
-        max_interrupt = max_interrupt, 
-        cluster_name = "low_pim_cluster"
-      )
-    )
-  ) %>%
-  unnest(cols = data) %>%
-  ungroup() 
+#Empty list to store classification results
+prc_list <- list()
 
-
-  pimclusters_clean_log <- pim_clust_log %>%
-   select(Id, Datetime, State, bag, is_low_pim_cluster) %>%
-    mutate(
-      State = case_when(
-      State == "on" ~ 1, 
-      State == "off" ~ 0,
-      is.na(State) ~ NA_real_), # keep sleep states as NA
-    is_low_pim_cluster = case_when(
-      is_low_pim_cluster == TRUE ~ 0,
-      is_low_pim_cluster == FALSE ~ 1
-    )) 
-
-#We want to build a precision recall curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 1), classifies the performance of our algorithm for detecting non-wear as follows:
-#1) State = 0, cluster = 0 -> true positive
-#2) State = 0, cluster = 1 -> false negative
-#3) State = 1, cluster = 1 -> false positive
-#4) State = 1, cluster = 0 -> true negative
+#Running a for loop to generate a prc for all selected PIM thresholds 
+for (threshold in norm_pimthresholds) {
   
-   pimclusters_class_log <- pimclusters_clean_log %>%
-   mutate(classification = case_when(
-      State == 0 & is_low_pim_cluster == 0 ~ "TP",
-      State == 0 & is_low_pim_cluster == 1 ~ "FN",
-      State == 1 & is_low_pim_cluster == 0 ~ "FP",
-      State == 1 & is_low_pim_cluster == 1 ~ "TN",
-     .default = NA_character_))
-   
-   prc_pim_log <- pimclusters_class_log %>%
-   group_by(classification) %>%
-   summarise(count = n())  %>%
-   pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
-   mutate(TPR = TP/(TP+FN), #true positive rate
-          FPR = FP/(FP+TN), #false positive rate
-          PPV = TP/(TP+FP), #positive predictive value
-          NPV = TN/(FN+TN),
-          threshold = pim_thr_log,
-          f1_score = (2* PPV * TPR)/(PPV + TPR)) #negative predictive value  
+  prc_result <- generate_prc(
+    dataset = normalised_log_pim_df,
+    low_var = "norm_log.pim",
+    min_length = 54, #9 minutes (n of observations)
+    max_interrupt = 0, #0 minute (n of observations)
+    threshold = threshold
+  )
+  
+  # Add the current threshold as a column in prc_result
+  prc_result <- prc_result %>%
+    mutate(threshold = threshold) # Add threshold column
+  
+  prc_list[[as.character(threshold)]] <- prc_result
+  
+}
 
+#Turn into a df
+norm_log_prcurve_pim <- bind_rows(prc_list)
 
 #Turn threshold to numeric for plotting
-prcurve_pim$threshold <- as.numeric(prcurve_pim$threshold)
+norm_log_prcurve_pim$threshold <- as.numeric(norm_log_prcurve_pim$threshold)
+
+# Adding f1 value
+norm_log_prcurve_pim_f1 <- norm_log_prcurve_pim %>%
+  mutate(f1_score = (2 * PPV * TPR)/(PPV + TPR))
+
+# Plot this PR curve
+prc_pim_log_norm <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  geom_point(data = norm_log_prcurve_pim, aes(x = TPR, y = PPV, colour = threshold)) +
+  scale_colour_gradient(
+     name = "Normalised PIM threshold",
+     low = "blue", high = "lightblue",
+     limits= c(0.01, 0.1),
+     breaks = c(0.01, 0.05, 0.1),
+     labels = c(0.01, 0.05, 0.1),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Log-transformed and normalised \nPIM threshold based detection") +
+   theme_bw() +
+ theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 16),
+        axis.title = element_text(size = 16),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.key.size = unit(8, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal",
+        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
+   coord_fixed(ratio = 1)
+```
+
+### What des this tell us? 
+The f1 score of the cluster algorithm applied to the normalised log data is similar to that of the a) raw data and b) log data, with values all close to 0.52, regardless of the chosen threshold. 
+
+### What if we normalised the data without any log transformation?
+```{r}
+# Apply min max normalisation to the raw data
+
+## Function that will normalise - (same as above!)
+min_max_normalisation <- function(x) {
+  return ((x - min(x)) / (max(x) - min(x)))
+}
+
+## Normalise activity within each Id
+normalised_raw_pim_df <- df.LL.nosleep %>% 
+  group_by(Id) %>% # we want to normalise within each Id 
+  mutate(norm_pim = min_max_normalisation(PIM)) %>%
+  ungroup()
+
+## Let's visualise th distribution of the normalised raw PIM
+ggplot(normalised_raw_pim_df) +
+  geom_histogram(aes(x=norm_pim))
+```
+Now we apply our cluster algorithm to the normalised raw PIM data
+```{r}
+#Create a sequence of PIM thresholds at 0.001 unit steps (because PIM values only range from 0 to 1, and thy are heavily skewed towards 0)
+norm_pimthresholds <- c(0.001, 0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.009, 0.01)
+
+#Empty list to store classification results
+prc_list <- list()
+
+#Running a for loop to generate a prc for all selected PIM thresholds 
+for (threshold in norm_pimthresholds) {
+  
+  prc_result <- generate_prc(
+    dataset = normalised_raw_pim_df,
+    low_var = "norm_pim",
+    min_length = 54, #9 minutes (n of observations)
+    max_interrupt = 0, #0 minute (n of observations)
+    threshold = threshold
+  )
+  
+  # Add the current threshold as a column in prc_result
+  prc_result <- prc_result %>%
+    mutate(threshold = threshold) # Add threshold column
+  
+  prc_list[[as.character(threshold)]] <- prc_result
+  
+}
+
+#Turn into a df
+norm_raw_prcurve_pim <- bind_rows(prc_list)
+
+#Turn threshold to numeric for plotting
+norm_raw_prcurve_pim$threshold <- as.numeric(norm_raw_prcurve_pim$threshold)
+
+# Adding f1 value
+norm_raw_prcurve_pim_f1 <- norm_raw_prcurve_pim %>%
+  mutate(f1_score = (2 * PPV * TPR)/(PPV + TPR))
+
+# Plot this PR curve
+prc_pim_raw_norm <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  geom_point(data = norm_raw_prcurve_pim, aes(x = TPR, y = PPV, colour = threshold)) +
+  scale_colour_gradient(
+     name = "Normalised PIM threshold",
+     low = "blue", high = "lightblue",
+     limits= c(0.001, 0.01),
+     breaks = c(0.001, 0.005, 0.01),
+     labels = c(0.001, 0.005, 0.01),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Raw and normalised \nPIM threshold based detection") +
+   theme_bw() +
+ theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 16),
+        axis.title = element_text(size = 16),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.key.size = unit(8, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal",
+        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
+   coord_fixed(ratio = 1)
+```
+
+### What does this tell us?
+Again, we get a best f1 score of arrpoximately 0.51, which is very similar to the f1 score obtained on A) the raw data, B) the log transformed data, and C) the log transformed and normalised data.
+
+## Smoothing the data
+Since none of the transformation applied actually improved the algorithm's performance, it would be interesting to see if smoothing the data actually improves the algorithm's performance. We do this using a sliding median with window of 10 minutes. We apply the smoothing directly to the raw data, i.e. without log transformation or normalisation first.
+
+```{r}
+rolled.pim <- df.LL.nosleep %>%
+  group_by(Id) %>%
+  mutate(rolled_median_PIM = zoo::rollapplyr(PIM, width = 60, FUN = median, fill = NA, align = "center")) %>%
+  ungroup()
+
+# To get an idea of the distribution of the data, let's calculate some descriptive stats
+rolled_pim_summary <- rolled.pim %>%
+  group_by(Id) %>%
+  summarise(mean_pim = mean(rolled_median_PIM, na.rm = TRUE),
+            sd_pim = sd(rolled_median_PIM, na.rm = TRUE),
+            median_pim = median(rolled_median_PIM, na.rm = TRUE),
+            min_pim = min(rolled_median_PIM, na.rm = TRUE),
+            max_pim = max(rolled_median_PIM, na.rm = TRUE)) %>%
+  ungroup()
+
+# Visualise distribution 
+ggplot(rolled.pim) +
+  geom_histogram(aes(x=rolled_median_PIM)) ##very similar to the original distribution of PIM
+```
+### Applying the cluster algorithm to the rolled df
+```{r}
+#Create a sequence of PIM thresholds at 5 unit steps
+pimthresholds <- c(5,10, 15, 20, 25, 30, 35, 40, 45, 50)
+
+#Empty list to store classification results
+prc_list <- list()
+
+#Running a for loop to generate a prc for all selected PIM thresholds 
+for (threshold in pimthresholds) {
+  
+  prc_result <- generate_prc(
+    dataset = rolled.pim,
+    low_var = "rolled_median_PIM",
+    min_length = 54, #9 minutes (n of observations)
+    max_interrupt = 0, #0 minute (n of observations)
+    threshold = threshold
+  )
+  
+  # Add the current threshold as a column in prc_result
+  prc_result <- prc_result %>%
+    mutate(threshold = threshold) # Add threshold column
+  
+  prc_list[[as.character(threshold)]] <- prc_result
+  
+}
+
+#Turn into a df
+rolled_raw_prcurve_pim <- bind_rows(prc_list)
+
+#Turn threshold to numeric for plotting
+rolled_raw_prcurve_pim$threshold <- as.numeric(rolled_raw_prcurve_pim$threshold)
+
+# Adding f1 value
+rolled_raw_prcurve_pim_f1 <- rolled_raw_prcurve_pim %>%
+  mutate(f1_score = (2 * PPV * TPR)/(PPV + TPR))
+
+# Plot this PR curve
+prc_pim_rolled_raw <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  geom_point(data = rolled_raw_prcurve_pim, aes(x = TPR, y = PPV, colour = threshold)) +
+  scale_colour_gradient(
+     name = "PIM threshold",
+     low = "blue", high = "lightblue",
+     limits= c(5, 50),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Smoothed PIM threshold \nbased detection") +
+   theme_bw() +
+ theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 16),
+        axis.title = element_text(size = 16),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.key.size = unit(8, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal",
+        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
+   coord_fixed(ratio = 1)
+
+```
+
+### What does this tell us?
+Smoothing on raw data is actually not benefitting the performance of the algorithm.
+
+## What if we smooth the log data and apply the algorithm after the log transformation? 
+```{r}
+rolled.log.pim <- log.df.LL.nosleep %>%
+  group_by(Id) %>%
+  mutate(rolled_median_PIM = zoo::rollapplyr(log.PIM, width = 60, FUN = median, fill = NA, align = "center")) %>%
+  ungroup()
+
+#Create a sequence of PIM thresholds at 5 unit steps
+log_pimthresholds <- log10(c(5,10, 15, 20, 25, 30, 35, 40, 45, 50))
+
+#Empty list to store classification results
+prc_list <- list()
+
+#Running a for loop to generate a prc for all selected PIM thresholds 
+for (threshold in log_pimthresholds) {
+  
+  prc_result <- generate_prc(
+    dataset = rolled.log.pim,
+    low_var = "rolled_median_PIM",
+    min_length = 54, #9 minutes (n of observations)
+    max_interrupt = 0, #0 minute (n of observations)
+    threshold = threshold
+  )
+  
+  # Add the current threshold as a column in prc_result
+  prc_result <- prc_result %>%
+    mutate(threshold = threshold) # Add threshold column
+  
+  prc_list[[as.character(threshold)]] <- prc_result
+  
+}
+
+#Turn into a df
+rolled_log_prcurve_pim <- bind_rows(prc_list)
+
+#Turn threshold to numeric for plotting
+rolled_log_prcurve_pim$threshold <- as.numeric(rolled_log_prcurve_pim$threshold)
+
+# Adding f1 value
+rolled_log_prcurve_pim_f1 <- rolled_log_prcurve_pim %>%
+  mutate(f1_score = (2 * PPV * TPR)/(PPV + TPR))
+
+# Plot this PR curve
+prc_pim_rolled_log <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  geom_point(data = rolled_log_prcurve_pim, aes(x = TPR, y = PPV, colour = threshold)) +
+  scale_colour_gradient(
+     name = "Log PIM threshold",
+     low = "blue", high = "lightblue",
+     limits= c(log10(5), log10(50)),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Log-transformed and smoothed \nPIM threshold based detection") +
+   theme_bw() +
+ theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 16),
+        axis.title = element_text(size = 16),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.key.size = unit(8, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal",
+        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
+   coord_fixed(ratio = 1)
+```
+
+We get the same f1 values as the rolled_raw df, which we would expect!
+
+## Trying one final thing 
+First, we apply all three transformations to the data
+1) Log transformation
+2) Smoothing 
+3) Normalising 
+
+Then, we apply the algorithm 
+```{r}
+# We already have a log transformed and smoothed dataset from the code chunk above, i.e. rolled.log.pim
+# This means that we jump to step 3 and apply a normalisation to the rolled.log.pim df 
+
+## We need to change the normalisation function so that it handles NA values resulting from the smoothing
+
+na_min_max_normalisation <- function(x) {
+  # Apply the normalisation only if the value is not NA
+  if (all(is.na(x))) {
+    return(rep(NA, length(x)))  # If all values are NA, return a vector of NAs
+  } else {
+    # Normalise only the non-NA values and handle each element
+    min_val <- min(x, na.rm = TRUE)
+    max_val <- max(x, na.rm = TRUE)
+    
+    # Handle the case where min and max are equal, preventing division by zero
+    if (min_val == max_val) {
+      return(rep(0, length(x))) 
+    } else {
+      return((x - min_val) / (max_val - min_val))
+    }
+  }
+}
+
+# Apply the normalisation
+norm_rolled_log_pim <- rolled.log.pim %>%
+  group_by(Id) %>% # we want to normalise within each Id 
+  mutate(n_r_l_pim = na_min_max_normalisation(rolled_median_PIM)) %>%
+  ungroup()
+
+# Apply the algorithm
+#Create a sequence of PIM thresholds at 0.001 unit steps (because PIM values only range from 0 to 1, and thy are heavily skewed towards 0)
+norm_pimthresholds <- c(0.001, 0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.009, 0.01)
+
+#Empty list to store classification results
+prc_list <- list()
+
+#Running a for loop to generate a prc for all selected PIM thresholds 
+for (threshold in norm_pimthresholds) {
+  
+  prc_result <- generate_prc(
+    dataset = norm_rolled_log_pim,
+    low_var = "n_r_l_pim",
+    min_length = 54, #9 minutes (n of observations)
+    max_interrupt = 0, #0 minute (n of observations)
+    threshold = threshold
+  )
+  
+  # Add the current threshold as a column in prc_result
+  prc_result <- prc_result %>%
+    mutate(threshold = threshold) # Add threshold column
+  
+  prc_list[[as.character(threshold)]] <- prc_result
+  
+}
+
+#Turn into a df
+norm_rolled_log_prcurve_pim <- bind_rows(prc_list)
+
+#Turn threshold to numeric for plotting
+norm_rolled_log_prcurve_pim$threshold <- as.numeric(norm_rolled_log_prcurve_pim$threshold)
+
+# Adding f1 value
+norm_rolled_log_prcurve_pim_f1 <- norm_rolled_log_prcurve_pim %>%
+  mutate(f1_score = (2 * PPV * TPR)/(PPV + TPR))
+
+# Plotting this final PR curve
+prc_pim_norm_rolled_log <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  geom_point(data = norm_rolled_log_prcurve_pim, aes(x = TPR, y = PPV, colour = threshold)) +
+  scale_colour_gradient(
+     name = "Normalised PIM threshold",
+     low = "blue", high = "lightblue",
+     limits= c(0.001, 0.01),
+     breaks = c(0.001, 0.005, 0.01),
+     labels = c(0.001, 0.005, 0.01),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Log-transformed, smoothed and \nnormalised PIM threshold based detection") +
+   theme_bw() +
+ theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 16),
+        axis.title = element_text(size = 16),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.key.size = unit(8, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal",
+        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
+   coord_fixed(ratio = 1)
+```
+
+# Putting all of these plots into a single multiplot
+```{r}
+# Combining in one single plot
+preprocess_multiplot <- cowplot::plot_grid(prc_pim_thresholds, 
+                                           prc_pim_raw_norm,
+                                           prc_pim_rolled_raw,
+                                           prc_pim_log,
+                                           prc_pim_log_norm,
+                                           prc_pim_rolled_log,
+                                           prc_pim_norm_rolled_log,
+                                labels = c("A", "B", "C", "D", "E", "F", "G"),
+                                ncol = 3,
+                                align = "hv")
+
+# Saving the plot
+ggsave(filename = "pim_pre-process.png",
+       plot = preprocess_multiplot,
+       width = 14, 
+       height = 14,
+       dpi = 600, 
+       bg = "white",
+       path = "Z:/nonwear_detection/preprint_figures/supplementary")
 ```
 
