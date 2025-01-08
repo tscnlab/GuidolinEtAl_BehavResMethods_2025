@@ -26,13 +26,14 @@ generate_prc <- function(dataset, low_var, min_length, max_interrupt, threshold)
     ungroup()
   
   clusters_clean <- clusters %>%
-    select(Id, Datetime, State, !!sym(cluster_column), MEDI) %>%
+    select(Id, Datetime, State, !!sym(cluster_column), !!sym(low_var), MEDI) %>%
     mutate(
       State = case_when(
         State == "on" ~ 1, 
         State == "off" ~ 0,
         is.na(State) ~ NA_real_), # keep sleep states as NA,
       !!sym(cluster_column) := case_when(
+        is.na(!!sym(low_var)) ~ NA_real_,  # Propagate NA from low_var to cluster_col, this is useful when applying the algorithm to a rolled df where NAs are present
         !!sym(cluster_column) == TRUE ~ 0,
         !!sym(cluster_column) == FALSE ~ 1
       )) 
