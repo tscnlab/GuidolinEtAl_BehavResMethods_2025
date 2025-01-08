@@ -1,0 +1,108 @@
+---
+title: "light_activity_2d_classification"
+author: "Carolina Guidolin"
+date: "2025-01-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+medi_thr = 1
+min_length = 60
+max_int = 0
+
+
+medi_clusters <- df.LL.nosleep %>%
+    ungroup() %>%
+    mutate(low_medi = MEDI < medi_thr) %>%
+    nest_by(Id) %>%
+    mutate(
+      data = list(
+        data_find_clusters(
+          data, 
+          low_medi, 
+          min_length = min_length, 
+          max_interrupt = max_int,
+          cluster_name = "low_medi_cluster"
+        )
+      )
+    ) %>%
+    unnest(cols = data) %>%
+    ungroup()
+
+pim_thr = 5
+min_length = 54
+max_int = 0
+  
+pim_clusters <- medi_clusters %>%
+    ungroup() %>%
+    mutate(low_pim = PIM < pim_thr) %>%
+    nest_by(Id) %>%
+    mutate(
+      data = list(
+        data_find_clusters(
+          data, 
+          low_pim, 
+          min_length = min_length, 
+          max_interrupt = max_int,
+          cluster_name = "low_pim_cluster"
+        )
+      )
+    ) %>%
+    unnest(cols = data) %>%
+    ungroup()
+
+  clusters_clean <- pim_clusters %>%
+    select(Id, Datetime, State, is_low_medi_cluster, is_low_pim_cluster, low_pim, low_medi, MEDI, PIM) %>%
+    mutate(
+      State = case_when(
+        State == "on" ~ 1, 
+        State == "off" ~ 0,
+        is.na(State) ~ NA_real_), # keep sleep states as NA,
+      is_low_medi_cluster = case_when(
+        is.na(is_low_medi_cluster) ~ NA_real_,  # Propagate NA from low_var to cluster_col, this is useful when applying the algorithm to a rolled df where NAs are present
+        is_low_medi_cluster == TRUE ~ 0,
+        is_low_medi_cluster == FALSE ~ 1
+      ),
+      is_low_pim_cluster = case_when(
+        is.na(is_low_pim_cluster) ~ NA_real_,  # Propagate NA from low_var to cluster_col, this is useful when applying the algorithm to a rolled df where NAs are present
+        is_low_pim_cluster == TRUE ~ 0,
+        is_low_pim_cluster == FALSE ~ 1
+      ),
+    clusters_2d = case_when(
+      is_low_pim_cluster == is_low_medi_cluster ~ is_low_pim_cluster,
+      TRUE ~ NA_real_)
+    )
+  
+  #We want to build a precision recall curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 0), classifies the performance of our algorithm for detecting non-wear as follows:
+  #1) State = 0, cluster medi = 0, cluster pim = 0 -> true positive
+  #2) State = 0, cluster medi= 1, cluster pim = 1 -> false negative
+  #3) State = 1, cluster medi = 0, cluster pim =  0 -> false positive
+  #4) State = 1, cluster medi = 1, cluster pim = 1 -> true negative
+  
+clusters_clean_2 <- clusters_clean %>%
+    mutate(classification = case_when(
+      State == 0 & clusters_2d == 0 ~ "TP",
+      State == 0 & clusters_2d == 1 ~ "FN",
+      State == 1 & clusters_2d == 0 ~ "FP",
+      State == 1 & clusters_2d == 1 ~ "TN",
+      .default = NA_character_))
+
+  prc <- clusters_clean_2 %>%
+    group_by(classification) %>% #!! if you want to visualise individual PRC, then you have to group_by(Id, classification). Else, only group_by(classification)
+    summarise(count = n()) %>%
+    pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
+    mutate(TPR = TP/(TP+FN), #true positive rate
+           FPR = FP/(FP+TN), #false positive rate
+           PPV = TP/(TP+FP), #positive predictive value
+           NPV = TN/(FN+TN)) %>% #negative predictive value 
+  mutate(f1_score = (2* PPV * TPR)/(PPV + TPR))
+
+
+
+```
