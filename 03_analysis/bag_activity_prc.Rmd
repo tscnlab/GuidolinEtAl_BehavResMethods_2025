@@ -160,13 +160,13 @@ df.LL.nosleep <- dataset.LL.wrlg %>%
 ### First, import functions
 ```{r}
 # Fuction to identify clusters
-base::source("G:/cyepi/code/03_analysis/functions/find_clusters_fun.R")
+base::source("Z:/nonwear_detection/03_analysis/functions/find_clusters_fun.R")
 
 #Function to generate aggregate pr curve
-base::source("G:/cyepi/code/03_analysis/functions/generate_prc_funs.R")
+base::source("Z:/nonwear_detection/03_analysis/functions/generate_prc_funs.R")
 
 #Function to generate individual pr curve
-base::source("G:/cyepi/code/03_analysis/functions/generate_indiv_prc_funs.R")
+base::source("Z:/nonwear_detection/03_analysis/functions/generate_indiv_prc_funs.R")
 ```
 
 
