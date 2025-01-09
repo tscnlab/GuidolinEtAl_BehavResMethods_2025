@@ -56,6 +56,7 @@ Folder: `01_import`, contains scripts:
 Folder: `02_datapreparation`, contains scripts:
 - `wearlog_qualitychecks.Rmd`: script for pre-processing Wear log files, with detailed explanation of how files who failed quality checks were manually adjusted
 - `wearlog_LL_fusion.Rmd`: script for merging the light logger dataset with information from the Wear log and bag use in one single data frame.
+
 The output of running these two scripts in sequential order is a single, clean dataframe containing all information.
 
 ### Data analysis
