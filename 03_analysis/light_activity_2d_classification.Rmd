@@ -190,12 +190,7 @@ clusters_bag <- clusters_clean %>%
       if_else(is_low_pim_cluster == 0, "TP", "FN"),  # hence, we trust pim 
       if_else(is_low_medi_cluster == 0, "TP", "FN")  # else (bag = 1, so it's being used, we trust medi)
     ),
-    State == 1 & is_low_medi_cluster != is_low_pim_cluster ~ if_else(
-      bag == 0,  # bag not being used
-      if_else(is_low_pim_cluster == 0, "FP", "TN"),  # hence, we trust pim
-      if_else(is_low_medi_cluster == 0, "FP", "TN")  # else, (bag = 1), we trust medi
-    ),
-    
+    State == 1 & (is_low_medi_cluster != is_low_pim_cluster) ~ if_else(is_low_medi_cluster == 0, "FP", "TN"), #since the glasses are on we can't rely on the bag 
     TRUE ~ NA_character_  # Handle any other cases or missing values for State
   ))
 
@@ -212,3 +207,53 @@ prc_bag_priority <- clusters_bag %>%
 
 ### What does this tell us? 
 Weighing mEDI clusters and PIM clusters (approach #1 and #2) arbitrarily leads to the same f1 scores as only looking at one cluster. In other words: weighing mEDI clusters in case of disagreements leads to a classifier performance that is equivalent to only considering mEDI clusters and excluding pim clusters; and weighing pim clusters in case of disagreements leads to a classifier performance that is equivalent to only considering pim clusters and excluding medi clusters. This suggests that this might not be an useful strategy. On the other hand, handling disagreements based on bag use leads to an algorithm performance of f1 = 0.78, which is slightly higher than only considering clusters of low light alone. 
+
+### Alternative approach
+What if the reliance on the use of the bag was actually weighted more by including it in the classification of not just the disagreement cases, but also the agreement cases?
+```{r}
+# Think about the agreement cases first:
+
+## Off cases  
+  #1) If State = off and bag = 1 (used), then if cluster medi = TRUE -> true positive
+  #2) If State = off and bag = 1 (used), then if cluster medi = FALSE -> false negative
+  #3) If State = off and bag = 0 (not used), then if cluster pim = TRUE -> true positive
+  #4) If State = off and bag = 0 (not used), then if cluster pim = FALSE -> false negative
+  
+## On cases and agreement
+  #5) If State = on and both cluster medi and cluster pim = TRUE -> false positive 
+  #6) If State = on, and both cluster medi and cluster pim = FALSE -> true negative 
+
+## On cases and disagreement -> prioritise mEDI clusters
+  #7) If State = on, and cluster medi = TRUE but cluster pim = FALSE, prioritise cluster medi -> false positive  
+  #8) If State = on, and cluster medi = FALSE but cluster pim = TRUE, prioritise cluster medi -> true negative
+
+clusters_state_bag <- clusters_clean %>%
+  mutate(classification = case_when(
+    # Off cases 
+    State == 0 & bag == 1 ~ if_else(is_low_medi_cluster == 0, "TP", "FN"), # cases 1) and 2)
+    State == 0 & bag == 0 ~ if_else(is_low_pim_cluster == 0, "TP", "FN"), # cases 3) and 4) 
+    
+    # On cases and agreement of medi and pim
+    State == 1 & is_low_medi_cluster == 0 & is_low_pim_cluster == 0 ~ "FP", # case 5)
+    State == 1 & is_low_medi_cluster == 1 & is_low_pim_cluster == 1 ~ "TN", # case 6)
+    
+    # On cases with disagreement
+    State == 1 & is_low_medi_cluster != is_low_pim_cluster ~ if_else(
+      is_low_medi_cluster == 0, "FP", "TN" # cases 7 and 8 
+    ),
+    
+    .default = NA_character_))
+
+prc_1 <- clusters_state_bag %>%
+    group_by(classification) %>% #!! if you want to visualise individual PRC, then you have to group_by(Id, classification). Else, only group_by(classification)
+    summarise(count = n()) %>%
+    pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
+    mutate(TPR = TP/(TP+FN), #true positive rate
+           FPR = FP/(FP+TN), #false positive rate
+           PPV = TP/(TP+FP), #positive predictive value
+           NPV = TN/(FN+TN)) %>% #negative predictive value 
+  mutate(f1_score = (2* PPV * TPR)/(PPV + TPR))
+```
+
+### What does this tell us?
+The results are identical to including the bag only in disagreement cases, i.e. F1 = 0.78. 
