@@ -43,7 +43,7 @@ In this paragraph we explain the contents of each folder in this repository, inc
 
 ### Raw data
 Folder: `00_raw_data`
-Contains folders:
+subfolders:
 - `actlumus`: 26 txt files representing the timeseries output of the ActLumus light logger
 - `wearlog`: 26 csv files representing the Wear log questionnaires as downloaded by REDCap
 
