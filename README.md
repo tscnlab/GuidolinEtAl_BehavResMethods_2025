@@ -47,13 +47,17 @@ Folder: `00_raw_data`, contains subfolders:
 - `wearlog`: 26 csv files representing the Wear log questionnaires as downloaded by REDCap
 
 ### Data import
-Folder: `01_import`, contains subfolders:
+Folder: `01_import`, contains scripts:
 - `import_LL.Rmd`: script for importing actlumus files
 - `import_wearlog.Rmd`: script for importing Wear log files
 - `import_bag.Rmd`: script for importing information on use of the black bag
 
 ### Data pre-processing
-Folder: `02_datapreparation` 
+Folder: `02_datapreparation`, contains scripts:
+- `wearlog_qualitychecks.Rmd`: script for pre-processing Wear log files, with detailed explanation of how files who failed quality checks were manually adjusted
+- `wearlog_LL_fusion.Rmd`: script for merging the light logger dataset with information from the Wear log and bag use in one single data frame.
+The output of running these two scripts in sequential order is a single, clean dataframe containing all information.
+
 
 - Participants N = 26
 - Duration: 7 full days (Monday to Monday)
