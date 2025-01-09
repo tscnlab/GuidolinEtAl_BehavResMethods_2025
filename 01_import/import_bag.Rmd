@@ -11,8 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Note: to be run after 
 1) import_LL
-2) import_activity
-3) import_wearlog
+2) import_wearlog
 
 ##This script is used to import information about black bag use.
 
