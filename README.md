@@ -38,7 +38,17 @@ loaded via a namespace (and not attached):
 [49] evaluate_1.0.0       knitr_1.48           ggdist_3.3.2         markdown_1.13        rlang_1.1.4          gridtext_0.1.5      
 [55] Rcpp_1.0.13          glue_1.7.0           xml2_1.3.6           rstudioapi_0.16.0    vroom_1.6.5          R6_2.5.1     
 ```
-## Dataset description
+## Folder descriptions
+In this paragraph we explain the contents of each folder in this repository, including R script processing. 
+
+### Raw data
+Folder: `00_raw_data`
+Contains folders:
+- `actlumus`: 26 txt files representing the timeseries output of the ActLumus light logger
+- `wearlog`: 26 csv files representing the Wear log questionnaires as downloaded by REDCap
+
+ 
+
 - Participants N = 26
 - Duration: 7 full days (Monday to Monday)
 - Wearable device: ActLumus with 10 seconds sampling period, worn centrally on non-prescription spectacles ("light glasses")
