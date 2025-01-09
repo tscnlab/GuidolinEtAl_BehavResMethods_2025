@@ -39,15 +39,21 @@ loaded via a namespace (and not attached):
 [55] Rcpp_1.0.13          glue_1.7.0           xml2_1.3.6           rstudioapi_0.16.0    vroom_1.6.5          R6_2.5.1     
 ```
 ## Folder descriptions
-In this paragraph we explain the contents of each folder in this repository, including R script processing. 
+In this paragraph we explain the contents of each folder in this repository, including R script processing. Note that processing of the data in sequential order, i.e. following the order of the folders, is necessary for replication of our results. 
 
 ### Raw data
-Folder: `00_raw_data`
-subfolders:
+Folder: `00_raw_data`, contains subfolders:
 - `actlumus`: 26 txt files representing the timeseries output of the ActLumus light logger
 - `wearlog`: 26 csv files representing the Wear log questionnaires as downloaded by REDCap
 
- 
+### Data import
+Folder: `01_import`, contains subfolders:
+- `import_LL.Rmd`: script for importing actlumus files
+- `import_wearlog.Rmd`: script for importing Wear log files
+- `import_bag.Rmd`: script for importing information on use of the black bag
+
+### Data pre-processing
+Folder: `02_datapreparation` 
 
 - Participants N = 26
 - Duration: 7 full days (Monday to Monday)
