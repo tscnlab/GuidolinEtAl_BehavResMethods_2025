@@ -9,14 +9,17 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+# Aim
+We want to understand if combining light (mEDI) and activity (PIM) could help to imporve the algorithm's performance
 
+## First step: identify observations which are classified as clusters of both light and activity 
 ```{r}
+# We use the inputs which we know to lead to the best classification for mEDI
 medi_thr = 1
 min_length = 60
 max_int = 0
 
-
+# Identify clusters
 medi_clusters <- df.LL.nosleep %>%
     ungroup() %>%
     mutate(low_medi = MEDI < medi_thr) %>%
@@ -35,6 +38,8 @@ medi_clusters <- df.LL.nosleep %>%
     unnest(cols = data) %>%
     ungroup()
 
+# Now we detect clusters of PIM using inputs which we know work best
+## Note that we apply the data_find_cluster function not to the raw dataset (df.LL.nosleep) but to the medi_cluster dataset, so that we end up with a df that contains both identified clusters of low_pim and low_medi
 pim_thr = 5
 min_length = 54
 max_int = 0
@@ -57,43 +62,50 @@ pim_clusters <- medi_clusters %>%
     unnest(cols = data) %>%
     ungroup()
 
-  clusters_clean <- pim_clusters %>%
-    select(Id, Datetime, State, is_low_medi_cluster, is_low_pim_cluster, low_pim, low_medi, MEDI, PIM) %>%
-    mutate(
-      State = case_when(
-        State == "on" ~ 1, 
-        State == "off" ~ 0,
-        is.na(State) ~ NA_real_), # keep sleep states as NA,
-      is_low_medi_cluster = case_when(
-        is.na(is_low_medi_cluster) ~ NA_real_,  # Propagate NA from low_var to cluster_col, this is useful when applying the algorithm to a rolled df where NAs are present
-        is_low_medi_cluster == TRUE ~ 0,
-        is_low_medi_cluster == FALSE ~ 1
-      ),
-      is_low_pim_cluster = case_when(
-        is.na(is_low_pim_cluster) ~ NA_real_,  # Propagate NA from low_var to cluster_col, this is useful when applying the algorithm to a rolled df where NAs are present
-        is_low_pim_cluster == TRUE ~ 0,
-        is_low_pim_cluster == FALSE ~ 1
-      ),
-    clusters_2d = case_when(
-      is_low_pim_cluster == is_low_medi_cluster ~ is_low_pim_cluster,
-      TRUE ~ NA_real_)
-    )
+# We need to apply some re-coding to the data
+# When State is on, it should have a value of 1
+# When State is off, it should have a value of 0 
+# When low_medi cluster = TRUE, it should be coded as 0, else as 1
+# When low_pim cluster = TRUE, it should be coded as 0, else as 1
+clusters_clean <- pim_clusters %>%
+  select(Id, Datetime, State, is_low_medi_cluster, is_low_pim_cluster, low_pim, low_medi, MEDI, PIM, bag) %>%
+  mutate(
+    State = case_when(
+      State == "on" ~ 1, 
+      State == "off" ~ 0,
+      is.na(State) ~ NA_real_), # keep sleep states as NA,
+    is_low_medi_cluster = case_when(
+      is.na(is_low_medi_cluster) ~ NA_real_, # Propagate NA from low_var to cluster_col, this is useful when applying the algorithm to a rolled df where NAs are present
+      is_low_medi_cluster == TRUE ~ 0,
+      is_low_medi_cluster == FALSE ~ 1
+    ),
+    is_low_pim_cluster = case_when(
+      is.na(is_low_pim_cluster) ~ NA_real_,  # Propagate NA from low_var to cluster_col, this is useful when applying the algorithm to a rolled df where NAs are present
+      is_low_pim_cluster == TRUE ~ 0,
+      is_low_pim_cluster == FALSE ~ 1
+    ))
   
-  #We want to build a precision recall curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 0), classifies the performance of our algorithm for detecting non-wear as follows:
+```
+
+# Building a PR curve based on agreement between cluters of low activity and clusters of low light
+In cases of disagreement, we assign a NA value to the classification output
+```{r}
+ #We want to build a precision recall curve for our classifier algorithm, which, based o our "Ground truth", i.e. the wear log state values (on = 1 and off = 0), classifies the performance of our algorithm for detecting non-wear as follows:
   #1) State = 0, cluster medi = 0, cluster pim = 0 -> true positive
   #2) State = 0, cluster medi= 1, cluster pim = 1 -> false negative
   #3) State = 1, cluster medi = 0, cluster pim =  0 -> false positive
   #4) State = 1, cluster medi = 1, cluster pim = 1 -> true negative
   
+# This approach handles disagreement by assigning a NA value to observations were the algorithm identifies a cluster of low activity but no cluster of low medi, and viceversa
 clusters_clean_2 <- clusters_clean %>%
     mutate(classification = case_when(
-      State == 0 & clusters_2d == 0 ~ "TP",
-      State == 0 & clusters_2d == 1 ~ "FN",
-      State == 1 & clusters_2d == 0 ~ "FP",
-      State == 1 & clusters_2d == 1 ~ "TN",
+      State == 0 & is_low_medi_cluster == 0 & is_low_pim_cluster == 0 ~ "TP",
+      State == 0 & is_low_medi_cluster == 1 & is_low_pim_cluster == 1 ~ "FN",
+      State == 1 & is_low_medi_cluster == 0 & is_low_pim_cluster == 0 ~ "FP",
+      State == 1 & is_low_medi_cluster == 1 & is_low_pim_cluster == 1 ~ "TN",
       .default = NA_character_))
 
-  prc <- clusters_clean_2 %>%
+prc <- clusters_clean_2 %>%
     group_by(classification) %>% #!! if you want to visualise individual PRC, then you have to group_by(Id, classification). Else, only group_by(classification)
     summarise(count = n()) %>%
     pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
@@ -102,7 +114,101 @@ clusters_clean_2 <- clusters_clean %>%
            PPV = TP/(TP+FP), #positive predictive value
            NPV = TN/(FN+TN)) %>% #negative predictive value 
   mutate(f1_score = (2* PPV * TPR)/(PPV + TPR))
-
-
-
 ```
+
+### What does this tell us?
+We get a f1 score of 0.8468508, hich is pretty good. However, we cannot compare this directly to the f1 score obtained by looking at clusters of low pim or clusters of low medi, because of the difference in NA values. In fact, the n of observations where there is a disagreement between the two values is 107640. This corresponds to approx. 11.2% of the data (excluding State = NA for sleep periods; this was calculated as 1513786 [tot obs] - 559650 [sleep obs] = 954136. Then, 107640/954136 * 100 = 11.28). This also means that for the observations which are not sleep periods (State = NA), 88.7% of them show agreement between medi and pim clusters. 
+
+## Handling disagreement between clusters of low medi and clusters of low pim  
+### Approach 1
+We handle disagreement between cluster medi and cluster pim by prioritising cluster medi detection 
+```{r}
+# This approach handles disagreement by weighing clusters of low medi more
+
+clusters_medi_priority <- clusters_clean %>%
+    mutate(classification = case_when(
+      State == 0 & is_low_medi_cluster == 0 & is_low_pim_cluster == 0 ~ "TP",
+      State == 0 & is_low_medi_cluster == 1 & is_low_pim_cluster == 1 ~ "FN",
+      State == 1 & is_low_medi_cluster == 0 & is_low_pim_cluster == 0 ~ "FP",
+      State == 1 & is_low_medi_cluster == 1 & is_low_pim_cluster == 1 ~ "TN",
+      State == 0 & (is_low_medi_cluster != is_low_pim_cluster) ~ if_else(is_low_medi_cluster == 0, "TP", "FN"),
+      State == 1 & (is_low_medi_cluster != is_low_pim_cluster) ~ if_else(is_low_medi_cluster == 0, "FP", "TN"),
+      .default = NA_character_))
+
+prc_medi_priority <- clusters_medi_priority %>%
+    group_by(classification) %>% #!! if you want to visualise individual PRC, then you have to group_by(Id, classification). Else, only group_by(classification)
+    summarise(count = n()) %>%
+    pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
+    mutate(TPR = TP/(TP+FN), #true positive rate
+           FPR = FP/(FP+TN), #false positive rate
+           PPV = TP/(TP+FP), #positive predictive value
+           NPV = TN/(FN+TN)) %>% #negative predictive value 
+  mutate(f1_score = (2* PPV * TPR)/(PPV + TPR))
+```
+
+### Approach 2
+We handle disagreement between cluster medi and cluster pim by prioritising cluster pim detection 
+```{r}
+# This approach handles disagreement by weighing clusters of low pim more
+
+clusters_pim_priority <- clusters_clean %>%
+    mutate(classification = case_when(
+      State == 0 & is_low_medi_cluster == 0 & is_low_pim_cluster == 0 ~ "TP",
+      State == 0 & is_low_medi_cluster == 1 & is_low_pim_cluster == 1 ~ "FN",
+      State == 1 & is_low_medi_cluster == 0 & is_low_pim_cluster == 0 ~ "FP",
+      State == 1 & is_low_medi_cluster == 1 & is_low_pim_cluster == 1 ~ "TN",
+      State == 0 & (is_low_medi_cluster != is_low_pim_cluster) ~ if_else(is_low_pim_cluster == 0, "TP", "FN"),
+      State == 1 & (is_low_medi_cluster != is_low_pim_cluster) ~ if_else(is_low_pim_cluster == 0, "FP", "TN"),
+      .default = NA_character_))
+
+prc_pim_priority <- clusters_pim_priority %>%
+    group_by(classification) %>% #!! if you want to visualise individual PRC, then you have to group_by(Id, classification). Else, only group_by(classification)
+    summarise(count = n()) %>%
+    pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
+    mutate(TPR = TP/(TP+FN), #true positive rate
+           FPR = FP/(FP+TN), #false positive rate
+           PPV = TP/(TP+FP), #positive predictive value
+           NPV = TN/(FN+TN)) %>% #negative predictive value 
+  mutate(f1_score = (2* PPV * TPR)/(PPV + TPR))
+```
+
+### Approach 3
+Since the previous two approaches seem rather arbitrary, we decide to handle disagreement based on bag use. More specifically, in a situation where the algorithm has identified a cluster of low medi but not a cluster of low pim, we consult the bag column:
+- If the bag was not used (bag = 0), we rely on PIM
+- If the bag was used (bag = 1), we rely on mEDI
+```{r}
+clusters_bag <- clusters_clean %>%
+  mutate(classification = case_when(
+    State == 0 & is_low_medi_cluster == 0 & is_low_pim_cluster == 0 ~ "TP",
+    State == 0 & is_low_medi_cluster == 1 & is_low_pim_cluster == 1 ~ "FN",
+    State == 1 & is_low_medi_cluster == 0 & is_low_pim_cluster == 0 ~ "FP",
+    State == 1 & is_low_medi_cluster == 1 & is_low_pim_cluster == 1 ~ "TN",
+    
+    # Handle disagreements based on the bag column
+    State == 0 & is_low_medi_cluster != is_low_pim_cluster ~ if_else(
+      bag == 0, # bag not being used
+      if_else(is_low_pim_cluster == 0, "TP", "FN"),  # hence, we trust pim 
+      if_else(is_low_medi_cluster == 0, "TP", "FN")  # else (bag = 1, so it's being used, we trust medi)
+    ),
+    State == 1 & is_low_medi_cluster != is_low_pim_cluster ~ if_else(
+      bag == 0,  # bag not being used
+      if_else(is_low_pim_cluster == 0, "FP", "TN"),  # hence, we trust pim
+      if_else(is_low_medi_cluster == 0, "FP", "TN")  # else, (bag = 1), we trust medi
+    ),
+    
+    TRUE ~ NA_character_  # Handle any other cases or missing values for State
+  ))
+
+prc_bag_priority <- clusters_bag %>%
+    group_by(classification) %>% #!! if you want to visualise individual PRC, then you have to group_by(Id, classification). Else, only group_by(classification)
+    summarise(count = n()) %>%
+    pivot_wider(names_from = classification, values_from = count, values_fill = list(count=0)) %>%
+    mutate(TPR = TP/(TP+FN), #true positive rate
+           FPR = FP/(FP+TN), #false positive rate
+           PPV = TP/(TP+FP), #positive predictive value
+           NPV = TN/(FN+TN)) %>% #negative predictive value 
+  mutate(f1_score = (2* PPV * TPR)/(PPV + TPR))
+```
+
+### What does this tell us? 
+Weighing mEDI clusters and PIM clusters (approach #1 and #2) arbitrarily leads to the same f1 scores as only looking at one cluster. In other words: weighing mEDI clusters in case of disagreements leads to a classifier performance that is equivalent to only considering mEDI clusters and excluding pim clusters; and weighing pim clusters in case of disagreements leads to a classifier performance that is equivalent to only considering pim clusters and excluding medi clusters. This suggests that this might not be an useful strategy. On the other hand, handling disagreements based on bag use leads to an algorithm performance of f1 = 0.78, which is slightly higher than only considering clusters of low light alone. 
