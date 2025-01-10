@@ -265,6 +265,63 @@ ggsave(filename = "pim_tat_zcm_comparison.png",
 
 ```
 
+### Alternative visualisation: plot all three on the same plot, with different colours for the different scales
+```{r}
+pim_tat_zcm_singleplot <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "PIM, TAT and ZCM threshold based detection") +
+  geom_point(data = prcurve_pim, aes(x = TPR, y = PPV, colour = threshold)) +
+  scale_colour_gradient(
+     name = "PIM threshold",
+     low = "blue", high = "lightblue",
+     limits= c(5,50),
+     guide = guide_colourbar(title.position = "top",
+                             title.hjust = 0.5,
+                             order = 1)) +
+  ggnewscale::new_scale_color() + #need this to reset the color scale for the next plot
+  geom_point(data = prcurve_tat, aes(x = TPR, y = PPV, colour = threshold)) +
+  scale_colour_gradient(
+     name = "TAT threshold",
+     low = "darkgreen", high = "lightgreen",
+     limits= c(0.5,5),
+     guide = guide_colourbar(title.position = "top",
+                             title.hjust = 0.5,
+                             order =2)) +
+  ggnewscale::new_scale_color() + #need to reset one more time before third colour scale can be added
+  geom_point(data = prcurve_zcm, aes(x = TPR, y = PPV, colour = threshold)) +
+  scale_colour_gradient(
+     name = "ZCM threshold",
+     low = "red", high = "orange",
+     limits= c(0.5,5),
+     guide = guide_colourbar(title.position = "top",
+                             title.hjust = 0.5,
+                             order = 3)) +
+  theme_bw() +
+  theme(plot.title = element_text(size = 18),
+        axis.text = element_text(size = 16),
+        axis.title = element_text(size = 16),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.key.size = unit(8, "mm"),
+        legend.position = "bottom",
+        legend.box = "horizontal",
+        plot.margin = unit(c(0.3,0,0,0), unit ="cm")) +
+  coord_fixed(ratio = 1)
+
+# Saving the single plot
+ggsave(filename = "pim_tat_zcm_singleplot.png",
+       plot = pim_tat_zcm_singleplot,
+       width = 7, 
+       height = 7,
+       dpi = 600, 
+       bg = "white",
+       path = "H:/nonwear_detection/preprint_figures/supplementary")
+```
+
 ### What does this tell us?
 Using PIM, TAT, or ZCM does not lead to huge differences in the output of out algorithm.
 
@@ -337,7 +394,7 @@ prc_pim_log <- ggplot() +
         legend.key.size = unit(8, "mm"),
         legend.position = "bottom",
         legend.box = "horizontal",
-        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
+        plot.margin = unit(c(0.1,0,0,0), unit ="cm")) +
    coord_fixed(ratio = 1)
 
 
@@ -437,7 +494,7 @@ prc_pim_log_norm <- ggplot() +
         legend.key.size = unit(8, "mm"),
         legend.position = "bottom",
         legend.box = "horizontal",
-        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
+        plot.margin = unit(c(0.1,0,0,0), unit ="cm")) +
    coord_fixed(ratio = 1)
 ```
 
@@ -525,7 +582,7 @@ prc_pim_raw_norm <- ggplot() +
         legend.key.size = unit(8, "mm"),
         legend.position = "bottom",
         legend.box = "horizontal",
-        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
+        plot.margin = unit(c(0.1,0,0,0), unit ="cm")) +
    coord_fixed(ratio = 1)
 ```
 
@@ -615,7 +672,7 @@ prc_pim_rolled_raw <- ggplot() +
         legend.key.size = unit(8, "mm"),
         legend.position = "bottom",
         legend.box = "horizontal",
-        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
+        plot.margin = unit(c(0.1,0,0,0), unit ="cm")) +
    coord_fixed(ratio = 1)
 
 ```
@@ -689,7 +746,7 @@ prc_pim_rolled_log <- ggplot() +
         legend.key.size = unit(8, "mm"),
         legend.position = "bottom",
         legend.box = "horizontal",
-        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
+        plot.margin = unit(c(0.1,0,0,0), unit ="cm")) +
    coord_fixed(ratio = 1)
 ```
 
@@ -787,7 +844,7 @@ prc_pim_norm_rolled_log <- ggplot() +
         legend.key.size = unit(8, "mm"),
         legend.position = "bottom",
         legend.box = "horizontal",
-        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
+        plot.margin = unit(c(0.1,0,0,0), unit ="cm")) +
    coord_fixed(ratio = 1)
 ```
 
@@ -812,6 +869,6 @@ ggsave(filename = "pim_pre-process.png",
        height = 14,
        dpi = 600, 
        bg = "white",
-       path = "Z:/nonwear_detection/preprint_figures/supplementary")
+       path = "H:/nonwear_detection/preprint_figures/supplementary")
 ```
 
