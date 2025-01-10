@@ -60,8 +60,14 @@ Folder: `02_datapreparation`, contains scripts:
 The output of running these two scripts in sequential order is a single, clean dataframe containing all information.
 
 ### Data analysis
-Folder: `03_analysis`. 
+Folder: `03_analysis`. All scripts in this folder assume that scripts in `01_import` and `02_datapreparation` have been previously run. 
 This folder contains the subfolder `functions`, where all custom-made functions needed for the analysis are contained. Each function is called within individual R scripts using the `source()` function from base R.
 This folder also contains all scripts used to produce results and figures presented in the paper. In order of analysis in the paper, these are:
-1. `visual_insp.Rmd`:
+1. `visual_insp.Rmd`: visual inspection of non-wear sources in the same plot for each participant. Contains code to generate Figure 4 of the paper.
+2. `wrlg_plots.Rmd`: visualisation and descriptive statistics of the wear status based on self-reported Wear log entries (ground truth). This includes Figure 5 (A-C).
+3. `button_press.Rmd`: preparation, visualisation and descriptive statistics for calculating the presence of a button press at the start and end of each non-wear interval. This script also outputs Figure 6 (A-B).
+4. `algorithm_prc.Rmd`: implementation of the cluster detection algorithm for both low illuminance and low activity. This script outputs Figure 7 (A-B) and Figure 8.
+5. `classification_summary.Rmd`: examination of algorithm misclassification, including visualisation of each algorithm classification as a time series against ground truth for each participant. One of these was then used to generate Figure 9. Furthermore, this script includes an analysis of algorithm performance which serves to generate Table 1. Lastly, this script contains the code to add a padding to the identified transition states.
+6. `metrics_comparison.Rmd`: calculation of light exposure metrics across three datasets and visualisation of each metric. Outputs Figure 10.
+7. `metrics_stats.Rmd`: 
 
