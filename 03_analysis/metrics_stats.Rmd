@@ -34,16 +34,8 @@ for (df in metrics_dfs) {
 
 ## The distribution looks more or less normal, and we can proceed with a paired t-test on the means
 
-# Checking the normality of the deltas
-for (df in metrics_dfs) {
-
-    print(norm_check_deltas(df))
-  
-}
-
-## The deltas are not normally distributed
-
 ```
+
 ### Performing the paired sample Student t-test on the means 
 #### First, we  create a function to perform the t-test for all metrics
 ```{r}
@@ -236,184 +228,6 @@ gt::gtsave(ttest_table,
 ```
 
 
-### Investigating differences in the delta using a sign test
-First, we need to write a function for this 
-```{r}
-# Sign-test for the deltas
-signtest_deltas <- function (df) {
-  
-  # Get the name of the input df as a string
-  df_name <- deparse(substitute(df))
-  
-# Turning df into long form to perform computations
-  df_long <- df %>%
-  pivot_longer(cols = c(delta_wrlg, delta_clusters),
-               names_to = "metric",
-               values_to = "delta")
-  
-  # Turn mean column to numeric (minutes)
-    df_long <- df_long %>%
-    mutate(delta = as.numeric(delta)/60) #turning the deltas into mins, this is optional (could keep them in secs)
-  
-    # Performing t-test
-  signtest <- df_long %>%
-    rstatix::sign_test(delta ~ metric) %>%
-    rstatix::add_significance("p")
-  
-  # Adding a column indicating which metric the t-test corresponds
-  signtest$metric <- (df_name)
-  
-   # Computing Cohen's D
-  cohens_d <- df_long %>%
-    rstatix::cohens_d(delta ~ metric)
-  
-  # Merging Cohen's D into t-test results
-  signtest <- signtest %>%
-    mutate(cohens_d = cohens_d$effsize)  # Add Cohen's D as a new column
-  
- # Assigning dfs to dynamically named variables in the global environment
-  assign(paste0(df_name, "_delta_long"), df_long, envir = .GlobalEnv)
-  assign(paste0("signtest_", df_name), signtest, envir = .GlobalEnv)
-
-}    
-
-```
-
-#### Run the sign test to all dfs (iv and is included, as the df structure enables this)
-```{r}
-
-#MLiT250
-signtest_deltas(mlit250_all)
-
-# MLiT1000
-signtest_deltas(mlit1000_all)
-
-# FLitT 10
-signtest_deltas(flit10_all)
-
-#FLitT250
-signtest_deltas(flit250_all)
-
-#FLiT1000
-signtest_deltas(flit1000_all)
-
-# LLitT 10
-signtest_deltas(llit10_all)
-
-# LLitT 250
-signtest_deltas(llit250_all)
-
-# LLitT 1000
-signtest_deltas(llit1000_all)
-
-# TAT 250
-signtest_deltas(tat250_all)
-
-# TAT 1000
-signtest_deltas(tat1000_all)
-
-# IV
-signtest_deltas(iv_all)
-
-# IS
-signtest_deltas(is_all)
-
-#Combining all dfs into one
-signest_all <- dplyr::bind_rows(signtest_mlit1000_all,
-                              signtest_mlit250_all,
-                              signtest_flit10_all,
-                              signtest_flit1000_all,
-                              signtest_flit250_all,
-                              signtest_llit10_all,
-                              signtest_llit250_all,
-                              signtest_llit1000_all,
-                              signtest_tat250_all,
-                              signtest_tat1000_all,
-                              signtest_is_all,
-                              signtest_iv_all)
-
-# Apply multiple corrections
-signtest_final <- signest_all %>% 
-  mutate(p.adj = stats::p.adjust(p,
-                           "fdr", # we choose FDR (or BH - same thing) as method
-                           n=length(p))) %>% # we want to correct for all comparisons, i.e. n=12
-  rstatix::add_significance("p.adj") %>%
-  dplyr::relocate(metric, .before= .y.) 
-
-
-```
-
-### Investigating the significant differences
-In the t-tests above, we observe a significance difference in the metrics TAT 250 and TAT 1000 when calculated in the raw dataset, wear log dataset and clusters dataset. Next, we want to know: does this correlate with the compliance in using the black bag? We have this information from the bag_activity_prc script in the variable per_bag_use. Below is a repetition of how that was calculated
-```{r}
- bag_use <- df.LL.nosleep %>%
-  group_by(Id) %>%
-   mutate(bag_use = case_when(
-     State == "off" & bag == 0 ~ "notused", #when State is off and bag is 0, it was not used
-     State == "off" & bag == 1 ~ "used", #when state is off and bag is 1, it was used
-     .default = NA_character_)) %>%
-  ungroup()
-
-per_bag_use <- bag_use %>%
-  group_by(Id, bag_use) %>% 
-  summarise(count = n()) %>% #calculating how many used and notused per participant
-  filter(!is.na(bag_use)) %>% #eliminate NAs which correspond to when State is on or sleep
-  complete(bag_use = c("used", "notused"), fill = list(count = 0)) %>% #if participant does not have values for "used" or "notused" because they either never used the bag, or always used it, we replace that with 0
-  mutate(total = sum(count), #counting total entries per participant
-         compliance_per = if_else(bag_use == "used", (count*100)/total, NA), #calculating % of "used" over total entries
-         compliance_per = round(compliance_per, 1)) %>% #rounding the percentage value to 1 decimal point
-  filter(!is.na(compliance_per)) #eliminate the NA that comes from the ifelse
-
-```
-
-#### Combining per_bag_use with the TAT dfs
-```{r}
-# Turning deltas into long form to perform computations
-  tat250_deltas_long <- tat250_all %>%
-  pivot_longer(cols = c(delta_wrlg, delta_clusters),
-               names_to = "metric",
-               values_to = "delta")
-
-# Merging the bag use info 
-tat250_deltas_long <- tat250_deltas_long %>%
-  left_join(per_bag_use, by = "Id")
-
-# Plotting
-
-
-
-ggplot(tat250_deltas_long, aes(x = as.numeric(delta), y = compliance_per, colour = metric)) +
-    geom_jitter() +
-    scale_x_continuous(breaks = c(0 , -250, -500, -750),
-                       labels = function(x) sprintf("%.2f mins", x / 60)) + # Format with 2 decimal places 
-    labs(x = "Delta TAT 250", y = "Percentage bag use (%)", title = "TAT 250 lx") +
-    theme_bw() +
-    theme(aspect.ratio = 1)
-  
-```
-# Do the same for TAT 1000
-```{r}
-# Turning deltas into long form to perform computations
-  tat1000_deltas_long <- tat1000_all %>%
-  pivot_longer(cols = c(delta_wrlg, delta_clusters),
-               names_to = "metric",
-               values_to = "delta")
-
-# Merging the bag use info 
-tat1000_deltas_long <- tat1000_deltas_long %>%
-  left_join(per_bag_use, by = "Id")
-
-# Plotting
-
-ggplot(tat1000_deltas_long, aes(x = as.numeric(delta), y = compliance_per, colour = metric)) +
-    geom_jitter() +
-    scale_x_continuous(breaks = c(0 , -250, -500, -750),
-                       labels = function(x) sprintf("%.2f mins", x / 60)) + # Format with 2 decimal places 
-    labs(x = "Delta TAT 1000", y = "Percentage bag use (%)", title = "TAT 1000 lx") +
-    theme_bw() +
-    theme(aspect.ratio = 1)
-```
-
 ## Calculating mean and sd of all timing functions in order to report result of the t-test
 ```{r}
 # Define a function that calculates the mean of each id metric
@@ -548,38 +362,10 @@ gt::gtsave(means_table,
 
 
 ```
+
 ## Calculating the unstandardised effect size for the significant result, as we need to report this in the paper
 ```{r}
 tat250_unst_effsize <- tat250_all %>%
   summarise(mean = mean(delta_clusters))
-```
-
-### Investigating correlation between off time based on ground truth and metrics
-Note that you need wrlg_plots to be loaded and run.
-
-```{r}
-off_wrlg_duration <- int_duration %>%
-  filter(State == "off") %>%
-  select(Id, tot_intlength) 
-
-off_wrlg_duration <-  off_wrlg_duration %>%
-  mutate(tot_intlength = as.POSIXct(tot_intlength, format="%H:%M"))
-```
-
-## Start with IS
-```{r}
-is_off <- is_all %>%
-  left_join(off_wlrg_duration, by = "Id")
-
-p1 <- ggplot(is_off, aes(x=tot_intlength, y = delta_wrlg, color = Id)) +
-  geom_jitter() +
-  theme_bw() +
-  scale_x_datetime() + 
-  labs(x="Total non-wear timeduring the experiment (HH:MM)",
-       y="Delta of X",
-       title ="Difference in by amount of non-wear")
-
-p2 <- ggplot(is_off, aes(x=tot_intlength, y = delta_clusters, color = Id)) +
-  geom_jitter()
 ```
 
