@@ -226,7 +226,7 @@ ggsave(filename = filename,
 ```
 
 ## Only visualising this for one participant
-We would like to create a single plot for one representative participant. We choose participant 201 for this purpose. 
+For Figure 4 of the paper, we would like to create a single plot for one representative participant. We choose participant 201 for this purpose. 
 ```{r}
 
 selected_id <- "201"
