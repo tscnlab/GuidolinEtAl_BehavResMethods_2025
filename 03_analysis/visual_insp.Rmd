@@ -9,8 +9,8 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-#Visual inspection of the data and different sources of non-wear
-As part of the non-wear analysis of this light logger dataset, one of the first steps to perform is just to visually inspect the data. This gives us an insight in what analyses would be possible across the dataset, and inspire research questions that we had perhaps not considered.The following code is to be run after all files in the folder 01_import. We want to plot the following:
+# Visual inspection of the data and different sources of non-wear
+As part of the non-wear analysis of this light logger dataset, one of the first steps to perform is just to visually inspect the data. This gives us an insight in what analyses would be possible across the dataset, and inspires research questions that we had perhaps not considered. The following code should be run after all scripts in the folder 01_import and 02_datapreparation. We want to plot the following:
 - Activity (PIM)
 - Light (mEDI)
 - Button presses participants performed any time they removed or placed the light glasses on 
