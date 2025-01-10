@@ -1,3 +1,5 @@
+# The functions contained in this script are necessary for visualising light exposure metrics across the three datasets
+
 # First, we write two functions to format time in desirable way (hms class, HH:MM:SS)
 
 ## Helper function to round hms
