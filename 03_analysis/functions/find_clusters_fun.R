@@ -1,3 +1,5 @@
+# Both functions in this script constitute our "algorithm" for detecting clusters of low illuminance and activity
+
 data_find_clusters <- function(data, var, min_length, max_interrupt, cluster_name = "cluster") {
   # Add index column to data
   data <- data %>% dplyr::mutate(idx = 1:nrow(.))
