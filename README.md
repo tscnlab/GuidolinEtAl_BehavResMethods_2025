@@ -1,5 +1,5 @@
 ## Overview
-This repository contains data, analysis code, and figure outputs for the paper **"Collecting, detecting and handling non-wear intervals in longitudinal light exposure data"**. The pre-print of this paper can be found [here](https://www.biorxiv.org/content/10.1101/2024.12.23.627604v1). The R code in this repository is pubicly accessible under the [MIT](https://opensource.org/license/mit) license (see `LICENSE.md` file). The data is accessible under the [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/) license.  
+This repository contains data, analysis code, and figure outputs for the paper **"Collecting, detecting and handling non-wear intervals in longitudinal light exposure data"**. The pre-print of this paper can be found [here](https://www.biorxiv.org/content/10.1101/2024.12.23.627604v1). The R code in this repository is pubicly accessible under the [MIT](https://opensource.org/license/mit) license. The data is accessible under the [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/) license.  
 
 ## Computing environment
 Hereby is a copy of the software versions used for this project. This is the direct output of `sessionInfo()` in RStudio. 
@@ -39,12 +39,12 @@ loaded via a namespace (and not attached):
 [55] Rcpp_1.0.13          glue_1.7.0           xml2_1.3.6           rstudioapi_0.16.0    vroom_1.6.5          R6_2.5.1     
 ```
 ## Folder descriptions
-In this paragraph we explain the contents of each folder in this repository, including R script processing. Note that processing of the data in sequential order, i.e. following the order of the folders, is necessary for replication of our results. 
+In this paragraph, we explain the contents of each folder in this repository, including R script processing. Note that processing the data in sequential order, i.e., following the order of the folders, is necessary to replicate our results. 
 
 ### Raw data
 Folder: `00_raw_data`, contains subfolders:
 - `actlumus`: 26 txt files representing the timeseries output of the ActLumus light logger
-- `wearlog`: 26 csv files representing the Wear log questionnaires as downloaded by REDCap
+- `wearlog`: 26 CSV files representing the Wear log questionnaires as downloaded by REDCap
 
 ### Data import
 Folder: `01_import`, contains scripts:
@@ -55,8 +55,13 @@ Folder: `01_import`, contains scripts:
 ### Data pre-processing
 Folder: `02_datapreparation`, contains scripts:
 - `wearlog_qualitychecks.Rmd`: script for pre-processing Wear log files, with detailed explanation of how files who failed quality checks were manually adjusted
-- `wearlog_LL_fusion.Rmd`: script for merging the light logger dataset with information from the Wear log and bag use in one single data frame.
+- `wearlog_LL_fusion.Rmd`: script for merging the light logger dataset with information from the Wear log and bag use in a single data frame.
 
 The output of running these two scripts in sequential order is a single, clean dataframe containing all information.
 
 ### Data analysis
+Folder: `03_analysis`. 
+This folder contains the subfolder `functions`, where all custom-made functions needed for the analysis are contained. Each function is called within individual R scripts using the `source()` function from base R.
+This folder also contains all scripts used to produce results and figures presented in the paper. In order of analysis in the paper, these are:
+1. `visual_insp.Rmd`:
+
