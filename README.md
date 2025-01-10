@@ -72,4 +72,4 @@ This folder also contains all scripts used to produce results and figures presen
 7. `metrics_stats.Rmd`: statistical analysis of differences in light exposure metrics across datasets. Outputs Table S1 and Table S2.
 8. `trblshoot_prc_medi.Rmd`: fine-tuning input parameters to be fed into the algorithm for detection of clusters of low illuminance. Outputs Figure S2.
 9. `trblshoot_prc_pim.Rmd`: fine-tuning input parameters to be fed into the algorithm for detection of clusters of low activity. Outputs Figure S2.
-10. `pim_preprocessing.Rmd`: comparison of precision recall curves for different activity-quantifying parameters (PIM, TAT and ZCM), as well as various options for pre-processing PIM values. 
+10. `pim_preprocessing.Rmd`: comparison of precision recall curves for different activity-quantifying parameters (PIM, TAT and ZCM), as well as various options for pre-processing PIM values. Outputs Figure S4 and Figure S5.
