@@ -69,5 +69,7 @@ This folder also contains all scripts used to produce results and figures presen
 4. `algorithm_prc.Rmd`: implementation of the cluster detection algorithm for both low illuminance and low activity. This script outputs Figure 7 (A-B) and Figure 8.
 5. `classification_summary.Rmd`: examination of algorithm misclassification, including visualisation of each algorithm classification as a time series against ground truth for each participant. One of these was then used to generate Figure 9. Furthermore, this script includes an analysis of algorithm performance which serves to generate Table 1. Lastly, this script contains the code to add a padding to the identified transition states.
 6. `metrics_comparison.Rmd`: calculation of light exposure metrics across three datasets and visualisation of each metric. Outputs Figure 10.
-7. `metrics_stats.Rmd`: 
-
+7. `metrics_stats.Rmd`: statistical analysis of differences in light exposure metrics across datasets. Outputs Table S1 and Table S2.
+8. `trblshoot_prc_medi.Rmd`: fine-tuning input parameters to be fed into the algorithm for detection of clusters of low illuminance. Outputs Figure S2.
+9. `trblshoot_prc_pim.Rmd`: fine-tuning input parameters to be fed into the algorithm for detection of clusters of low activity. Outputs Figure S2.
+10. `pim_preprocessing.Rmd`: comparison of precision recall curves for different activity-quantifying parameters (PIM, TAT and ZCM), as well as various options for pre-processing PIM values. 
