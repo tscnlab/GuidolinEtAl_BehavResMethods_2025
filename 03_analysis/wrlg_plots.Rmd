@@ -61,7 +61,9 @@ int_duration <- int_duration %>%
 #Turn State into a factor
 as.factor(int_duration$State)
 
-#Plot
+
+# Plot
+set.seed(1) #we will use geom_jitter, which uses random sampling. For reproducibility we need to set.seed(1) so that running the script multiple times will lead to the same plot
 int_duration$State <- factor(int_duration$State, levels = c("sleep", "off", "on"))
 
 states_dist_jitter2 <- ggplot(data = int_duration, aes(x=id_duration_per, y = State, fill = State)) +
@@ -207,6 +209,10 @@ ggsave(filename = "results_fig02c.png",
 
 ## 4) Looking at weekday vs weekend difference
 ```{r}
+
+# Plot
+set.seed(1) #we will use geom_jitter, which uses random sampling. For reproducibility we need to set.seed(1) so that running the script multiple times will lead to the same plot
+
 int_wknd_wkday <- wrlg_int %>%
   group_by(Id) %>%
   #filter out the last "on" interval, since it goes to midnight of the final exp day, which is not actual data
@@ -355,7 +361,7 @@ ggsave(filename = "results_fig02_all.png",
        height = 11,
        dpi = 600,
        bg = "white",
-       path= "Z:/nonwear_detection/preprint_figures/results/fig02")
+       path= "H:/nonwear_detection/preprint_figures/results/fig02")
 ```
 
 ### Descriptive statistics for weekday vs weekend difference
