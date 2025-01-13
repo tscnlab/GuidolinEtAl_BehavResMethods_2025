@@ -133,6 +133,8 @@ bd_wrlg_df <- bind_rows(interval_checker) %>%
 Her, we plot % of open intervals and % of closed intervals based on different window sizes.
 ```{r}
 
+set.seed(1) #we will use geom_jitter, which uses random sampling. For reproducibility we need to set.seed(1) so that running the script multiple times will lead to the same plot
+
 #Turn data in wide format for plotting
 bp_wrlg_df_wide <- bd_wrlg_df %>%
   pivot_wider(names_from = classification, values_from = c(n, n_per))
