@@ -19,10 +19,10 @@ In the chunks that follow, we vary each of these three parameters while keeping 
 ### First, import functions - if not in the environment yet
 ```{r}
 # Fuction to identify clusters
-base::source("D:/cyepi/code/03_analysis/functions/find_clusters_fun.R")
+base::source("H:/nonwear_detection/03_analysis/functions/find_clusters_fun.R")
 
 #Function to generate aggregate pr curve
-base::source("D:/cyepi/code/03_analysis/functions/generate_prc_funs.R")
+base::source("H:/nonwear_detection/03_analysis/functions/generate_prc_funs.R")
 ```
 
 
@@ -93,7 +93,7 @@ ggsave(filename = "prc_pim_thresholds.png",
        width = 6,
        dpi = 600,
        bg = "white",
-       path= "Z:/nonwear_detection/preprint_figures/supplementary")
+       path= "H:/nonwear_detection/preprint_figures/supplementary")
 
 ```
 
@@ -271,7 +271,7 @@ multiplot <- cowplot::plot_grid(prc_pim_length, prc_pim_interrupt, prc_pim_thres
                                 nrow = 1,
                                 align = "hv")
 
-ggsave(filename = "pim_prc_parameters_multiplot.png",
+ggsave(filename = "pim_prc_parameters_multiplot_1.png",
        plot = multiplot,
        width = 14, 
        height = 6,

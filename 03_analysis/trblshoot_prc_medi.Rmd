@@ -19,10 +19,10 @@ In the chunks that follow, we vary each of these three parameters while keeping 
 ### First, import functions - if not in the environment yet
 ```{r}
 # Fuction to identify clusters
-base::source("D:/cyepi/code/03_analysis/functions/find_clusters_fun.R")
+base::source("H:/nonwear_detection/03_analysis/functions/find_clusters_fun.R")
 
 #Function to generate aggregate pr curve
-base::source("D:/cyepi/code/03_analysis/functions/generate_prc_funs.R")
+base::source("H:/nonwear_detection/03_analysis/functions/generate_prc_funs.R")
 ```
 
 
@@ -271,13 +271,7 @@ multiplot <- cowplot::plot_grid(prc_medi_length, prc_medi_interrupt, prc_medi_th
                                 nrow = 1,
                                 align = "hv")
 
-multiplot <- prc_medi_length + prc_medi_interrupt + prc_medi_thresholds + 
-  patchwork::plot_annotation("IS",
-  tag_levels = list(c("A1", "A2", "A3")),
-  theme = theme(plot.title = element_text(hjust = 0.5, size = 16),
-                plot.margin = unit(c(t=0.1,r=0.1,b=0.1,l=0.1), "cm"))))
-
-ggsave(filename = "medi_prc_parameters_multiplot.png",
+ggsave(filename = "medi_prc_parameters_multiplot_1.png",
        plot = multiplot,
        width = 14, 
        height = 6,
