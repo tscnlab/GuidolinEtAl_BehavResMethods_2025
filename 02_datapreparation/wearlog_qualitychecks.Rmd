@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 These are: import_LL, import_wearlog and import_bag
 
 # Joining of two datasets: wear log and bag data sets
-Now we have a dataframe wearlog_bag_clean that contains timestamps for when the black bag was used or not used. We'd like to join this with the dataframe that contains the Wear log entries, i.e. wearlog_int_clean. Afterwards, we will move on to perform quality checks on this combined df. 
+Now we have a dataframe wearlog_bag_clean that contains timestamps for when the black bag was used or not used. We'd like to join this with the dataframe that contains the Wear log entries, i.e. wearlog_bag_clean. Afterwards, we will move on to perform quality checks on this combined df. 
 
 ```{r pressure, echo=FALSE}
 

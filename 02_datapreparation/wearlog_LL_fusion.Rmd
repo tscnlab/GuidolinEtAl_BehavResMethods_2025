@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # Note: run this script after cleaning the data! 
-Thsi means you should run this script after running wearlog_qualitychecks.Rmd. 
+This means you should run this script after running wearlog_qualitychecks.Rmd. 
 
 # Wear log coding and fusion 
 In this script, we code the Wear log States as "on", "off" or "sleep", turn them into an interval, and then incorporate this information into the light logger (LL) dataset.
