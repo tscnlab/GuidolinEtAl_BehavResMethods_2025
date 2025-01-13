@@ -61,17 +61,17 @@ The output of running these two scripts in sequential order is a single, clean d
 
 ### Data analysis
 Folder: `03_analysis`. All scripts in this folder assume that scripts in `01_import` and `02_datapreparation` have been previously run. 
-This folder contains the subfolder `functions`, where all custom-made functions needed for the analysis are contained. Each function is called within individual R scripts using the `source()` function from base R.
+This folder comprises the subfolder `functions`, containing all custom-made functions needed for the analysis. Each function is called within individual R scripts using the `source()` function from base R.
 This folder also contains all scripts used to produce results and figures presented in the paper. In order of analysis in the paper, these are:
 1. `visual_insp.Rmd`: visual inspection of non-wear sources in the same plot for each participant. Contains code to generate Figure 4 of the paper.
 2. `wrlg_plots.Rmd`: visualisation and descriptive statistics of the wear status based on self-reported Wear log entries (ground truth). This includes Figure 5 (A-C).
 3. `button_press.Rmd`: preparation, visualisation and descriptive statistics for calculating the presence of a button press at the start and end of each non-wear interval. This script also outputs Figure 6 (A-B).
-4. `algorithm_prc.Rmd`: implementation of the cluster detection algorithm for both low illuminance and low activity. This script outputs Figure 7 (A-B) and Figure 8.
-5. `classification_summary.Rmd`: examination of algorithm misclassification, including visualisation of each algorithm classification as a time series against ground truth for each participant. One of these was then used to generate Figure 9. Furthermore, this script includes an analysis of algorithm performance which serves to generate Table 1. Lastly, this script contains the code to add a padding to the identified transition states.
+4. `algorithm_prc.Rmd`: implementation of the cluster detection algorithm for low illuminance and for low activity. This script outputs Figure 7 (A-B) and Figure 8.
+5. `classification_summary.Rmd`: examination of algorithm misclassification, including visualisation of each algorithm classification as a time series against ground truth for each participant. One of these (PID 201) was then used to generate Figure 9, which was finalised using symbols in PowerPoint. Furthermore, this script includes an algorithm performance analysis that generates Table 1. Lastly, this script contains the code to add a pad to the identified transition states.
 6. `metrics_comparison.Rmd`: calculation of light exposure metrics across three datasets and visualisation of each metric. Outputs Figure 10.
 7. `metrics_stats.Rmd`: statistical analysis of differences in light exposure metrics across datasets. Outputs Table S1 and Table S2 (Supplementary materials).
 
-The following scripts, also contained in the folder `03_analysis`, contain code realted to the Supplementary materials:
+The following scripts, also contained in the folder `03_analysis`, contain code related to the Supplementary materials:
 1. `trblshoot_prc_medi.Rmd`: fine-tuning input parameters to be fed into the algorithm for detection of clusters of low illuminance. Outputs Figure S2.
 2. `trblshoot_prc_pim.Rmd`: fine-tuning input parameters to be fed into the algorithm for detection of clusters of low activity. Outputs Figure S3.
 3. `pim_preprocessing.Rmd`: comparison of precision recall curves for different activity-quantifying parameters (PIM, TAT and ZCM), as well as various options for pre-processing PIM values. Outputs Figure S4 and Figure S5.
