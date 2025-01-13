@@ -10,12 +10,12 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # Aim of this script
-We want to undretand two things:
+We want to understand two things:
 1) Should we use PIM, TAT or ZCM for operationalising activity levels?
 2) Should we apply a pre-processing on the activity variable of choice (PIM/TAT/ZCM) prior to using our algorithm for detecting low activity clusters on the data?
 
 ## Let's start with the first point: PIM, TAT, or ZCM to quantify activity?
-Citing Pilz et al. (2023): PIM is a measure of activity levels, ZCM is a measure of frequency of moevemnt, and TAT is a measure of time spent in motion in a given epoch. To get an idea of the difference in distributions between these three variables, we calculate descriptive statistics for each of them.
+Citing Pilz et al. (2023): PIM is a measure of activity levels, ZCM is a measure of frequency of movement, and TAT is a measure of time spent in motion in a given epoch. To get an idea of the difference in distributions between these three variables, we calculate descriptive statistics for each of them.
 
 ```{r}
 pim_summary <- df.LL.nosleep %>%
@@ -45,6 +45,16 @@ zcm_summary <- df.LL.nosleep %>%
 ```
 
 ### Next, we want to create PR curves for each of these variables
+
+#### Calling in relevant functions
+```{r}
+# Fuction to identify clusters
+base::source("H:/nonwear_detection/03_analysis/functions/find_clusters_fun.R")
+
+#Function to generate aggregate pr curve
+base::source("H:/nonwear_detection/03_analysis/functions/generate_prc_funs.R")
+
+```
 
 #### PIM
 Since mean PIM values range from 50 (PID 206) to 234 (PID 204), we create a sequence of low values from 5 to 50, at 5 increment steps
@@ -255,7 +265,7 @@ multiplot <- cowplot::plot_grid(prc_pim_thresholds, prc_tat_thresholds, prc_zcm_
                                 align = "hv")
 
 # Saving the comined plot
-ggsave(filename = "pim_tat_zcm_comparison.png",
+ggsave(filename = "pim_tat_zcm_comparison_1.png",
        plot = multiplot,
        width = 14, 
        height = 6,
@@ -863,7 +873,7 @@ preprocess_multiplot <- cowplot::plot_grid(prc_pim_thresholds,
                                 align = "hv")
 
 # Saving the plot
-ggsave(filename = "pim_pre-process.png",
+ggsave(filename = "pim_pre-process_1.png",
        plot = preprocess_multiplot,
        width = 14, 
        height = 14,
