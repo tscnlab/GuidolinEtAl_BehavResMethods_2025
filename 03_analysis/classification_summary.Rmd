@@ -19,7 +19,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ### Importing function
 ```{r}
 # Function to visualise algorithm performance 
-base::source("D:/cyepi/code/03_analysis/functions/alg_perf_fun.R")
+base::source("H:/nonwear_detection/03_analysis/functions/alg_perf_fun.R")
 ```
 
 
@@ -153,7 +153,7 @@ ggsave(filename = filename,
        height = 14,
        dpi = 600,
        bg = "white",
-       path= "Z:/nonwear_detection/preprint_figures/alg_class")
+       path= "H:/nonwear_detection/preprint_figures/alg_class")
 }
 ```
 
@@ -356,7 +356,7 @@ We create this function in the file add_pad_fun.R, where each step is described.
 
 ```{r}
 # Function to add pad to transition states
-base::source("D:/cyepi/code/03_analysis/functions/add_pad_fun.R")
+base::source("H:/nonwear_detection/03_analysis/functions/add_pad_fun.R")
 ```
 
 ```{r}
