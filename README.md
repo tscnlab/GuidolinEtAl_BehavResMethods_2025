@@ -74,4 +74,4 @@ This folder also contains all scripts used to produce results and figures presen
 The following scripts, also contained in the folder `03_analysis`, contain code realted to the Supplementary materials:
 1. `trblshoot_prc_medi.Rmd`: fine-tuning input parameters to be fed into the algorithm for detection of clusters of low illuminance. Outputs Figure S2.
 2. `trblshoot_prc_pim.Rmd`: fine-tuning input parameters to be fed into the algorithm for detection of clusters of low activity. Outputs Figure S3.
-3.. `pim_preprocessing.Rmd`: comparison of precision recall curves for different activity-quantifying parameters (PIM, TAT and ZCM), as well as various options for pre-processing PIM values. Outputs Figure S4 and Figure S5.
+3. `pim_preprocessing.Rmd`: comparison of precision recall curves for different activity-quantifying parameters (PIM, TAT and ZCM), as well as various options for pre-processing PIM values. Outputs Figure S4 and Figure S5.
