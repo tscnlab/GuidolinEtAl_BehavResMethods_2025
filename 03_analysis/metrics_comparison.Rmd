@@ -420,7 +420,7 @@ To facilitate these calculations, we wrote a function (calculate_metric in the v
 ### Importing functions for metric calculation and viz
 ```{r}
 # Function to calculate metrics and visualise them - same R script
-base::source("D:/cyepi/code/03_analysis/functions/vis_metric_funs.R")
+base::source("H:/nonwear_detection/03_analysis/functions/vis_metric_funs.R")
 ```
 
 
@@ -874,7 +874,7 @@ plots2 <- ggpubr::ggarrange(p8, p9, p10, p11, p12, p13,
 
 #### Saving the multiplot
 ```{r}
-ggsave(filename = "results_fig08_3.png",
+ggsave(filename = "results_fig08_a.png",
        plot = plots1, 
        width = 10,
        height = 15.5,
@@ -882,7 +882,7 @@ ggsave(filename = "results_fig08_3.png",
        bg = "white",
        path = "H:/nonwear_detection/preprint_figures/results/fig08")
 
-ggsave(filename = "results_fig08_4.png",
+ggsave(filename = "results_fig08_b.png",
        plot = plots2, 
        width = 10,
        height = 15.5,
