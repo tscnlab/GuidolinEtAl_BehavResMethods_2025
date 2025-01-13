@@ -9,13 +9,13 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-#Note: run this script after import_LL
+# Important note: run this script after import_LL
 
 # Importing Wear log files 
 Here, we import the raw data from the wear log
 
 ```{r}
-filepath <- here::here("Z:/nonwear_detection/00_raw_data/wearlog")
+filepath <- here::here("H:/nonwear_detection/00_raw_data/wearlog")
 
 # Get the files names from directory
 wearlogfiles = list.files(filepath, pattern="*.csv", full.names = TRUE)

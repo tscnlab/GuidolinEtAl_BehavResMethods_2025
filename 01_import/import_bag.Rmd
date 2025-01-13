@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Note: to be run after 
+## Important note: to be run after 
 1) import_LL
 2) import_wearlog
 

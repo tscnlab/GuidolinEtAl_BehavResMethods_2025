@@ -29,7 +29,7 @@ This dataset contains information about activity (PIM), light levels (MEDI) and 
 ```{r}
 Sys.setlocale("LC_TIME", "en_US.UTF-8") #needed to run this code to have the days displayed in English and not German
 
-path <- here::here("Z:/nonwear_detection/00_raw_data/actlumus")
+path <- here::here("H:/nonwear_detection/00_raw_data/actlumus")
 tz <- "Europe/Berlin"
 
 # Get a list of file paths in the specified directory
