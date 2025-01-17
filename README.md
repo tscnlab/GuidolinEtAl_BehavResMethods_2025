@@ -1,3 +1,5 @@
+<img src="https://github.com/tscnlab/Templates/blob/main/logo/logo_with_text-01.png" width="400"/>
+
 ## Overview
 This repository contains data, analysis code, and figure outputs for the paper **"Collecting, detecting and handling non-wear intervals in longitudinal light exposure data"**. The pre-print of this paper can be found [here](https://www.biorxiv.org/content/10.1101/2024.12.23.627604v1). The R code in this repository is pubicly accessible under the [MIT](https://opensource.org/license/mit) license. The data is accessible under the [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/) license.  
 
