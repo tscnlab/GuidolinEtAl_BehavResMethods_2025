@@ -1,0 +1,31 @@
+---
+title: "master_script"
+author: "Carolina Guidolin"
+date: "2025-01-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Master script running other import.Rmd script and saving objects in the global environment
+
+Since we want to save the outputs of these scripts as objects in the environment, we need to use the function purl() to extract the R code from the Rmd files, and then load these generate R files in the global environemt with source(). 
+
+```{r}
+library(here)
+library(knitr)
+
+# Extract and source each Rmd file
+knitr::purl(here::here("01_import", "import_LL.Rmd"), output = here::here("01_import", "import_LL.R"))
+knitr::purl(here::here("01_import", "import_wearlog.Rmd"), output = here::here("01_import", "import_wearlog.R"))
+knitr::purl(here::here("01_import", "import_bag.Rmd"), output = here::here("01_import", "import_bag.R"))
+
+# Source the generated R scripts
+base::source(here::here("01_import", "import_LL.R"))
+base::source(here::here("01_import", "import_wearlog.R"))
+base::source(here::here("01_import", "import_bag.R"))
+
+```
+
