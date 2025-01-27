@@ -21,11 +21,6 @@ These functions (find_clusters_funs, loaded in separately) identify clusters of 
 2) minimum length of the clusters
 3) max interrpution length for the cluster to still be identified as such 
 
-### Optional: loading in the RDS data saved from the wearlog_LL_fusion.Rmd script, if not already there
-```{r}
-clean.LL.wrlg <- readRDS('clean_data.Rds')
-```
-
 ## Before running the cluster detection algorithm
 First, let's explore the relationship between light and activity across wear log status. This visualisation step helps to understand whether it makes sense to even detect low activty or illuminance as a proxy of non-wear. 
 ```{r}
@@ -106,13 +101,13 @@ plot_marginal
 ### Saving the plot
 ```{r}
 
-ggsave(filename = "results_fig04a.png",
+ggsave(filename = "results_fig07a.png",
        plot = plot_marginal ,
        width = 5,
        height = 5.5,
        dpi = 600,
        bg = "white",
-       path= "Z:/nonwear_detection/preprint_figures/results/fig04")
+       path= here::here("outputs", "fig07"))
 ```
 
 ### Conclusion from this plot
@@ -160,13 +155,13 @@ df.LL.nosleep <- dataset.LL.wrlg %>%
 ### First, import functions
 ```{r}
 # Fuction to identify clusters
-base::source("Z:/nonwear_detection/03_analysis/functions/find_clusters_fun.R")
+base::source(here::here("03_analysis", "functions", "find_clusters_fun.R"))
 
 #Function to generate aggregate pr curve
-base::source("Z:/nonwear_detection/03_analysis/functions/generate_prc_funs.R")
+base::source(here::here("03_analysis", "functions", "generate_prc_funs.R"))
 
 #Function to generate individual pr curve
-base::source("Z:/nonwear_detection/03_analysis/functions/generate_indiv_prc_funs.R")
+base::source(here::here("03_analysis", "functions", "generate_indiv_prc_funs.R"))
 ```
 
 
@@ -333,13 +328,13 @@ prc_combined <- ggplot() +
 
 
 #Save the plot
-ggsave(filename = "results_fig04b.png",
+ggsave(filename = "results_fig07b.png",
        plot = prc_combined,
        height = 5.5, 
        width = 5,
        dpi = 600,
        bg = "white",
-       path= "H:/nonwear_detection/preprint_figures/results/fig04")
+       path= here::here("outputs", "fig07"))
 ```
 
 ### Combining the plots
@@ -363,13 +358,13 @@ medi_pim_fig <- cowplot::plot_grid(plot_marginal,
                           align = "hv",
                           axis = "tblr")
 # Save the plot
-ggsave(filename = "results_fig04_all.png",
+ggsave(filename = "results_fig07_all.png",
        plot = medi_pim_fig,
        height = 5.5, 
        width = 8.9,
        dpi = 600,
        bg = "white",
-       path= "H:/nonwear_detection/preprint_figures/results/fig04")
+       path= here::here("outputs", "fig07"))
 
 ```
 
@@ -517,13 +512,13 @@ prc_multiplot <- ggplot() +
    coord_fixed(ratio = 1)
 
 #Save the plot
-ggsave(filename = "results_fig05.png",
+ggsave(filename = "results_fig08.png",
        plot = prc_multiplot,
        height = 11, 
        width = 10,
        dpi = 600,
        bg = "white",
-       path= "Z:/nonwear_detection/preprint_figures/results/fig05")
+       path= here::here("outputs", "fig08"))
 
 ```
 
