@@ -123,7 +123,7 @@ ggsave(filename = filename,
        height = 14,
        dpi = 600,
        bg = "white",
-       path= "G:/cyepi/code/outputs/visual_insp/activity")
+       path = here::here("outputs", "visual_insp")) # choose saving location!
 }
 
 
@@ -220,7 +220,7 @@ ggsave(filename = filename,
        height = 14,
        dpi = 600,
        bg = "white",
-       path= "D:/cyepi/code/outputs/visual_insp/light")
+       path= here::here("outputs", "visual_insp")) # choose where to save (relative path)
 }
 
 ```
@@ -321,13 +321,13 @@ p <- gg_day(data = subset_df, #base plot defaults to plotting mEDI on y axis
         legend.box.background = element_rect(fill = "white", colour = "darkgrey"),
         legend.margin = margin(c(1,1,1,1)))
 
-ggsave(filename = "results_fig01.png",
+ggsave(filename = "results_fig04.png",
        plot = p,
        width = 11,
        height = 14,
        dpi = 600,
        bg = "white",
-       path= "H:/nonwear_detection/preprint_figures/results/fig01")
+       path= here::here("outputs", "fig04"))
 
 ```
 
