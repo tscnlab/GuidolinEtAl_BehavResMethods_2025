@@ -51,9 +51,7 @@ Folder: `00_raw_data`, contains subfolders:
 ### Data import
 Folder: `01_import`, contains scripts:
 - `initialise_env.Rmd`: script that downloads all necessary package versions to ensure computational reproducibility
-- `import_LL.Rmd`: script for importing actlumus files
-- `import_wearlog.Rmd`: script for importing Wear log files
-- `import_bag.Rmd`: script for importing information on use of the black bag
+- `master_script_import.Rmd`: master script that runs `import_LL.Rmd`(importing actlumus files), `import_wearlog.Rmd` (importing Wear log files), and `import_bag.Rmd`(importing information on use of the black bag) in sequential order, and stores their outputs in the global environment
 
 ### Data pre-processing
 Folder: `02_datapreparation`, contains scripts:
