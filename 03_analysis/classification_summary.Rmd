@@ -19,7 +19,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ### Importing function
 ```{r}
 # Function to visualise algorithm performance 
-base::source("H:/nonwear_detection/03_analysis/functions/alg_perf_fun.R")
+base::source(here::here("03_analysis", "functions", "alg_perf_fun.R"))
 ```
 
 
@@ -153,7 +153,7 @@ ggsave(filename = filename,
        height = 14,
        dpi = 600,
        bg = "white",
-       path= "H:/nonwear_detection/preprint_figures/alg_class")
+       path= here::here("outputs", "alg_classification"))
 }
 ```
 
@@ -302,8 +302,8 @@ library(chromote)
 # Make sure you set your path to Chrome using Sys.setenv(CHROMOTE_CHROME = "path/to/chrome.exe") and check this was correct by running chromote::find_chrome()
 
 gt::gtsave(misclass_table,
-           filename = "results_fig06.png",
-           path = "H:/nonwear_detection/preprint_figures/results/fig06")
+           filename = "results_tbl01.png",
+           path = here::here("outputs", "tbl01"))
 ```
 
 ## Adding a padding to the transition states 
@@ -356,7 +356,7 @@ We create this function in the file add_pad_fun.R, where each step is described.
 
 ```{r}
 # Function to add pad to transition states
-base::source("H:/nonwear_detection/03_analysis/functions/add_pad_fun.R")
+base::source(here::here("03_analysis", "functions", "add_pad_fun.R"))
 ```
 
 ```{r}
