@@ -221,30 +221,17 @@ print(wrlg_int_type_multipanel)
 ```
 
 
-#Saving the above plots
+#Saving the above plot
 ```{r}
-ggsave(filename = "wrlg-int-classified.png",
-       plot = wrlg_int_classified,
-       width = 10,
-       height = 8,
-       dpi = 600,
-       path= "G:/cyepi/code/outputs/button_press")
-
-ggsave(filename = "wrlg-int-zoom.png",
-       plot = wrlg_int_classified_zoom,
-       width = 10,
-       height = 8,
-       dpi = 600,
-       path= "G:/cyepi/code/outputs/button_press")
 
 ## Figure for paper
-ggsave(filename = "results_fig03.png",
+ggsave(filename = "results_fig06.png",
        plot = wrlg_int_type_multipanel,
        width = 7,
        height = 4,
        dpi = 600,
        bg = "white",
-       path= "H:/nonwear_detection/preprint_figures/results/fig03")
+       path= here::here("outputs", "fig06"))
 
 ```
 

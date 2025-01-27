@@ -140,12 +140,12 @@ state_dist_2axis_2 <- state_dist_2axis_2 + theme(plot.margin=margin(t = 0,
 ## Save combined plot above
 ```{r}
 
-ggsave(filename = "results_fig02a.svg",
+ggsave(filename = "results_fig05a.png",
        plot = state_dist_2axis_2,
        width = 7,
        height = 4,
        dpi = 600,
-       path= "H:/nonwear_detection/preprint_figures/results/fig02")
+       path= here::here("outputs", "fig05"))
 ```
 
 ## 2) Calculate descriptive statistics on how much time participants spent in each Wear log state across the week 
@@ -198,12 +198,12 @@ timing_dens_plot <- ggplot(timing_off, aes(x = as.numeric(centre_point_h), y = a
   coord_fixed(ratio = 0.6) 
 
 # Saving the plot
-ggsave(filename = "results_fig02c.png",
+ggsave(filename = "results_fig05c.png",
        plot = timing_dens_plot,
        width = 7,
        height = 6,
        dpi = 600,
-       path= "H:/nonwear_detection/preprint_figures/results/fig02")
+       path= here::here("outputs", "fig05"))
 
 ```
 
@@ -329,12 +329,12 @@ wknd_wkday$day_type <- factor(wknd_wkday$day_type, levels = c("weekend", "weekda
 ## Saving the plot
 ```{r}
  #Saving the plot
- ggsave(filename = "results_fig02b.png",
+ ggsave(filename = "results_fig05b.png",
        plot =  wknd_wk_dist,
        width = 7,
        height = 4,
        dpi = 600,
-       path= "H:/nonwear_detection/preprint_figures/results/fig02")
+       path= here::here("outputs", "fig05"))
 
 ```
 
@@ -355,13 +355,13 @@ fig02_multiplot <- fig02_stacked + patchwork::plot_annotation(
                            l = 0)) 
 
 
-ggsave(filename = "results_fig02_all.png",
+ggsave(filename = "results_fig05_all.png",
        plot = fig02_multiplot,
        width = 8,
        height = 11,
        dpi = 600,
        bg = "white",
-       path= "H:/nonwear_detection/preprint_figures/results/fig02")
+       path= here::here("outputs", "fig05"))
 ```
 
 ### Descriptive statistics for weekday vs weekend difference
