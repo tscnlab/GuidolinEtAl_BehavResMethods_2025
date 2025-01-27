@@ -49,11 +49,10 @@ zcm_summary <- df.LL.nosleep %>%
 #### Calling in relevant functions
 ```{r}
 # Fuction to identify clusters
-base::source("H:/nonwear_detection/03_analysis/functions/find_clusters_fun.R")
+base::source(here::here("03_analysis", "functions", "find_clusters_fun.R"))
 
 #Function to generate aggregate pr curve
-base::source("H:/nonwear_detection/03_analysis/functions/generate_prc_funs.R")
-
+base::source(here::here("03_analysis", "functions", "generate_prc_funs.R"))
 ```
 
 #### PIM
@@ -271,7 +270,7 @@ ggsave(filename = "pim_tat_zcm_comparison_1.png",
        height = 6,
        dpi = 600, 
        bg = "white",
-       path = "H:/nonwear_detection/preprint_figures/supplementary")
+       path = here::here("outputs", "supplementary"))
 
 ```
 
@@ -329,7 +328,7 @@ ggsave(filename = "pim_tat_zcm_singleplot.png",
        height = 7,
        dpi = 600, 
        bg = "white",
-       path = "H:/nonwear_detection/preprint_figures/supplementary")
+       path = here::here("outputs", "supplementary"))
 ```
 
 ### What does this tell us?
@@ -879,6 +878,6 @@ ggsave(filename = "pim_pre-process_1.png",
        height = 14,
        dpi = 600, 
        bg = "white",
-       path = "H:/nonwear_detection/preprint_figures/supplementary")
+       path = here::here("outputs", "supplementary"))
 ```
 
