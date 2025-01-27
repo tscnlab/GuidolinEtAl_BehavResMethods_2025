@@ -1,0 +1,20 @@
+---
+title: "initialise"
+author: "Carolina Guidolin"
+date: "2025-01-27"
+output: html_document
+---
+
+## Script for initialising RStudio environment through renv
+
+```{r}
+# Check if `renv` is installed, if not, install it
+if (!requireNamespace("renv", quietly = TRUE)) {
+  install.packages("renv")
+}
+
+# Restore the environment from renv.lock
+renv::restore()
+
+cat("Environment setup complete! All packages from renv.lock are installed and ready to use")
+```
