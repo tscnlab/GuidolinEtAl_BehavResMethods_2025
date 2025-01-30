@@ -14,6 +14,7 @@ if (!requireNamespace("renv", quietly = TRUE)) {
 }
 
 # Restore the environment from renv.lock
+renv::autoload()
 renv::restore()
 
 cat("Environment setup complete! All packages from renv.lock are installed and ready to use")
