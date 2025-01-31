@@ -66,6 +66,8 @@ The output of running these two scripts in sequential order is a single, clean d
 
 ### Data analysis
 Folder: `03_analysis`. All scripts in this folder assume that scripts in `01_import` and `02_datapreparation` have been previously run. 
+Note that various scripts in the `03_analysis` folder require a chrome or chromium browser installed on the system, as this is required to use `gt_save()` to save a table.  After a fresh install of the browser, restarting the system is suggested. The browser is used in a headless mode by the {webshot2} package through the {chromote} package, and without chrome the script will stop with an error. 
+
 This folder comprises the subfolder `functions`, containing all custom-made functions needed for the analysis. Each function is called within individual R scripts using the `source()` function from base R.
 This folder also contains all scripts used to produce results and figures presented in the paper. In order of analysis in the paper, these are:
 1. `visual_insp.Rmd`: visual inspection of non-wear sources in the same plot for each participant. Contains code to generate Figure 4 of the paper.
