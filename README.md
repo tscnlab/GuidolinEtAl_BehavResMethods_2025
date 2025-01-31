@@ -45,7 +45,7 @@ loaded via a namespace (and not attached):
 [73] htmltools_0.5.8.1    lifecycle_1.0.4      mime_0.12            gridtext_0.1.5       ggExtra_0.10.1       bit64_4.6.0-1        
 ```
 ## Folder descriptions
-In this paragraph, we explain the contents of each folder in this repository, including R script processing. Note that processing the data in sequential order, i.e., following the order of the folders, is necessary to replicate our results. 
+In this paragraph, we explain the contents of each folder in this repository, including R script processing. Note that scripts depend on data and folders in the same directory structure as provided in this repository. Hence, processing the data in sequential order, and using the same folder structure, is necessary to replicate these results. 
 
 ### Raw data
 Folder: `00_raw_data`, contains subfolders:
