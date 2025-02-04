@@ -301,6 +301,12 @@ library(chromote)
 
 # Make sure you set your path to Chrome using Sys.setenv(CHROMOTE_CHROME = "path/to/chrome.exe") and check this was correct by running chromote::find_chrome()
 
+# Also, make sure to have a folder called "tbl01" in the "outputs" folder!
+## The following line ensures that such folder exists
+tbl01_dir <-  here::here("outputs", "tbl01")
+if (!dir.exists(tbl01_dir)) dir.create(tbl01_dir, recursive = TRUE)
+
+
 gt::gtsave(misclass_table,
            filename = "results_tbl01.png",
            path = here::here("outputs", "tbl01"))

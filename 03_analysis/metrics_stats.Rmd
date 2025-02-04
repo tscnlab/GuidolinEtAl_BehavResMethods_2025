@@ -220,6 +220,12 @@ library(chromote)
 
 # Make sure you set your path to Chrome using Sys.setenv(CHROMOTE_CHROME = "path/to/chrome.exe") and check this was correct by running chromote::find_chrome()
 
+# Also, make sure to have a folder called "supplementary" in the "outputs" folder!
+## The following line ensures that such folder exists
+supp_dir <-  here::here("outputs", "supplementary")
+if (!dir.exists(supp_dir)) dir.create(supp_dir, recursive = TRUE)
+
+
 gt::gtsave(ttest_table,
            filename = "ttest_table.png",
            path = here::here("outputs", "supplementary"),
@@ -355,6 +361,11 @@ means_table <- means_dfs %>%
 
 # Save the gt table
 ## Make sure you set your path to Chrome using Sys.setenv(CHROMOTE_CHROME = "path/to/chrome.exe") and check this was correct by running chromote::find_chrome()
+
+# AGain, if not already there: make sure you have a folder called "supplementary" in the "outputs" folder!
+## The following line ensures that such folder exists
+supp_dir <-  here::here("outputs", "supplementary")
+if (!dir.exists(supp_dir)) dir.create(supp_dir, recursive = TRUE)
 
 gt::gtsave(means_table,
            filename = "means_table.png",
