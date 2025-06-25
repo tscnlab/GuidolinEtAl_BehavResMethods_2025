@@ -148,7 +148,7 @@ ggsave(filename = "results_fig05a.png",
        path= here::here("outputs", "fig05"))
 ```
 
-## 2) Calculate descriptive statistics on how much time participants spent in each Wear log state across the week 
+## 2a) Calculate descriptive statistics on how much time participants spent in each Wear log state across the week 
 ```{r}
 #Calculating median time in each state
 
@@ -163,6 +163,20 @@ wrlg_state_summary <- int_duration %>%
   ungroup()
 
 ```
+
+## 2b) Calculate summary statistics on length of the non-wear episodes (without aggregating them for each id)
+```{r}
+# Calculate duration as hms for each off interval
+wrlg_int_off <- wrlg_int %>%
+  filter(State == "off") %>%
+  mutate(off_length = lubridate::int_length(Interval) %>% as_hms())
+
+# Calculate summary statistics
+wrlg_int_off_quantiles <- quantile(wrlg_int_off$off_length)
+print(wrlg_int_off_quantiles) # returns 0%, 25%, 50% (i.e. median), 75% and 100% quantiles
+
+```
+
 
 ## 3) We now want to visualise when, during the day, participants took the light logger on and/or off
 ```{r}
