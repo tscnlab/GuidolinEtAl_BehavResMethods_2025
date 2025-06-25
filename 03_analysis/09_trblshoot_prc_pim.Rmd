@@ -99,7 +99,7 @@ ggsave(filename = "prc_pim_length_30.png",
        width = 6,
        dpi = 600,
        bg = "white",
-       path= here::here("Z:/nonwear_detection/preprint_figures/supplementary"))
+       path= here::here("outputs", "supplementary"))
 
 prcpim2_fscore %>% slice_max(f1_score) # highet F1 score at min_length value of 72 = 12 minutes
 ```
@@ -176,7 +176,7 @@ ggsave(filename = "prc_pim_thresholds_12.png",
        width = 6,
        dpi = 600,
        bg = "white",
-       path= here::here("Z:/nonwear_detection/preprint_figures/supplementary"))
+       path= here::here("outputs", "supplementary"))
 
 ```
 
@@ -255,7 +255,7 @@ ggsave(filename = "prc_pim_interrupt_12.png",
        width = 6,
        dpi = 600,
        bg = "white",
-       path= here::here("Z:/nonwear_detection/preprint_figures/supplementary"))
+       path= here::here("outputs", "supplementary"))
 
 ```
 
@@ -279,6 +279,6 @@ ggsave(filename = "pim_prc_parameters_multiplot_12.png",
        height = 6,
        dpi = 600, 
        bg = "white",
-       path = here::here("Z:/nonwear_detection/preprint_figures/supplementary"))
+       path = here::here("outputs", "supplementary"))
 
 ```

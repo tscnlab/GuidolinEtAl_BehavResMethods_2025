@@ -97,7 +97,7 @@ ggsave(filename = "prc_medi_length_30.png",
        width = 6,
        dpi = 600,
        bg = "white",
-       path= here::here("Z:/nonwear_detection/preprint_figures/supplementary"))
+       path= here::here("outputs", "supplementary"))
 
 # What minimum length value leads to the highest F1 score? 
 prcmedi1_fscore %>% slice_max(f1_score) # min length = 126 -> 21 minutes
@@ -175,7 +175,7 @@ ggsave(filename = "prc_medi_thresholds_21.png",
        width = 6,
        dpi = 600,
        bg = "white",
-       path= here::here("Z:/nonwear_detection/preprint_figures/supplementary"))
+       path= here::here("outputs", "supplementary"))
 
 ```
 
@@ -253,7 +253,7 @@ ggsave(filename = "prc_medi_interrupt_21.png",
        width = 6.3,
        dpi = 600,
        bg = "white",
-       path= here::here("Z:/nonwear_detection/preprint_figures/supplementary"))
+       path= here::here("outputs", "supplementary"))
 
 ```
 
@@ -277,7 +277,7 @@ ggsave(filename = "medi_prc_parameters_multiplot_new.png",
        height = 6,
        dpi = 600, 
        bg = "white",
-       path = here::here("Z:/nonwear_detection/preprint_figures/supplementary"))
+       path = here::here("outputs", "supplementary"))
 
 ```
 ## Conclusion
