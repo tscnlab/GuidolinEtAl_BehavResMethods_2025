@@ -8,105 +8,30 @@ date: "2024-10-26"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Fine tuning the input parameters for finding clusters of low illuminane
+# Fine tuning the input parameters for finding clusters of low illuminance
 In this script, we produce precision-recall curves for each input parameter of the data_find_cluster function, in order to understand which parameters will work better to detect clusters of low activity. The data_find_cluster function takes three input parameters:
-1. A threshold for the activity values (PIM)
-2. A minimum length of the interval 
+1. A minimum length of the interval
+2. A threshold for the activity values (PIM)
 3. A maximum interruption of the interval for values that are above threshold
 
 In the chunks that follow, we vary each of these three parameters while keeping the other constant.
 
 ### First, import functions - if not in the environment yet
 ```{r}
-# Fuction to identify clusters
+# Function to identify clusters
 base::source(here::here("03_analysis", "functions", "find_clusters_fun.R"))
 
 #Function to generate aggregate pr curve
 base::source(here::here("03_analysis", "functions", "generate_prc_funs.R"))
 ```
 
-
-## Step 1: vary PIM thresholds
-Minimum interval length and maximum interruption remain constant.
-```{r}
-
-#Create a sequence of PIM thresholds at 5 unit steps
-pimthresholds <- c(5,10, 15, 20, 25, 30, 35, 40, 45, 50)
-
-#Empty list to store classification results
-prc_m_list <- list()
-
-#Running a for loop to generate a prc for all selected PIM thresholds 
-for (threshold in pimthresholds) {
-  
-  prc_result <- generate_prc(
-    dataset = df.LL.nosleep,
-    low_var = "PIM",
-    min_length = 54, #9 minutes (n of observations)
-    max_interrupt = 0, #0 minutes (n of observations)
-    threshold = threshold
-  )
-  
-  # Add the current threshold as a column in prc_m_result
-  prc_result <- prc_result %>%
-    mutate(threshold = threshold) # Add threshold column
-  
-  prc_m_list[[as.character(threshold)]] <- prc_result
-  
-}
-
-#Turn into a df
-prc_pim_1 <- bind_rows(prc_m_list)
-
-#Turn threshold to numeric for plotting
-prc_pim_1$threshold <- as.numeric(prc_pim_1$threshold)
-
-#Let's plot to see what the result looks like
-prc_pim_thresholds <- ggplot() +
-   xlim(0,1) + 
-   ylim(0,1) +
-  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
-  geom_point(data = prc_pim_1, aes(x = TPR, y = PPV, colour = threshold)) +
-  scale_colour_gradient(
-     name = "PIM threshold",
-     low = "blue", high = "lightblue",
-     limits= c(5,50),
-     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
-  labs(x="True positive rate (recall)",
-       y = "Positive predictive value \n(precision)",
-       title = "Activity threshold \nbased detection") +
-   theme_bw() +
- theme(plot.title = element_text(hjust = 0.5, size = 20),
-        axis.text = element_text(size = 16),
-        axis.title = element_text(size = 16),
-        legend.title = element_text(size = 14),
-        legend.text = element_text(size = 12),
-        legend.key.size = unit(8, "mm"),
-        legend.position = "bottom",
-        legend.box = "horizontal",
-        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
-   coord_fixed(ratio = 1)
-
-ggsave(filename = "prc_pim_thresholds.png",
-       plot = prc_pim_thresholds,
-       height = 5.5, 
-       width = 6,
-       dpi = 600,
-       bg = "white",
-       path= here::here("outputs", "supplementary"))
-
-```
-
-## What does this tell us?
-Compared to higher activity threshold values, lower activity thresholds of 5 (PIM) lead to higher precision (i.e. n of non-wear labels correctly assigned), but lower recall (n of non-wear labels assigned among all the non-wear instances). For example, the recall for PIM = 5 is 0.6399320 compared to 0.7640286 for PIM = 50, but the precision follows the opposite trend (0.4511188 for PIM=5 and 0.3665945 for PIM=50).
-
-## Step 2: vary minimum length of interval 
+## Step 1: vary minimum length of interval 
 Activity threshold and maximum interruption stay the same
 ```{r}
-#Create min_length ranging from 1 to 10 minutes, with 1 minute steps
-min_lengths <- seq(6, 60, by = 6)
+#Create min_length ranging from 1 to 30 minutes, with 1 minute steps
+min_lengths <- seq(6, 180, by = 6)
 
-#From the previous plot, we know that lower PIM thresholds are better so we keep it to 5
+# Make the assumptions that lower PIM levels would be best
 pim_threshold = 5
 
 #We keep the max_interrupt at 0 minutes
@@ -135,13 +60,13 @@ for (min_length in min_lengths) {
 }
 
 #Turning list into a df 
-prc_pim_2 <- bind_rows(prc_m_list)
+prc_pim_1 <- bind_rows(prc_m_list)
 
 #Turning min_length into a factor for plotting
-prc_pim_2$min_length <- as.factor(prc_pim_2$min_length) 
+prc_pim_1$min_length <- as.factor(prc_pim_1$min_length) 
 
 #Calculate F1 score
-prcpim2_fscore <- prc_pim_2 %>%
+prcpim1_fscore <- prc_pim_1 %>%
   mutate(f1_score = (2 * PPV * TPR)/(PPV + TPR))
 
 #Let's plot to see the results
@@ -149,48 +74,125 @@ prc_pim_length <- ggplot() +
    xlim(0,1) + 
    ylim(0,1) +
   geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
-  geom_point(data = prc_pim_2, aes(x = TPR, y = PPV, colour = min_length)) +
+  geom_point(data = prc_pim_1, aes(x = TPR, y = PPV, colour = min_length)) +
   scale_colour_discrete(
      name = "Min. length (min)",
-     labels = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)) +
+     labels = seq(1, 30, by = 1)
+     ) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
        title = "Minimum length \nbased detection") +
    theme_bw() +
-   theme(plot.title = element_text(hjust = 0.5, size = 20),
-        axis.text = element_text(size = 16),
-        axis.title = element_text(size = 16),
-        legend.title = element_text(size = 14),
-        legend.text = element_text(size = 12),
-        legend.key.size = unit(8, "mm"),
+  theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 10),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
         legend.position = "bottom",
-        legend.box = "horizontal",
-        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
+        plot.margin = unit(c(0.5,0.5,0,0), unit ="cm")) +
    coord_fixed(ratio = 1)
 
-ggsave(filename = "prc_pim_length.png",
+ggsave(filename = "prc_pim_length_30.png",
        plot = prc_pim_length,
        height = 5.5, 
        width = 6,
        dpi = 600,
        bg = "white",
-       path= here::here("outputs", "supplementary"))
+       path= here::here("Z:/nonwear_detection/preprint_figures/supplementary"))
+
+prcpim2_fscore %>% slice_max(f1_score) # highet F1 score at min_length value of 72 = 12 minutes
+```
+## What does this tell us?
+The higher the minimum length, the higher the precision, with the precision values seemingly reaching a plateau at approximately 20 minutes. Higher precision also comes at a cost of a lower recall values. The best minimum length (i.e. highest F1 score) is at min_length = 72, i.e. 12 minutes. 
+
+## Step 2: vary PIM thresholds
+Minimum interval length and maximum interruption remain constant.
+```{r}
+
+#Create a sequence of PIM thresholds at 5 unit steps
+pimthresholds <- c(5,10, 15, 20, 25, 30, 35, 40, 45, 50)
+
+#Empty list to store classification results
+prc_m_list <- list()
+
+#Running a for loop to generate a prc for all selected PIM thresholds 
+for (threshold in pimthresholds) {
+  
+  prc_result <- generate_prc(
+    dataset = df.LL.nosleep,
+    low_var = "PIM",
+    min_length = 72, #12 minutes (n of observations) - see step 1
+    max_interrupt = 0, #0 minutes (n of observations)
+    threshold = threshold
+  )
+  
+  # Add the current threshold as a column in prc_m_result
+  prc_result <- prc_result %>%
+    mutate(threshold = threshold) # Add threshold column
+  
+  prc_m_list[[as.character(threshold)]] <- prc_result
+  
+}
+
+#Turn into a df
+prc_pim_2 <- bind_rows(prc_m_list)
+
+#Turn threshold to numeric for plotting
+prc_pim_2$threshold <- as.numeric(prc_pim_2$threshold)
+
+#Calculate F1 score
+prcpim2_fscore <- prc_pim_2 %>%
+  mutate(f1_score = (2 * PPV * TPR)/(PPV + TPR))
+
+#Let's plot to see what the result looks like
+prc_pim_thresholds <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  geom_point(data = prc_pim_2, aes(x = TPR, y = PPV, colour = threshold)) +
+  scale_colour_gradient(
+     name = "PIM threshold",
+     low = "blue", high = "lightblue",
+     limits= c(5,50),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Activity threshold \nbased detection") +
+   theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 10),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
+        legend.position = "bottom",
+        plot.margin = unit(c(0.5,0.5,0,0), unit ="cm")) +
+   coord_fixed(ratio = 1)
+
+ggsave(filename = "prc_pim_thresholds_12.png",
+       plot = prc_pim_thresholds,
+       height = 5.5, 
+       width = 6,
+       dpi = 600,
+       bg = "white",
+       path= here::here("Z:/nonwear_detection/preprint_figures/supplementary"))
 
 ```
 
 ## What does this tell us?
-The lower the minimum length, the higher the precision, with the precision values seemingly reaching a plateau at approximately 9 and 10 minutes. Higher precision also comes at a cost of a lower recall values. 
+Compared to higher activity threshold values, lower activity thresholds of 5 (PIM) lead to higher precision (i.e. n of non-wear labels correctly assigned), but lower recall (n of non-wear labels assigned among all the non-wear instances). For example, the recall for PIM = 5 is 0.6032611 compared to 0.7385074 for PIM = 50, but the precision follows the opposite trend (0.4525959 for PIM=5 and 0.3721392 for PIM=50).
 
 ## Step 3: vary max interruption length 
 ```{r}
-#Create a max_interrupt ranging from 0 to 9 minutes, with 1-minute steps
-max_interrupts <- seq(0, 54, by = 6) 
+#Create a max_interrupt ranging from 0 to 10 minutes, with 1-minute steps
+max_interrupts <- seq(0, 60, by = 6) 
 
 #From the first plot, we know that lower PIM thresholds are better so we keep it to 5
 pim_threshold = 5
 
-#We know also know that we should keep the min_length to 9 minutes 
-min_length = 54 # 9 minutes (n observations)
+#We know also know that we should keep the min_length to 12 minutes 
+min_length = 72 # 12 minutes (n observations)
 
 
 #Empty list to store classification results
@@ -231,29 +233,29 @@ prc_pim_interrupt <- ggplot() +
   geom_point(data = prc_pim_3, aes(x = TPR, y = PPV, colour = max_int)) +
   scale_colour_discrete(
      name = "Max. interrupt (min)",
-     labels = c(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)) +
+     labels = seq(0, 10, by = 1)
+     ) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
        title = "Maximum interruption \nbased detection") +
    theme_bw() +
-   theme(plot.title = element_text(hjust = 0.5, size = 20),
-        axis.text = element_text(size = 16),
-        axis.title = element_text(size = 16),
-        legend.title = element_text(size = 14),
-        legend.text = element_text(size = 12),
-        legend.key.size = unit(8, "mm"),
+  theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 10),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
         legend.position = "bottom",
-        legend.box = "horizontal",
-        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
+        plot.margin = unit(c(0.5,0.5,0,0), unit ="cm")) +
    coord_fixed(ratio = 1)
 
-ggsave(filename = "prc_pim_interrupt.png",
+ggsave(filename = "prc_pim_interrupt_12.png",
        plot = prc_pim_interrupt,
        height = 5.5, 
        width = 6,
        dpi = 600,
        bg = "white",
-       path= here::here("outputs", "supplementary"))
+       path= here::here("Z:/nonwear_detection/preprint_figures/supplementary"))
 
 ```
 
@@ -271,12 +273,12 @@ multiplot <- cowplot::plot_grid(prc_pim_length, prc_pim_interrupt, prc_pim_thres
                                 nrow = 1,
                                 align = "hv")
 
-ggsave(filename = "pim_prc_parameters_multiplot_1.png",
+ggsave(filename = "pim_prc_parameters_multiplot_12.png",
        plot = multiplot,
        width = 14, 
        height = 6,
        dpi = 600, 
        bg = "white",
-       path = here::here("outputs", "supplementary"))
+       path = here::here("Z:/nonwear_detection/preprint_figures/supplementary"))
 
 ```

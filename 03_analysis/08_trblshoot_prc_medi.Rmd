@@ -10,8 +10,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Fine tuning the input parameters for finding clusters of low illuminane
 In this script, we produce precision-recall curves for each input parameter of the data_find_cluster function, in order to understand which parameters will work better to detect clusters of low illuminance. The data_find_cluster function takes three input parameters:
-1. A threshold for the illuminance values (mEDI)
-2. A minimum length of the interval 
+1. A minimum length of the interval 
+2. A threshold for the illuminance values (mEDI)
 3. A maximum interruption of the interval for values that are above threshold
 
 In the chunks that follow, we vary each of these three parameters while keeping the other constant.
@@ -25,91 +25,12 @@ base::source(here::here("03_analysis", "functions", "find_clusters_fun.R"))
 base::source(here::here("03_analysis", "functions", "generate_prc_funs.R"))
 ```
 
-
-## Step 1: vary mEDI thresholds
-Minimum interval length and maximum interruption remain constant.
+## Step 1: vary minimum length of interval 
+Illuminance threshold and maximum interruption remain constant.
 ```{r}
-
-medithresholds <- seq(1, 10, by = 1)
-
-#Empty list to store classification results
-prc_m_list <- list()
-
-for (threshold in medithresholds) {
-  
-  prc_result <- generate_prc(
-    dataset = df.LL.nosleep,
-    low_var = "MEDI",
-    min_length = 60, #10 minutes (n of observations)
-    max_interrupt = 0, #1 minute (n of observations)
-    threshold = threshold
-  )
-  
-  # Add the current threshold as a column in prc_m_result
-  prc_result <- prc_result %>%
-    mutate(threshold = threshold) # Add threshold column
-  
-  prc_m_list[[as.character(threshold)]] <- prc_result
-  
-}
-
-#Turn list into df
-prc_medi_1 <- bind_rows(prc_m_list)
-#Turn threshold to numeric for plotting
-prc_medi_1$threshold <- as.numeric(prc_medi_1$threshold)
-
-
-#Calculate F1 score
-prcmedi1_fscore <- prc_medi_1 %>%
-  mutate(f1_score = (2 * PPV * TPR)/(PPV + TPR))
-
-#Let's plot to see what the result looks like
-
-prc_medi_thresholds <- ggplot() +
-   xlim(0,1) + 
-   ylim(0,1) +
-  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
-  geom_point(data = prc_medi_1, aes(x = TPR, y = PPV, colour = threshold)) +
-  scale_colour_gradient(
-     name = "mEDI threshold (lx)",
-     low = "red", high = "orange",
-     limits= c(1,10),
-     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
-  labs(x="True positive rate (recall)",
-       y = "Positive predictive value \n(precision)",
-       title = "Illuminance threshold \nbased detection") +
-   theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5, size = 20),
-        axis.text = element_text(size = 16),
-        axis.title = element_text(size = 16),
-        legend.title = element_text(size = 14),
-        legend.text = element_text(size = 12),
-        legend.key.size = unit(8, "mm"),
-        legend.position = "bottom",
-        legend.box = "horizontal",
-        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
-   coord_fixed(ratio = 1)
-
-ggsave(filename = "prc_medi_thresholds.png",
-       plot = prc_medi_thresholds,
-       height = 5.5, 
-       width = 6,
-       dpi = 600,
-       bg = "white",
-       path= here::here("outputs", "supplementary"))
-
-```
-
-## What does this tell us?
-Compared to higher illuminance values of <10 mEDI lux, a lower illuminance value of <1 mEDI lux leads to higher precision (i.e. n of instances that were predicted as non-wear and are actually non-wear): 0.7237623 (1 lux) compared to 0.3404790 (10 lux). This increase in precision comes at a minimal cost for recall (i.e. n of instances correctly identified as non-wear out of all actual non-wear instances): 0.8111686 (1 lux) to 0.8918214 (10 lux). 
-
-
-## Step 2: vary minimum length of interval 
-Illuminance threshold and maximum intteruption remain constant.
-```{r}
-#We create min_length ranging from 2 to 11 minutes
-min_lengths <- seq(6, 60, by = 6)
-#From the previous plot, we know that lower mEDI thresholds are better so we keep it to 1
+#We create min_length ranging from 1 to 30 minutes
+min_lengths <- seq(6, 180, by = 6) # 1 minute = 6 observations
+#We make the assumption that the lowest mEDI value is best (i.e. 1 lux)
 medi_threshold = 1
 #We keep the max_interrupt at 0 minutes
 max_interrupt = 0 # 0 minute
@@ -136,13 +57,13 @@ for (min_length in min_lengths) {
 }
 
 #Turning this into a df 
-prc_medi_2 <- bind_rows(prc_m_list)
+prc_medi_1 <- bind_rows(prc_m_list)
 
 #Turning min_length into a factor for plotting
-prc_medi_2$min_length <- as.factor(prc_medi_2$min_length) 
+prc_medi_1$min_length <- as.factor(prc_medi_1$min_length) 
 
 #Calculate F1 score
-prcmedi2_fscore <- prc_medi_2 %>%
+prcmedi1_fscore <- prc_medi_1 %>%
   mutate(f1_score = (2 * PPV * TPR)/(PPV + TPR))
 
 #Let's plot to see the results
@@ -150,48 +71,127 @@ prc_medi_length <- ggplot() +
    xlim(0,1) + 
    ylim(0,1) +
   geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
-  geom_point(data = prc_medi_2, aes(x = TPR, y = PPV, colour = min_length)) +
+  geom_point(data = prc_medi_1, aes(x = TPR, y = PPV, colour = min_length)) +
   scale_colour_discrete(
-     name = "Min. length (min)",
-     labels = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)) +
+     name = "Min. \nlength \n(min)",
+     labels = seq(1, 30, by = 1)) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
        title = "Minimum length \nbased detection",
        ) +
    theme_bw() +
   theme(plot.title = element_text(hjust = 0.5, size = 20),
-        axis.text = element_text(size = 16),
-        axis.title = element_text(size = 16),
-        legend.title = element_text(size = 14),
-        legend.text = element_text(size = 12),
-        legend.key.size = unit(8, "mm"),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 10),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
         legend.position = "bottom",
-        legend.box = "horizontal",
-        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
-   coord_fixed(ratio = 1)
+        plot.margin = unit(c(0.5,0.5,0,0), unit ="cm")) +
+   coord_fixed(ratio = 1) +
+  guides(colour = guide_legend(nrow = 5))
 
-ggsave(filename = "prc_medi_length.png",
+ggsave(filename = "prc_medi_length_30.png",
        plot = prc_medi_length,
        height = 5.5, 
        width = 6,
        dpi = 600,
        bg = "white",
-       path= here::here("outputs", "supplementary"))
+       path= here::here("Z:/nonwear_detection/preprint_figures/supplementary"))
+
+# What minimum length value leads to the highest F1 score? 
+prcmedi1_fscore %>% slice_max(f1_score) # min length = 126 -> 21 minutes
+
+```
+## What does this tell us?
+Compared to low minimum length values (e.g. 1 minute), higher minimum length values of 21 minutes lead to  higher  precision (i.e. n of instances that were predicted as non-wear and are actually non-wear): 0.7740781 (21 minutes) compared to 0.5835531 (1 minute). This increase in precision comes at a minor cost for recall: 0.7835445 (21 minutes) compared to 0.8204165 (1 minute). 
+
+
+## Step 2: vary mEDI thresholds
+Minimum interval length and maximum interruption remain constant.
+```{r}
+medithresholds <- seq(1, 10, by = 1)
+
+#Empty list to store classification results
+prc_m_list <- list()
+
+for (threshold in medithresholds) {
+  
+  prc_result <- generate_prc(
+    dataset = df.LL.nosleep,
+    low_var = "MEDI",
+    min_length = 126, #21 minutes (n of observations)
+    max_interrupt = 0, #1 minute (n of observations)
+    threshold = threshold
+  )
+  
+  # Add the current threshold as a column in prc_m_result
+  prc_result <- prc_result %>%
+    mutate(threshold = threshold) # Add threshold column
+  
+  prc_m_list[[as.character(threshold)]] <- prc_result
+  
+}
+
+#Turn list into df
+prc_medi_2 <- bind_rows(prc_m_list)
+#Turn threshold to numeric for plotting
+prc_medi_2$threshold <- as.numeric(prc_medi_2$threshold)
+
+
+#Calculate F1 score
+prcmedi2_fscore <- prc_medi_2 %>%
+  mutate(f1_score = (2 * PPV * TPR)/(PPV + TPR))
+
+#Let's plot to see what the result looks like
+
+prc_medi_thresholds <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + #add a flat line which represents a baseline classifier
+  geom_point(data = prc_medi_2, aes(x = TPR, y = PPV, colour = threshold)) +
+  scale_colour_gradient(
+     name = "mEDI threshold (lx)",
+     low = "red", high = "orange",
+     limits= c(1,10),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Illuminance threshold \nbased detection") +
+   theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 10),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
+        legend.position = "bottom",
+        plot.margin = unit(c(0.5,0.5,0,0), unit ="cm")) +
+   coord_fixed(ratio = 1)
+
+ggsave(filename = "prc_medi_thresholds_21.png",
+       plot = prc_medi_thresholds,
+       height = 5.5, 
+       width = 6,
+       dpi = 600,
+       bg = "white",
+       path= here::here("Z:/nonwear_detection/preprint_figures/supplementary"))
 
 ```
 
 ## What does this tell us?
-Compared to low minimum length values (e.g. 1 minute), higher minimum length values of 10 minutes lead to  higher precision (i.e. n of instances that were predicted as non-wear and are actually non-wear): 0.7237623 (10 minutes) compared to 0.5940958 (1 minute). This increase in precision comes at a minor cost for recall: 0.8111686 (10 minutes) compared to 0.8241462 (1 minute). 
+Compared to higher illuminance values of <10 mEDI lux, a lower illuminance value of <1 mEDI lux leads to higher precision (i.e. n of instances that were predicted as non-wear and are actually non-wear): 0.7740781 (1 lux) compared to 0.3814168 (10 lux). This increase in precision comes at a low cost for recall (i.e. n of instances correctly identified as non-wear out of all actual non-wear instances): 0.7835445 (1 lux) to 0.8613771 (10 lux). 
+
 
 ## Step 3: vary max interruption length 
 Illuminance threshold and minimum length remain constant.
 ```{r}
 #Create a max_interrupt ranging from 0 to 9
-max_interrupts <- seq(0, 54, by = 6)
+max_interrupts <- seq(0, 60, by = 6)
 #From the previous plot, we know that lower mEDI thresholds are better so we keep it to 2
 medi_threshold = 1
 #We know also know that we shoudl keep the min_lenght to 10 minutes 
-min_length = 60 # 10 minutes
+min_length = 126 # 21 minutes
 
 
 #Empty list to store classification results
@@ -231,29 +231,29 @@ prc_medi_interrupt <- ggplot() +
   geom_point(data = prc_medi_3, aes(x = TPR, y = PPV, colour = max_int)) +
   scale_colour_discrete(
      name = "Max. interrupt (min)",
-     labels = c(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)) +
+     labels = seq(0, 10, by = 1)
+     )+
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
        title = "Maximum interruption \nbased detection") +
    theme_bw() +
   theme(plot.title = element_text(hjust = 0.5, size = 20),
-        axis.text = element_text(size = 16),
-        axis.title = element_text(size = 16),
-        legend.title = element_text(size = 14),
-        legend.text = element_text(size = 12),
-        legend.key.size = unit(8, "mm"),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 10),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
         legend.position = "bottom",
-        legend.box = "horizontal",
-        plot.margin = unit(c(0,0.5,0,0), unit ="cm")) +
+        plot.margin = unit(c(0.5,0.5,0,0), unit ="cm")) +
    coord_fixed(ratio = 1)
 
-ggsave(filename = "prc_medi_interrupt.png",
+ggsave(filename = "prc_medi_interrupt_21.png",
        plot = prc_medi_interrupt,
        height = 5.5, 
        width = 6.3,
        dpi = 600,
        bg = "white",
-       path= here::here("outputs", "supplementary"))
+       path= here::here("Z:/nonwear_detection/preprint_figures/supplementary"))
 
 ```
 
@@ -271,17 +271,17 @@ multiplot <- cowplot::plot_grid(prc_medi_length, prc_medi_interrupt, prc_medi_th
                                 nrow = 1,
                                 align = "hv")
 
-ggsave(filename = "medi_prc_parameters_multiplot_1.png",
+ggsave(filename = "medi_prc_parameters_multiplot_new.png",
        plot = multiplot,
        width = 14, 
        height = 6,
        dpi = 600, 
        bg = "white",
-       path = here::here("outputs", "supplementary"))
+       path = here::here("Z:/nonwear_detection/preprint_figures/supplementary"))
 
 ```
 ## Conclusion
 The values to be used are:
 1. Illuminance threshold: 1 lux
-2. Minimum length: 10 minutes 
+2. Minimum length: 21 minutes 
 3. Maximum interruption: 0 minutes 
