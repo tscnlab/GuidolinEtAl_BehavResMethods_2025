@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ### First, we identify clusters of low mEDI using the input parameters known to perform best:
 - Low illuminance threshold: 1 mEDI lux 
-- Minimum length of the cluster: 10 minutes 
+- Minimum length of the cluster: 21 minutes 
 - Maximum interruption within cluster: 0 minutes
 
 ### Importing function
@@ -31,7 +31,7 @@ prc_list <- list()
 classified_prc_medi <- alg_perf(
     dataset = df.LL.nosleep,
     low_var = "MEDI",
-    min_length = 60, #10 minutes (n of observations)
+    min_length = 126, #21 minutes (n of observations)
     max_interrupt = 0, #0 minutes (n of observations)
     threshold = 1 #1 mEDI lux
   )
