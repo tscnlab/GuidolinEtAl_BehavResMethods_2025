@@ -103,6 +103,7 @@ ggsave(filename = "prc_medi_length_30.png",
 prcmedi1_fscore %>% slice_max(f1_score) # min length = 126 -> 21 minutes
 
 ```
+
 ## What does this tell us?
 Compared to low minimum length values (e.g. 1 minute), higher minimum length values of 21 minutes lead to  higher  precision (i.e. n of instances that were predicted as non-wear and are actually non-wear): 0.7740781 (21 minutes) compared to 0.5835531 (1 minute). This increase in precision comes at a minor cost for recall: 0.7835445 (21 minutes) compared to 0.8204165 (1 minute). 
 

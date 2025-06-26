@@ -101,10 +101,11 @@ ggsave(filename = "prc_pim_length_30.png",
        bg = "white",
        path= here::here("outputs", "supplementary"))
 
-prcpim2_fscore %>% slice_max(f1_score) # highet F1 score at min_length value of 72 = 12 minutes
+prcpim1_fscore %>% slice_max(f1_score) # highet F1 score at min_length value of 72 = 12 minutes
 ```
 ## What does this tell us?
 The higher the minimum length, the higher the precision, with the precision values seemingly reaching a plateau at approximately 20 minutes. Higher precision also comes at a cost of a lower recall values. The best minimum length (i.e. highest F1 score) is at min_length = 72, i.e. 12 minutes. 
+
 
 ## Step 2: vary PIM thresholds
 Minimum interval length and maximum interruption remain constant.
@@ -281,4 +282,91 @@ ggsave(filename = "pim_prc_parameters_multiplot_12.png",
        bg = "white",
        path = here::here("outputs", "supplementary"))
 
+```
+
+## Visualising F1 score as a function of the min length for both activity and illuminance
+Note that for this plot you will need to have run 08_trblshoot_prc_medi.Rmd. 
+```{r}
+# Turn min length into numeric
+prcpim1_fscore$min_length <- as.numeric(prcpim1_fscore$min_length)
+prcmedi1_fscore$min_length <- as.numeric(prcmedi1_fscore$min_length)
+
+# Create a new column for coloring the highest F1 score
+prcpim1_fscore$highlight <- ifelse(prcpim1_fscore$f1_score == max(prcpim1_fscore$f1_score), "highlight", "normal")
+prcmedi1_fscore$highlight <- ifelse(prcmedi1_fscore$f1_score == max(prcmedi1_fscore$f1_score), "highlight", "normal")
+
+# Plot activity
+minlength_f1_activity <- ggplot() + 
+  geom_point(data = prcpim1_fscore, aes(x=min_length, y=f1_score, colour = highlight)) +
+  ylim(0,1) +
+  scale_x_continuous(
+    breaks = seq(1, 30, by=1),
+    labels = c("1", rep("", 8),
+               "10", rep("", 9),
+               "20", rep("", 9),
+               "30")
+  ) +
+  labs(x = "Min. length (minutes)",
+       y = "F1 score [0-1]",
+       title = "Activity",
+       subtitle = "PIM threshold = 5, \nmax interruption = 0 minutes") +
+  coord_fixed(ratio = 50) +
+  theme_bw() +
+  theme(plot.subtitle=element_text(colour="darkgrey")) +
+  scale_color_manual(values = c("highlight" = "red", "normal" = "black"),
+                     guide = "none") +
+  ggpubr::rremove("xylab")
+
+# Plot illuminance
+minlength_f1_illuminance <- ggplot() + 
+  geom_point(data = prcmedi1_fscore, aes(x=min_length, y=f1_score, colour = highlight)) +
+  ylim(0,1) +
+  scale_x_continuous(
+    breaks = seq(1, 30, by=1),
+    labels = c("1", rep("", 8),
+               "10", rep("", 9),
+               "20", rep("", 9),
+               "30")
+  ) +
+  labs(x = "Min. length (minutes)",
+       y = "F1 score [0-1]",
+       title = "Illuminance",
+       subtitle = "mEDI threshold = 1, \nmax interruption = 0 minutes") +
+  coord_fixed(ratio = 50) +
+  theme_bw() +
+  theme(plot.subtitle=element_text(colour="darkgrey")) +
+  scale_color_manual(values = c("highlight" = "red", "normal" = "black"),
+                     guide = "none") +
+  ggpubr::rremove("xylab")
+
+# Arrange the two plots
+activity_illuminance_f1 <- ggpubr::ggarrange(minlength_f1_illuminance, minlength_f1_activity,
+                                             ncol = 2,
+                                             nrow = 1, 
+                                             widths = c(1,1),
+                                             heights = c(1,1),
+                                             align = "hv")
+
+activity_illuminance_f1_labelled <- ggpubr::annotate_figure(activity_illuminance_f1,
+                                                            top = text_grob("F1 score based on min. cluster length",
+                                                            color = "black",
+                                                            face = "plain",
+                                                            size = 16,
+                                                            hjust = 0.5),
+                                            left = text_grob("F1 score [0-1]",
+                                                             size = 12,
+                                                             rot = 90,
+                                                             hjust = 0.6),
+                                            bottom = text_grob("Min. length (minutes)",
+                                                               size = 12,
+                                                               hjust = 0.5))
+
+# Save plot
+ggsave(filename = "activity_illuminance_f1_labelled.png",
+       plot = activity_illuminance_f1_labelled,
+       height = 4.8, 
+       width = 5,
+       dpi = 600,
+       bg = "white",
+       path= here::here("outputs", "supplementary"))
 ```
