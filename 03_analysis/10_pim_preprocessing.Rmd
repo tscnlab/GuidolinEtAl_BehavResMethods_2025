@@ -70,7 +70,7 @@ for (threshold in pimthresholds) {
   prc_result <- generate_prc(
     dataset = df.LL.nosleep,
     low_var = "PIM",
-    min_length = 54, #9 minutes (n of observations)
+    min_length = 72, #12 minutes (n of observations)
     max_interrupt = 0, #0 minute (n of observations)
     threshold = threshold
   )
@@ -110,7 +110,7 @@ for (threshold in tatthresholds) {
   prc_result <- generate_prc(
     dataset = df.LL.nosleep,
     low_var = "TAT",
-    min_length = 54, #9 minutes (n of observations)
+    min_length = 72, #12 minutes (n of observations)
     max_interrupt = 0, #0 minute (n of observations)
     threshold = threshold
   )
@@ -151,7 +151,7 @@ for (threshold in zcmthresholds) {
   prc_result <- generate_prc(
     dataset = df.LL.nosleep,
     low_var = "ZCM",
-    min_length = 54, #9 minutes (n of observations)
+    min_length = 72, #12 minutes (n of observations)
     max_interrupt = 0, #0 minute (n of observations)
     threshold = threshold
   )
@@ -360,7 +360,7 @@ for (threshold in log_pimthresholds) {
   prc_result <- generate_prc(
     dataset = log.df.LL.nosleep,
     low_var = "log.PIM",
-    min_length = 54, #9 minutes (n of observations)
+    min_length = 72, #12 minutes (n of observations)
     max_interrupt = 0, #0 minute (n of observations)
     threshold = threshold
   )
@@ -455,7 +455,7 @@ for (threshold in norm_pimthresholds) {
   prc_result <- generate_prc(
     dataset = normalised_log_pim_df,
     low_var = "norm_log.pim",
-    min_length = 54, #9 minutes (n of observations)
+    min_length = 72, #12 minutes (n of observations)
     max_interrupt = 0, #0 minute (n of observations)
     threshold = threshold
   )
@@ -543,7 +543,7 @@ for (threshold in norm_pimthresholds) {
   prc_result <- generate_prc(
     dataset = normalised_raw_pim_df,
     low_var = "norm_pim",
-    min_length = 54, #9 minutes (n of observations)
+    min_length = 72, #12 minutes (n of observations)
     max_interrupt = 0, #0 minute (n of observations)
     threshold = threshold
   )
@@ -635,7 +635,7 @@ for (threshold in pimthresholds) {
   prc_result <- generate_prc(
     dataset = rolled.pim,
     low_var = "rolled_median_PIM",
-    min_length = 54, #9 minutes (n of observations)
+    min_length = 72, #12 minutes (n of observations)
     max_interrupt = 0, #0 minute (n of observations)
     threshold = threshold
   )
@@ -709,7 +709,7 @@ for (threshold in log_pimthresholds) {
   prc_result <- generate_prc(
     dataset = rolled.log.pim,
     low_var = "rolled_median_PIM",
-    min_length = 54, #9 minutes (n of observations)
+    min_length = 72, #12 minutes (n of observations)
     max_interrupt = 0, #0 minute (n of observations)
     threshold = threshold
   )
@@ -805,7 +805,7 @@ for (threshold in norm_pimthresholds) {
   prc_result <- generate_prc(
     dataset = norm_rolled_log_pim,
     low_var = "n_r_l_pim",
-    min_length = 54, #9 minutes (n of observations)
+    min_length = 72, #12 minutes (n of observations)
     max_interrupt = 0, #0 minute (n of observations)
     threshold = threshold
   )
