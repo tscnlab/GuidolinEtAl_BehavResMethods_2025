@@ -187,12 +187,12 @@ Given the misclassified interval (false negative, FN, and false positive, FP), t
 #### False negatives (FN) intervals
 1. If the bag was reportedly not used, and the mean MEDI > 1 lux, then the interval was misclassified because the bag was not used and so no clusters of low illuminance could be identified.
 2. If the bag was reportedly used, and mean MEDI > 1 lux, and interval length <= 3 minutes, then this is a transition state
-3. If the bag was reportedly used, and mean MEDI > 1 lux, and interval length > 3 minutes, then this is either a limitation of the algorithm (the non-wear interval was lower than 10 minutes), or the bag was actually not used
+3. If the bag was reportedly used, and mean MEDI > 1 lux, and interval length > 3 minutes, then this is either a limitation of the algorithm (the non-wear interval was lower than 21 minutes), or the bag was actually not used
 4. If the bag was reportedly used, and mean MEDI  <= 1 lux, and interval length <= 3 minutes, then this is a transition state
 
 #### False positives (FP) intervals
 1. If mean MEDI <= 1 lux and interval length <= 3 minutes, then this is a transition state
-2. If mean MEDI <= 1 lux and interval length > 3 minutes, this is a low mdi interval which is hence detected as a cluster
+2. If mean MEDI <= 1 lux and interval length > 3 minutes, this is a low medi interval which is hence detected as a cluster
 ```{r}
 # Setting a lux threshold for mEDI
 threshold = 1
@@ -221,32 +221,78 @@ classification_summary <- misclass_reasons %>%
   summarise(count = n()) 
 ```
 #### Performing visual checks 
-The classification above led to 4 instances, i.e. intervals, which could no be assigned to any misclassification reasons we reported. Hence, we perform a visual check here to see why these instances were misclassified.
+The classification above led to 15 instances, i.e. intervals, which could no be assigned to any misclassification reasons we reported. Hence, we perform a visual check here to see why these instances were misclassified.
 ```{r}
 # Identify the instances 
 vis_chek <- misclass_reasons %>%
   filter(reason == "visual_check")
 
-# Case 1: The FN interval detected for PID 212 ranges from 2023-09-11 21:13:00 to 2023-09-11 21:21:50. They reported using the bag during this this, but the mean MEDI is < 1 lux. The interval duration is 9 minutes. From visual inspection, we can see that they did use the bag. Hence, this misclassification is likely due to an algorithm limitation of detecting clusters > 10 minutes. We change this manually. 
+# Case 1: PID 201, FN interval detected 2023-08-14 22:38:01 to 2023-08-14 22:53:51 of duration 15.833333 mins, bag was reportedly used. Mean MEDI shows that they did use the bag.Hence, this misclassification is likely due to an algorithm limitation of detecting clusters > 21 minutes. We change this manually. 
 
-misclass_reasons_1 <- misclass_reasons %>%
-  mutate(reason = ifelse(Id == "212" & xmax == as.POSIXct("2023-09-11 21:21:50", tz = tz), "algorithm limitation or bag actually not used", reason))
+misclass_1 <- misclass_reasons %>%
+  mutate(reason = ifelse(Id == "201" & xmax == as.POSIXct("2023-08-14 22:53:51", tz = tz),
+                         "algorithm limitation or bag actually not used", reason))
 
-# Case 2: The FN interval detected for PID 222 ranges from 2023-10-26 16:04:02 to 2023-10-26 16:31:52. During this period, they reported not using the bag, and the mean MEDI is <1 lux in this 28 minute interval. Upon visual inspection, we identify that this was not detected as a low illuminance cluster because there are multiple timepoints where MEDI is above threshold (1 lux), even if the average is below threshold. We change this manually and label is as algorithm limitation. 
+# Case 2: PID 206 from 2023-08-29 03:02:00 to 2023-08-29 03:17:50, duration 15.833333  mins, and bag was reportedly used. Mean MEDI shows that they did use the bag.Hence, this misclassification is likely due to an algorithm limitation of detecting clusters > 21 minutes. We change this manually. 
 
-misclass_reasons_2 <- misclass_reasons_1 %>%
-  mutate(reason = ifelse(Id == "222" & xmax == as.POSIXct("2023-10-26 16:31:52", tz = tz), "algorithm limitation or bag actually not used", reason))
+misclass_2 <- misclass_1 %>%
+  mutate(reason = ifelse(Id == "206" & xmax == as.POSIXct("2023-08-29 03:17:50", tz = tz),
+                         "algorithm limitation or bag actually not used", reason))
 
-# Case 3: The FN interval detected for PID 225 ranges from 2023-10-31 05:42:05 to 2023-10-31 05:45:55 (4 minutes), during which they reported using the bag. The mean MEDI here is also below threshold. This is an algorithm limitation, as the interval is too short to be detected by our cluster function. We can label it as such manually. 
+# Case 3: PID 206 2023-09-01 00:29:00 to 2023-09-01 00:43:50, duration 14.833333 mins, with bag reportedly used. Mean MEDI shows that they did use the bag.Hence, this misclassification is likely due to an algorithm limitation of detecting clusters > 21 minutes. We change this manually. 
 
-misclass_reasons_3 <- misclass_reasons_2 %>%
+misclass_3 <- misclass_2 %>%
+  mutate(reason = ifelse(Id == "206" & xmax == as.POSIXct("2023-09-01 00:43:50", tz = tz),
+                         "algorithm limitation or bag actually not used", reason))
+
+# Case 4: The FN interval detected for PID 212 ranges from 2023-09-11 21:13:00 to 2023-09-11 21:21:50. They reported using the bag during this this, the mean MEDI is < 1 lux. The interval duration is 9 minutes. From visual inspection, we can see that they did use the bag. Hence, this misclassification is likely due to an algorithm limitation of detecting clusters > 21 minutes. We change this manually. 
+
+misclass_4 <- misclass_3 %>%
+  mutate(reason = ifelse(Id == "212" & xmax == as.POSIXct("2023-09-11 21:21:50", tz = tz),
+                         "algorithm limitation or bag actually not used", reason))
+
+# Case 5, 6, 7 and 8: FN intervals detected are shorter than 21 minutes but bag was reported and MEDI values are low. Hence we change this manually
+misclass_5_6_7_8 <- misclass_4 %>%
+  mutate(reason = ifelse(Id == "212" & 
+                           xmax == as.POSIXct("2023-09-12 21:08:50", tz = tz) | 
+                           xmax == as.POSIXct("2023-09-15 20:39:50", tz = tz) |
+                           xmax == as.POSIXct("2023-09-16 21:03:50", tz = tz) |
+                           xmax == as.POSIXct("2023-09-17 20:37:50", tz = tz),
+                         "algorithm limitation or bag actually not used", reason))
+
+# Case 9: as above: interval shorter than 21 minutes but bag was used. We change this manually.
+misclass_9 <- misclass_5_6_7_8 %>%
+  mutate(reason = ifelse(Id == "219" & xmax == as.POSIXct("2023-10-22 14:45:40", tz = tz), 
+         "algorithm limitation or bag actually not used", reason))
+
+# Case 10: The FN interval detected for PID 222 ranges from 2023-10-26 16:04:02 to 2023-10-26 16:31:52. During this period, they reported not using the bag, and the mean MEDI is <1 lux in this 28 minute interval. Upon visual inspection, we identify that this was not detected as a low illuminance cluster because there are multiple timepoints where MEDI is above threshold (1 lux), even if the average is below threshold. We change this manually and label is as algorithm limitation. 
+
+misclass_10 <- misclass_9 %>%
+  mutate(reason = ifelse(Id == "222" & xmax == as.POSIXct("2023-10-26 16:31:52", tz = tz),
+                         "algorithm limitation or bag actually not used", reason))
+
+# Case 11: PID 224, FN interval detected are shorter than 21 minutes but bag was reported and MEDI values are low. Hence we change this manually as algorithm limitation.
+
+misclass_11 <- misclass_10 %>%
+  mutate(reason = ifelse(Id == "224" & xmax == as.POSIXct("2023-10-31 20:36:56", tz = tz),
+                         "algorithm limitation or bag actually not used", reason))
+
+# Case 12: The FN interval detected for PID 225 ranges from 2023-10-31 05:42:05 to 2023-10-31 05:45:55 (4 minutes), during which they reported using the bag. The mean MEDI here is also below threshold. This is an algorithm limitation, as the interval is too short to be detected by our cluster function. We can label it as such manually. 
+
+misclass_12 <- misclass_11 %>%
   mutate(reason = ifelse(Id == "225" & xmax == as.POSIXct("2023-10-31 05:45:55", tz = tz), "algorithm limitation or bag actually not used", reason))
 
-# Case 4: This FN interval for PID 230 lasts between 2023-11-09 10:56:06 and 2023-11-09 11:04:56. The participant reported using the bag and mean MEDI is below threshold. However, by visual inspection, we identify several instances where the mean MEDI was above threshold. Since we allow for no interruptions in our detection, this leads to misclassification. We can change this manually 
+# Case 13: This FN interval for PID 230 lasts between 2023-11-09 10:56:06 and 2023-11-09 11:04:56. The participant reported using the bag and mean MEDI is below threshold. However, by visual inspection, we identify several instances where the mean MEDI was above threshold. Since we allow for no interruptions in our detection, this leads to misclassification. We can change this manually 
 
-misclass_reasons_4 <- misclass_reasons_3 %>%
+misclass_13 <- misclass_12 %>%
   mutate(reason = ifelse(Id == "230" & xmax == as.POSIXct("2023-11-09 11:04:56", tz = tz), "algorithm limitation or bag actually not used", reason))
 
+# Case 14 and 15: PID 231, both intervals labelled as FN are shorter than 21 minutes, and the visual inspection suggests that they did indeed use the bag (as reported). Hence this is likely an algorithm limitation and we change this manually. 
+misclass_14_15 <- misclass_13 %>%
+  mutate(reason = ifelse(Id == "231" & 
+                         xmax == as.POSIXct("2023-11-08 23:16:55", tz = tz) |
+                         xmax == as.POSIXct("2023-11-10 22:40:55", tz = tz),
+                         "algorithm limitation or bag actually not used", reason))
 ```
 
 #### Recoding the reasons for misclassification after visual checks
@@ -256,7 +302,7 @@ We would like to update the classification_summary table based on the changes ma
 library(janitor)
 
 # First, let's rename the data frame with a better name
-misclass_reasons_clean <- misclass_reasons_4
+misclass_reasons_clean <- misclass_14_15
 
 # Then, we create the summary table
 misclass_summary <- misclass_reasons_clean %>%
@@ -325,7 +371,7 @@ prc_list <- list()
 nonwear_algorithm <- alg_perf(
     dataset = df.LL.nosleep,
     low_var = "MEDI",
-    min_length = 60, #10 minutes (n of observations)
+    min_length = 126, #21 minutes (n of observations)
     max_interrupt = 0, #0 minutes (n of observations)
     threshold = 1 #1 mEDI lux
   )
