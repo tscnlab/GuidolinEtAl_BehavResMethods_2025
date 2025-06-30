@@ -324,19 +324,19 @@ p2
 - MLIT250, FLIT250, LLIT250
 -  FLIT10, LLIT10
 - TAT250, TAT1000
-- Average MEDI
-- LE
+- Average MEDI (for this, we use the log zero inflated approach proposed [here](https://tscnlab.github.io/LightLogR/articles/log.html))
+- Median
 ```{r}
 batch_raw <- raw_dataset %>%
-  LightLogR::create_Timedata() %>%
+  LightLogR::add_Time_col() %>%
   mutate(wDay = wday(Datetime, label = TRUE, week_start = 1))
 
 batch_wrlg <- nw_wrlg %>%
-  LightLogR::create_Timedata() %>%
+  LightLogR::add_Time_col() %>%
   mutate(wDay = wday(Datetime, label = TRUE, week_start = 1))
 
 batch_clusters <- nw_clusters %>%
-  LightLogR::create_Timedata() %>%
+  LightLogR::add_Time_col() %>%
   mutate(wDay = wday(Datetime, label = TRUE, week_start = 1))
 
 # Batch metrics for raw dataset
@@ -345,19 +345,19 @@ batch_raw <-
   group_by(Id, wDay) %>% 
   summarize(
     MLIT10 = #Note: This creates 1) mean timing above threshold, 2) first timing above threshold, 3) last timing above threshold
-      timing_above_threshold(MEDI, Time.data, threshold = 10, as.df = TRUE, na.rm = TRUE),
+      timing_above_threshold(MEDI, Time, threshold = 10, as.df = TRUE, na.rm = TRUE),
     MLIT250 = 
-      timing_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+      timing_above_threshold(MEDI, Time, threshold = 250, as.df = TRUE, na.rm = TRUE),
     MLIT1000 = 
-      timing_above_threshold(MEDI, Time.data, threshold = 1000, as.df = TRUE, na.rm = TRUE),
+      timing_above_threshold(MEDI, Time, threshold = 1000, as.df = TRUE, na.rm = TRUE),
     TAT250 = 
-      duration_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+      duration_above_threshold(MEDI, Time, threshold = 250, as.df = TRUE, na.rm = TRUE),
     TAT1000 = 
-      duration_above_threshold(MEDI, Time.data, threshold = 1000, as.df = TRUE, na.rm = TRUE),
+      duration_above_threshold(MEDI, Time, threshold = 1000, as.df = TRUE, na.rm = TRUE),
     average_MEDI = 
-      mean(MEDI, na.rm = TRUE),
-    light_exposure = 
-      sum(MEDI, na.rm = TRUE)/360, # 10 second epochs means 360 epochs in one hour. dividing by 360 gives the light exposure in lx·h
+       exp_zero_inflated(mean(log_zero_inflated(MEDI), na.rm = TRUE)), #log transforming in base ten after adding a small number, then back transforming
+    median_MEDI = 
+      median(MEDI, na.rm = TRUE),
     .groups = "drop_last"
     ) %>% 
   unnest(-Id)
@@ -368,19 +368,19 @@ batch_wrlg <-
   group_by(Id, wDay) %>% 
   summarize(
      MLIT10 =
-      timing_above_threshold(MEDI, Time.data, threshold = 10, as.df = TRUE, na.rm = TRUE),
+      timing_above_threshold(MEDI, Time, threshold = 10, as.df = TRUE, na.rm = TRUE),
     MLIT250 = 
-      timing_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+      timing_above_threshold(MEDI, Time, threshold = 250, as.df = TRUE, na.rm = TRUE),
     MLIT1000 = 
-      timing_above_threshold(MEDI, Time.data, threshold = 1000, as.df = TRUE, na.rm = TRUE),
+      timing_above_threshold(MEDI, Time, threshold = 1000, as.df = TRUE, na.rm = TRUE),
     TAT250 = 
-      duration_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+      duration_above_threshold(MEDI, Time, threshold = 250, as.df = TRUE, na.rm = TRUE),
     TAT1000 = 
-      duration_above_threshold(MEDI, Time.data, threshold = 1000, as.df = TRUE, na.rm = TRUE),
+      duration_above_threshold(MEDI, Time, threshold = 1000, as.df = TRUE, na.rm = TRUE),
     average_MEDI = 
-      mean(MEDI, na.rm = TRUE),
-    light_exposure = 
-      sum(MEDI, na.rm = TRUE)/360, # 10 second epochs means 360 epochs in one hour. dividing by 360 gives the light exposure in lx·h
+       exp_zero_inflated(mean(log_zero_inflated(MEDI), na.rm = TRUE)),
+    median_MEDI = 
+      median(MEDI, na.rm = TRUE),
     .groups = "drop_last"
     ) %>% 
   unnest(-Id)
@@ -391,19 +391,19 @@ batch_clusters <-
   group_by(Id, wDay) %>% 
   summarize(
      MLIT10 = 
-      timing_above_threshold(MEDI, Time.data, threshold = 10, as.df = TRUE, na.rm = TRUE),
+      timing_above_threshold(MEDI, Time, threshold = 10, as.df = TRUE, na.rm = TRUE),
     MLIT250 = 
-      timing_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+      timing_above_threshold(MEDI, Time, threshold = 250, as.df = TRUE, na.rm = TRUE),
     MLIT1000 = 
-      timing_above_threshold(MEDI, Time.data, threshold = 1000, as.df = TRUE, na.rm = TRUE),
+      timing_above_threshold(MEDI, Time, threshold = 1000, as.df = TRUE, na.rm = TRUE),
     TAT250 = 
-      duration_above_threshold(MEDI, Time.data, threshold = 250, as.df = TRUE, na.rm = TRUE),
+      duration_above_threshold(MEDI, Time, threshold = 250, as.df = TRUE, na.rm = TRUE),
     TAT1000 = 
-      duration_above_threshold(MEDI, Time.data, threshold = 1000, as.df = TRUE, na.rm = TRUE),
+      duration_above_threshold(MEDI, Time, threshold = 1000, as.df = TRUE, na.rm = TRUE),
     average_MEDI = 
-      mean(MEDI, na.rm = TRUE),
-    light_exposure = 
-      sum(MEDI, na.rm = TRUE)/360, # 10 second epochs means 360 epochs in one hour. dividing by 360 gives the light exposure in lx·h
+       exp_zero_inflated(mean(log_zero_inflated(MEDI), na.rm = TRUE)),
+    median_MEDI = 
+      median(MEDI, na.rm = TRUE),
     .groups = "drop_last"
     ) %>% 
   unnest(-Id)
@@ -415,15 +415,13 @@ In the following chunks, we will calculate "timing metrics":
 - MLiT250, MLiT1000
 - FLiT 10, FLiT 250, FLiT 1000
 - LLit 10, LLiT 250, LLit 1000
-To facilitate these calculations, we wrote a function (calculate_metric in the vis_metric_funs.R script) that takes the tree datasets and calculates mean and sd for the timing metric of interest. We also wrotea function to visualise the three plots as done for IS and IV above. Here, we first import these functions.
+To facilitate these calculations, we wrote a function (calculate_metric in the vis_metric_funs.R script) that takes the tree datasets and calculates mean and sd for the timing metric of interest. We also wrote a function to visualise the three plots as done for IS and IV above. Here, we first import these functions.
 
 ### Importing functions for metric calculation and viz
 ```{r}
 # Function to calculate metrics and visualise them - same R script
 base::source(here::here("03_analysis", "functions", "vis_metric_funs.R"))
 ```
-
-
 
 ### MLiT250 analysis
 ```{r}
@@ -858,6 +856,122 @@ p13 <- raw_vs_wrlg_vis + raw_vs_clusters_vis + delta_hist +
 p13
 
 ```
+### Mean comparison 
+We have already calculated the daily averages in the batch calculations. Now we want to calculate the average for each participant.
+```{r}
+# Raw dataset
+mean_raw <- batch_raw %>%
+  group_by(Id) %>%
+  summarise(mean_raw = mean(average_MEDI))
+
+# Wear log dataset
+mean_wrlg <- batch_wrlg %>%
+  group_by(Id) %>%
+  summarise(mean_wrlg = mean(average_MEDI))
+
+# Algorithm dataset
+mean_clusters <- batch_wrlg %>%
+  group_by(Id) %>%
+  summarise(mean_clusters=mean(average_MEDI))
+
+# Combining the dfs 
+temp <- full_join(mean_raw, mean_wrlg, by = "Id") #first, combine raw and wrlg data sets
+mean_all <- full_join(temp, mean_clusters, by = "Id") #second, add clusters data set
+
+# Calculating the delta
+mean_all <- mean_all %>%
+  mutate(delta_wrlg = mean_wrlg - mean_raw,
+         delta_clusters = mean_clusters - mean_raw)
+
+```
+
+### Visualising mean 
+```{r}
+# Raw vs clean (wrlg) scatterplot
+clean_wrlg <- ggpubr::ggscatter(data = mean_all,
+          x = "mean_raw",
+          y = "mean_wrlg",
+          color = "Id",
+          ggtheme = theme_bw(),
+          size = 1.5) +
+  geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
+  ggplot2::scale_x_continuous(
+    limits = c(0, 22),
+    breaks = c(5, 15), 
+    labels = c("5", "15")
+  ) +
+  scale_y_continuous(
+    limits = c(0, 22),
+    breaks = c(5, 15), 
+    labels = c("5", "15")
+  ) + 
+  labs(x = "Raw dataset", y = "Clean dataset (Wear log)") +
+  coord_fixed(ratio = 1) +
+  ggpubr::rremove("legend") +
+  theme(plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))
+
+# Raw vs clean (clusters) scatterplot
+clean_clusters <- ggpubr::ggscatter(data = mean_all,
+          x = "mean_raw",
+          y = "mean_clusters",
+          color = "Id",
+          ggtheme = theme_bw(),
+          size = 1.5) +
+   geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
+  ggplot2::scale_x_continuous(
+    limits = c(0, 22),
+    breaks = c(5, 15), 
+    labels = c("5", "15")
+  ) +
+  scale_y_continuous(
+    limits = c(0, 22),
+    breaks = c(5, 15), 
+    labels = c("5", "15")
+  ) + 
+  labs(x = "Raw dataset", y = "Clean dataset (algorithm)") +
+  coord_fixed(ratio = 1) +
+  ggpubr::rremove("legend") +
+  theme(plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))
+
+# Histogram of deltas
+## First, do some re-structuring
+# Turning df into long form to perform computations
+mean_all_long <- mean_all %>%
+  pivot_longer(cols = c(delta_wrlg, delta_clusters),
+                        names_to = "metric",
+                        values_to = "delta") 
+
+
+delta_hist <- ggplot(mean_all_long, aes(x = delta, fill = metric)) +
+  geom_histogram(position = "identity", alpha = 0.5, bins = 50) +
+  labs(x = "Delta", y = "Frequency") +
+  scale_fill_manual(
+    name = "Metric",
+    values = c("#0072B2", "#D55E00"),
+    labels = c("Algorithm dataset", "Wear log dataset")
+    ) +
+  scale_x_continuous(
+    limits= c(-3.7, 3.7),
+    breaks = c(-3.5, 0.00, 3.5),
+    labels = c("-3.5", "0", "3.5")) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5), 
+        aspect.ratio = 1,
+        plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))  
+ # ggpubr::rremove("legend")
+
+
+# Combining the plots
+## Make sure you have patchwork loaded in
+p14 <- clean_wrlg + clean_clusters + delta_hist + 
+  patchwork::plot_annotation("Average mEDI",
+  tag_levels = list(c("N1", "N2", "N3")),
+  theme = theme(plot.title = element_text(hjust = 0.5, size = 16),
+                plot.margin = unit(c(t=0.1,r=0.1,b=0.1,l=0.1), "cm")))
+
+p14
+
+```
 ### Combining this into one big multiplot
 ```{r}
 
@@ -866,7 +980,7 @@ plots1 <- ggpubr::ggarrange(p1,p2,p4, p5, p6, p7,
                    align = "v",
                    nrow = 6)
 
-plots2 <- ggpubr::ggarrange(p8, p9, p10, p11, p12, p13,
+plots2 <- ggpubr::ggarrange(p8, p9, p10, p11, p12, p13, p14,
                    align = "v",
                    nrow = 6)
 
