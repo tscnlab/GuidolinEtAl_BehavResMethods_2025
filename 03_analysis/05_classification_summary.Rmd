@@ -313,7 +313,7 @@ misclass_summary <- misclass_reasons_clean %>%
   #Adding a row with tot numbers
   janitor::adorn_totals(where = c("row"))
 
-# As expected and desired, this table has no visual_check instances and the number of reason = "algorithm limitation or bag actually not used" has increased by 4 compared to the table classification_summary
+# As expected and desired, this table has no visual_check instances 
 ```
 
 ## Compiling the reasons for misclassification in a table 
