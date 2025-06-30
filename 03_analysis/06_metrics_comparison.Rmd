@@ -318,7 +318,7 @@ p2
 - MLIT250, FLIT250, LLIT250
 -  FLIT10, LLIT10
 - TAT250, TAT1000
-- Average MEDI (for this, we use the log zero inflated approach proposed [here](https://tscnlab.github.io/LightLogR/articles/log.html))
+- 
 - M10 (mean of the brightest cotinuous period)
 ```{r}
 #Specifying coordinates (latitude/longitude)
@@ -860,7 +860,7 @@ p13
 
 ```
 ### Mean comparison 
-We have already calculated the daily averages in the batch calculations. Now we want to calculate the average for each participant.
+We calculate the average daily MEDI (for this, we use the log zero inflated approach proposed [here](https://tscnlab.github.io/LightLogR/articles/log.html)). The day iinformation is based on the given photoperiod of provided coordinates.
 ```{r}
 #specifying coordinates (latitude/longitude)
 coordinates <- c(48.521637, 9.057645)
@@ -869,23 +869,25 @@ coordinates <- c(48.521637, 9.057645)
 mean_raw <- raw_dataset_wdays %>%
   add_photoperiod(coordinates) %>%
   group_by(Id, photoperiod.state, .add=TRUE) %>%
-  summarise(mean_raw = exp_zero_inflated(mean(log_zero_inflated(MEDI), na.rm = TRUE)))
+  summarise(mean_raw = exp_zero_inflated(mean(log_zero_inflated(MEDI), na.rm = TRUE))) %>%
+  filter(photoperiod.state == "day") %>%
+  select(-photoperiod.state)
 
-mean_raw2 <- raw_dataset_wdays %>%
+# Wear log dataset
+mean_wrlg <- nw_wrlg_wdays %>%
   add_photoperiod(coordinates) %>%
   group_by(Id, photoperiod.state, .add=TRUE) %>%
-  summarise(mean_raw = mean((MEDI), na.rm = TRUE))
-
-exp_zero_inflated(mean(log_zero_inflated(MEDI), na.rm = TRUE))
-# Wear log dataset
-mean_wrlg <- batch_wrlg %>%
-  group_by(Id) %>%
-  summarise(mean_wrlg = mean(average_MEDI))
+  summarise(mean_wrlg = exp_zero_inflated(mean(log_zero_inflated(MEDI), na.rm = TRUE))) %>%
+  filter(photoperiod.state == "day") %>%
+  select(-photoperiod.state)
 
 # Algorithm dataset
-mean_clusters <- batch_clusters %>%
-  group_by(Id) %>%
-  summarise(mean_clusters=mean(average_MEDI))
+mean_clusters <- nw_clusters_wdays %>%
+  add_photoperiod(coordinates) %>%
+  group_by(Id, photoperiod.state, .add=TRUE) %>%
+  summarise(mean_clusters = exp_zero_inflated(mean(log_zero_inflated(MEDI), na.rm = TRUE))) %>%
+  filter(photoperiod.state == "day") %>%
+  select(-photoperiod.state)
 
 # Combining the dfs 
 temp <- full_join(mean_raw, mean_wrlg, by = "Id") #first, combine raw and wrlg data sets
@@ -923,7 +925,7 @@ clean_wrlg <- ggpubr::ggscatter(data = mean_all,
           size = 1.5) +
   geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
   ggplot2::scale_x_continuous(
-    limits = c(0, 21),
+    limits = c(1, 250),
     breaks = c(mean_all_min_raw, mean_all_mid_raw, mean_all_max_raw), 
     labels = c(
   as.character(round(mean_all_min_raw, 1)),
@@ -932,7 +934,7 @@ clean_wrlg <- ggpubr::ggscatter(data = mean_all,
                )
   )+
   scale_y_continuous(
-    limits = c(0, 21),
+    limits = c(1, 250),
     breaks = c(mean_all_min_wrlg, mean_all_mid_wrlg, mean_all_max_wrlg), 
     labels = c(
   as.character(round(mean_all_min_wrlg, 1)),
@@ -954,7 +956,7 @@ clean_clusters <- ggpubr::ggscatter(data = mean_all,
           size = 1.5) +
    geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
   ggplot2::scale_x_continuous(
-    limits = c(0, 21),
+    limits = c(1, 250),
     breaks = c(mean_all_min_raw, mean_all_mid_raw, mean_all_max_raw), 
     labels = c(
   as.character(round(mean_all_min_raw, 1)),
@@ -963,7 +965,7 @@ clean_clusters <- ggpubr::ggscatter(data = mean_all,
                )
   )+
    scale_y_continuous(
-    limits = c(0, 21),
+    limits = c(1, 250),
     breaks = c(mean_all_min_clusters, mean_all_mid_clusters, mean_all_max_clusters), 
     labels = c(
   as.character(round(mean_all_min_clusters, 1)),
@@ -994,9 +996,9 @@ delta_hist <- ggplot(mean_all_long, aes(x = delta, fill = metric)) +
     labels = c("Algorithm dataset", "Wear log dataset")
     ) +
   scale_x_continuous(
-    limits= c(-5, 5),
-    breaks = c(-5, 0.00, 5),
-    labels = c("-5", "0", "5")) +
+    limits= c(-78, 78),
+    breaks = c(-76, 0, 76),
+    labels = c("-76", "0", "76")) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5), 
         aspect.ratio = 1,
@@ -1007,7 +1009,7 @@ delta_hist <- ggplot(mean_all_long, aes(x = delta, fill = metric)) +
 # Combining the plots
 ## Make sure you have patchwork loaded in
 p14 <- clean_wrlg + clean_clusters + delta_hist + 
-  patchwork::plot_annotation("Average mEDI",
+  patchwork::plot_annotation("Average mEDI (daytime)",
   tag_levels = list(c("N1", "N2", "N3")),
   theme = theme(plot.title = element_text(hjust = 0.5, size = 16),
                 plot.margin = unit(c(t=0.1,r=0.1,b=0.1,l=0.1), "cm")))
@@ -1018,10 +1020,11 @@ p14
 # Calculating M10
 ```{r}
 # Raw dataset
-m10_raw <- batch_raw %>%
+m10_raw <- raw_dataset_wdays %>%
   group_by(Id) %>%
-  summarise(m10_raw = mean(brightest_10h_mean))
-
+  mutate(m10 = bright_dark_period(exp_zero_inflated(mean(log_zero_inflated(MEDI),
+                                                         Datetime, as.df = TRUE))))
+                                              
 # Wear log dataset
 m10_wrlg <- batch_wrlg %>%
   group_by(Id) %>%
@@ -1054,13 +1057,13 @@ clean_wrlg <- ggpubr::ggscatter(data = m10_all,
   geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
   ggplot2::scale_x_continuous(
     limits = c(50, 3700),
-    breaks = c(50, 3700), 
-    labels = c("50", "3700")
+    breaks = c(50, 1875, 3700), 
+    labels = c("50", "1875", "3700")
   ) +
   scale_y_continuous(
     limits = c(50, 3700),
-    breaks = c(50, 3700), 
-    labels = c("50", "3700")
+    breaks = c(50, 1875, 3700), 
+    labels = c("50", "1875", "3700")
   ) + 
   labs(x = "Raw dataset", y = "Clean dataset (Wear log)") +
   coord_fixed(ratio = 1) +
@@ -1077,13 +1080,13 @@ clean_clusters <- ggpubr::ggscatter(data = m10_all,
    geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
   ggplot2::scale_x_continuous(
     limits = c(50, 3700),
-    breaks = c(50, 3700), 
-    labels = c("50", "3700")
+    breaks = c(50, 1875, 3700), 
+    labels = c("50", "1875", "3700")
   ) +
   scale_y_continuous(
     limits = c(50, 3700),
-    breaks = c(50, 3700), 
-    labels = c("50", "3700")
+    breaks = c(50, 1875, 3700), 
+    labels = c("50", "1875", "3700")
   ) + 
   labs(x = "Raw dataset", y = "Clean dataset (algorithm)") +
   coord_fixed(ratio = 1) +
@@ -1128,8 +1131,6 @@ p15 <- clean_wrlg + clean_clusters + delta_hist +
 
 p15
 ```
-
-
 ### Combining this into one big multiplot
 ```{r}
 
