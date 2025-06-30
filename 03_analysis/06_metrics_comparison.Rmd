@@ -285,10 +285,6 @@ iv_all_long <- iv_all %>%
                         names_to = "metric",
                         values_to = "delta")
 
-  # Calculate x-axis limits to center around 0
-  max_abs_delta <- max(abs(iv_all_long$delta), na.rm = TRUE)
-  
-
 delta_hist <- ggplot(iv_all_long, aes(x = delta, fill = metric)) +
   geom_histogram(position = "identity", alpha = 0.5, bins = 50) +
   labs(x = "Delta", y = "Frequency") +
@@ -297,9 +293,9 @@ delta_hist <- ggplot(iv_all_long, aes(x = delta, fill = metric)) +
     values = c("#0072B2", "#D55E00"),
     labels = c("Algorithm dataset", "Wear log dataset")
     ) +
-  scale_x_continuous(breaks = c(-max_abs_delta, 0, max_abs_delta), # make sure x axis is centred around 0 
-                     limits = c(-max_abs_delta, max_abs_delta),
-                     labels = c("-1.0", "0", "1.0")) + # manually selecting labels
+  scale_x_continuous(breaks = c(-1.5, 0, 1.5), # make sure x axis is centred around 0 
+                     limits = c(-1.5, 1.5),
+                     labels = c("-1.5", "0", "1.5")) + # manually selecting labels
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5), 
         aspect.ratio = 1,
@@ -317,31 +313,32 @@ p2 <- clean_wrlg + clean_clusters + delta_hist +
 
 p2
 
-
-
 ```
 ### Calculating batch metrics for each participants on each day of the experimental week 
 - MLIT250, FLIT250, LLIT250
 -  FLIT10, LLIT10
 - TAT250, TAT1000
 - Average MEDI (for this, we use the log zero inflated approach proposed [here](https://tscnlab.github.io/LightLogR/articles/log.html))
-- Median
+- M10 (mean of the brightest cotinuous period)
 ```{r}
-batch_raw <- raw_dataset %>%
+#Specifying coordinates (latitude/longitude)
+coordinates <- c(48.521637, 9.057645)
+
+raw_dataset_wdays<- raw_dataset %>%
   LightLogR::add_Time_col() %>%
   mutate(wDay = wday(Datetime, label = TRUE, week_start = 1))
 
-batch_wrlg <- nw_wrlg %>%
+nw_wrlg_wdays <- nw_wrlg %>%
   LightLogR::add_Time_col() %>%
   mutate(wDay = wday(Datetime, label = TRUE, week_start = 1))
 
-batch_clusters <- nw_clusters %>%
+nw_clusters_wdays <- nw_clusters %>%
   LightLogR::add_Time_col() %>%
   mutate(wDay = wday(Datetime, label = TRUE, week_start = 1))
 
 # Batch metrics for raw dataset
 batch_raw <- 
-  batch_raw %>% 
+  raw_dataset_wdays %>% 
   group_by(Id, wDay) %>% 
   summarize(
     MLIT10 = #Note: This creates 1) mean timing above threshold, 2) first timing above threshold, 3) last timing above threshold
@@ -358,13 +355,15 @@ batch_raw <-
        exp_zero_inflated(mean(log_zero_inflated(MEDI), na.rm = TRUE)), #log transforming in base ten after adding a small number, then back transforming
     median_MEDI = 
       median(MEDI, na.rm = TRUE),
+    M10 =
+      bright_dark_period(MEDI, Datetime, na.rm = TRUE, as.df = TRUE),
     .groups = "drop_last"
     ) %>% 
   unnest(-Id)
 
 # Batch metrics for nw_wrlg dataset
 batch_wrlg <- 
-  batch_wrlg %>% 
+  nw_wrlg_wdays %>% 
   group_by(Id, wDay) %>% 
   summarize(
      MLIT10 =
@@ -381,13 +380,15 @@ batch_wrlg <-
        exp_zero_inflated(mean(log_zero_inflated(MEDI), na.rm = TRUE)),
     median_MEDI = 
       median(MEDI, na.rm = TRUE),
+    M10 =
+      bright_dark_period(MEDI, Datetime, na.rm = TRUE, as.df = TRUE),
     .groups = "drop_last"
     ) %>% 
   unnest(-Id)
 
 # Batch metrics for nw_clusters dataset
 batch_clusters <- 
-  batch_clusters %>% 
+  nw_clusters_wdays %>% 
   group_by(Id, wDay) %>% 
   summarize(
      MLIT10 = 
@@ -404,6 +405,8 @@ batch_clusters <-
        exp_zero_inflated(mean(log_zero_inflated(MEDI), na.rm = TRUE)),
     median_MEDI = 
       median(MEDI, na.rm = TRUE),
+    M10 =
+      bright_dark_period(MEDI, Datetime, na.rm = TRUE, as.df = TRUE),
     .groups = "drop_last"
     ) %>% 
   unnest(-Id)
@@ -859,18 +862,28 @@ p13
 ### Mean comparison 
 We have already calculated the daily averages in the batch calculations. Now we want to calculate the average for each participant.
 ```{r}
-# Raw dataset
-mean_raw <- batch_raw %>%
-  group_by(Id) %>%
-  summarise(mean_raw = mean(average_MEDI))
+#specifying coordinates (latitude/longitude)
+coordinates <- c(48.521637, 9.057645)
 
+# Raw dataset
+mean_raw <- raw_dataset_wdays %>%
+  add_photoperiod(coordinates) %>%
+  group_by(Id, photoperiod.state, .add=TRUE) %>%
+  summarise(mean_raw = exp_zero_inflated(mean(log_zero_inflated(MEDI), na.rm = TRUE)))
+
+mean_raw2 <- raw_dataset_wdays %>%
+  add_photoperiod(coordinates) %>%
+  group_by(Id, photoperiod.state, .add=TRUE) %>%
+  summarise(mean_raw = mean((MEDI), na.rm = TRUE))
+
+exp_zero_inflated(mean(log_zero_inflated(MEDI), na.rm = TRUE))
 # Wear log dataset
 mean_wrlg <- batch_wrlg %>%
   group_by(Id) %>%
   summarise(mean_wrlg = mean(average_MEDI))
 
 # Algorithm dataset
-mean_clusters <- batch_wrlg %>%
+mean_clusters <- batch_clusters %>%
   group_by(Id) %>%
   summarise(mean_clusters=mean(average_MEDI))
 
@@ -888,6 +901,20 @@ mean_all <- mean_all %>%
 ### Visualising mean 
 ```{r}
 # Raw vs clean (wrlg) scatterplot
+
+#Finding min max and mid values for plotting
+mean_all_min_raw <- min(mean_all$mean_raw)
+mean_all_min_wrlg <- min(mean_all$mean_wrlg)
+mean_all_min_clusters <- min(mean_all$mean_clusters)
+
+mean_all_max_raw <- max(mean_all$mean_raw)
+mean_all_max_wrlg <- max(mean_all$mean_wrlg)
+mean_all_max_clusters <- max(mean_all$mean_clusters)
+
+mean_all_mid_raw <- (mean_all_min_raw+mean_all_max_raw)/2
+mean_all_mid_wrlg <- (mean_all_min_wrlg+mean_all_max_wrlg)/2
+mean_all_mid_clusters <- (mean_all_min_clusters+mean_all_max_clusters)/2
+
 clean_wrlg <- ggpubr::ggscatter(data = mean_all,
           x = "mean_raw",
           y = "mean_wrlg",
@@ -896,15 +923,23 @@ clean_wrlg <- ggpubr::ggscatter(data = mean_all,
           size = 1.5) +
   geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
   ggplot2::scale_x_continuous(
-    limits = c(0, 22),
-    breaks = c(5, 15), 
-    labels = c("5", "15")
-  ) +
+    limits = c(0, 21),
+    breaks = c(mean_all_min_raw, mean_all_mid_raw, mean_all_max_raw), 
+    labels = c(
+  as.character(round(mean_all_min_raw, 1)),
+  as.character(round(mean_all_mid_raw, 1)),
+  as.character(round(mean_all_max_raw, 1))
+               )
+  )+
   scale_y_continuous(
-    limits = c(0, 22),
-    breaks = c(5, 15), 
-    labels = c("5", "15")
-  ) + 
+    limits = c(0, 21),
+    breaks = c(mean_all_min_wrlg, mean_all_mid_wrlg, mean_all_max_wrlg), 
+    labels = c(
+  as.character(round(mean_all_min_wrlg, 1)),
+  as.character(round(mean_all_mid_wrlg, 1)),
+  as.character(round(mean_all_max_wrlg, 1))
+               )
+  )+
   labs(x = "Raw dataset", y = "Clean dataset (Wear log)") +
   coord_fixed(ratio = 1) +
   ggpubr::rremove("legend") +
@@ -919,15 +954,23 @@ clean_clusters <- ggpubr::ggscatter(data = mean_all,
           size = 1.5) +
    geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
   ggplot2::scale_x_continuous(
-    limits = c(0, 22),
-    breaks = c(5, 15), 
-    labels = c("5", "15")
-  ) +
-  scale_y_continuous(
-    limits = c(0, 22),
-    breaks = c(5, 15), 
-    labels = c("5", "15")
-  ) + 
+    limits = c(0, 21),
+    breaks = c(mean_all_min_raw, mean_all_mid_raw, mean_all_max_raw), 
+    labels = c(
+  as.character(round(mean_all_min_raw, 1)),
+  as.character(round(mean_all_mid_raw, 1)),
+  as.character(round(mean_all_max_raw, 1))
+               )
+  )+
+   scale_y_continuous(
+    limits = c(0, 21),
+    breaks = c(mean_all_min_clusters, mean_all_mid_clusters, mean_all_max_clusters), 
+    labels = c(
+  as.character(round(mean_all_min_clusters, 1)),
+  as.character(round(mean_all_mid_clusters, 1)),
+  as.character(round(mean_all_max_clusters, 1))
+               )
+  )+
   labs(x = "Raw dataset", y = "Clean dataset (algorithm)") +
   coord_fixed(ratio = 1) +
   ggpubr::rremove("legend") +
@@ -951,14 +994,14 @@ delta_hist <- ggplot(mean_all_long, aes(x = delta, fill = metric)) +
     labels = c("Algorithm dataset", "Wear log dataset")
     ) +
   scale_x_continuous(
-    limits= c(-3.7, 3.7),
-    breaks = c(-3.5, 0.00, 3.5),
-    labels = c("-3.5", "0", "3.5")) +
+    limits= c(-5, 5),
+    breaks = c(-5, 0.00, 5),
+    labels = c("-5", "0", "5")) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5), 
         aspect.ratio = 1,
-        plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))  
- # ggpubr::rremove("legend")
+        plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm")) +
+  ggpubr::rremove("legend")
 
 
 # Combining the plots
@@ -972,17 +1015,132 @@ p14 <- clean_wrlg + clean_clusters + delta_hist +
 p14
 
 ```
+# Calculating M10
+```{r}
+# Raw dataset
+m10_raw <- batch_raw %>%
+  group_by(Id) %>%
+  summarise(m10_raw = mean(brightest_10h_mean))
+
+# Wear log dataset
+m10_wrlg <- batch_wrlg %>%
+  group_by(Id) %>%
+  summarise(m10_wrlg = mean(brightest_10h_mean))
+
+# Algorithm dataset
+m10_clusters <- batch_clusters %>%
+  group_by(Id) %>%
+  summarise(m10_clusters=mean(brightest_10h_mean))
+
+# Combining the dfs 
+temp <- full_join(m10_raw, m10_wrlg, by = "Id") #first, combine raw and wrlg data sets
+m10_all <- full_join(temp, m10_clusters, by = "Id") #second, add clusters data set
+
+# Calculating the delta
+m10_all <- m10_all %>%
+  mutate(delta_wrlg = m10_wrlg - m10_raw,
+         delta_clusters = m10_clusters - m10_raw)
+```
+
+# Visualising M10
+```{r}
+# Raw vs clean (wrlg) scatterplot
+clean_wrlg <- ggpubr::ggscatter(data = m10_all,
+          x = "m10_raw",
+          y = "m10_wrlg",
+          color = "Id",
+          ggtheme = theme_bw(),
+          size = 1.5) +
+  geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
+  ggplot2::scale_x_continuous(
+    limits = c(50, 3700),
+    breaks = c(50, 3700), 
+    labels = c("50", "3700")
+  ) +
+  scale_y_continuous(
+    limits = c(50, 3700),
+    breaks = c(50, 3700), 
+    labels = c("50", "3700")
+  ) + 
+  labs(x = "Raw dataset", y = "Clean dataset (Wear log)") +
+  coord_fixed(ratio = 1) +
+  ggpubr::rremove("legend") +
+  theme(plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))
+
+# Raw vs clean (clusters) scatterplot
+clean_clusters <- ggpubr::ggscatter(data = m10_all,
+          x = "m10_raw",
+          y = "m10_clusters",
+          color = "Id",
+          ggtheme = theme_bw(),
+          size = 1.5) +
+   geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
+  ggplot2::scale_x_continuous(
+    limits = c(50, 3700),
+    breaks = c(50, 3700), 
+    labels = c("50", "3700")
+  ) +
+  scale_y_continuous(
+    limits = c(50, 3700),
+    breaks = c(50, 3700), 
+    labels = c("50", "3700")
+  ) + 
+  labs(x = "Raw dataset", y = "Clean dataset (algorithm)") +
+  coord_fixed(ratio = 1) +
+  ggpubr::rremove("legend") +
+  theme(plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))
+
+# Histogram of deltas
+## First, do some re-structuring
+# Turning df into long form to perform computations
+m10_all_long <- m10_all %>%
+  pivot_longer(cols = c(delta_wrlg, delta_clusters),
+                        names_to = "metric",
+                        values_to = "delta") 
+
+
+delta_hist <- ggplot(m10_all_long, aes(x = delta, fill = metric)) +
+  geom_histogram(position = "identity", alpha = 0.5, bins = 50) +
+  labs(x = "Delta", y = "Frequency") +
+  scale_fill_manual(
+    name = "Metric",
+    values = c("#0072B2", "#D55E00"),
+    labels = c("Algorithm dataset", "Wear log dataset")
+    ) +
+  scale_x_continuous(
+    limits= c(-415, 415),
+    breaks = c(-415, 0.00, 415),
+    labels = c("-415", "0", "415")) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5), 
+        aspect.ratio = 1,
+        plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm")) +
+  ggpubr::rremove("legend")
+
+
+# Combining the plots
+## Make sure you have patchwork loaded in
+p15 <- clean_wrlg + clean_clusters + delta_hist + 
+  patchwork::plot_annotation("M10m",
+  tag_levels = list(c("O1", "O2", "O3")),
+  theme = theme(plot.title = element_text(hjust = 0.5, size = 16),
+                plot.margin = unit(c(t=0.1,r=0.1,b=0.1,l=0.1), "cm")))
+
+p15
+```
+
+
 ### Combining this into one big multiplot
 ```{r}
 
 # Create multiplots with the plots - we create two of them as one would not fit all 12 plots
-plots1 <- ggpubr::ggarrange(p1,p2,p4, p5, p6, p7,
+plots1 <- ggpubr::ggarrange(p1,p2,p4, p5, p6, p7, p8,
                    align = "v",
-                   nrow = 6)
+                   nrow = 7)
 
-plots2 <- ggpubr::ggarrange(p8, p9, p10, p11, p12, p13, p14,
+plots2 <- ggpubr::ggarrange(p9, p10, p11, p12, p13, p14, p15,
                    align = "v",
-                   nrow = 6)
+                   nrow = 7)
 
 ```
 
