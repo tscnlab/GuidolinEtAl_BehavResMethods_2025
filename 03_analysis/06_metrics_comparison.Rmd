@@ -318,6 +318,7 @@ p2
 - MLIT250, FLIT250, LLIT250
 -  FLIT10, LLIT10
 - TAT250, TAT1000
+- M10m 
 ```{r}
 raw_dataset_wdays<- raw_dataset %>%
   LightLogR::add_Time_col() %>%
@@ -837,7 +838,7 @@ p13
 
 ```
 ### Mean comparison 
-We calculate the average daily MEDI (for this, we use the log zero inflated approach proposed [here](https://tscnlab.github.io/LightLogR/articles/log.html)). The day iinformation is based on the given photoperiod of provided coordinates.
+We calculate the average daily MEDI (for this, we use the log zero inflated approach proposed [here](https://tscnlab.github.io/LightLogR/articles/log.html)). The day information is based on the given photoperiod of provided coordinates.
 ```{r}
 #specifying coordinates (latitude/longitude)
 coordinates <- c(48.521637, 9.057645)
@@ -997,51 +998,57 @@ p14
 # Calculating M10
 ```{r}
 # Raw dataset
-m10_raw <- raw_dataset_wdays %>%
+m10_raw_wday<- raw_dataset_wdays %>%
   group_by(Id, wDay) %>%
-  summarize(
-    brightest_10h_mean = exp_zero_inflated(
-      bright_dark_period(
-        log_zero_inflated(MEDI),
-        Datetime,
-        as.df = TRUE)$brightest_10h_mean),
-    .groups = "drop"
-  ) %>%
-  group_by(Id) %>%
-  summarize(
-    m10_raw = mean(brightest_10h_mean, na.rm = TRUE),
-    .groups = "drop"
+  summarize(bright_dark_period(log_zero_inflated(MEDI),
+                               Datetime,
+                               as.df = TRUE,
+                               na.rm = TRUE),
+            .groups = "drop"
   )
 
+# Calculate mean across days   
+m10_raw <- m10_raw_wday %>%
+  group_by(Id) %>%
+  mutate(brightest_10h_mean = exp_zero_inflated(brightest_10h_mean)) %>%
+  summarize(m10_raw = mean(brightest_10h_mean, na.rm = TRUE),
+            .groups = "drop")
+
+
 # Wear log dataset
-m10_wrlg <- nw_wrlg_wdays %>%
+m10_wrlg_wday <- nw_wrlg_wdays %>%
   group_by(Id, wDay) %>%
   summarize(
-    brightest_10h_mean = exp_zero_inflated(
-      bright_dark_period(
-        log_zero_inflated(MEDI),
-        Datetime,
-        as.df = TRUE)$brightest_10h_mean),
-    .groups = "drop"
-  ) %>%
+      bright_dark_period(log_zero_inflated(MEDI),
+                         Datetime,
+                         as.df = TRUE,
+                         na.rm = TRUE),
+      .groups = "drop"
+  )
+
+# Calculate mean across days
+m10_wrlg <- m10_wrlg_wday %>%
   group_by(Id) %>%
+  mutate(brightest_10h_mean = exp_zero_inflated(brightest_10h_mean)) %>%
   summarize(
     m10_wrlg = mean(brightest_10h_mean, na.rm = TRUE),
     .groups = "drop"
   )
 
 # Algorithm dataset
-m10_clusters <- nw_clusters_wdays %>%
+m10_clusters_wday <- nw_clusters_wdays %>%
   group_by(Id, wDay) %>%
-  summarize(
-    brightest_10h_mean = exp_zero_inflated(
-      bright_dark_period(
-        log_zero_inflated(MEDI),
-        Datetime,
-        as.df = TRUE)$brightest_10h_mean),
-    .groups = "drop"
-  ) %>%
+  summarize(bright_dark_period(log_zero_inflated(MEDI),
+                              Datetime,
+                              as.df = TRUE,
+                              na.rm = TRUE),
+            .groups = "drop"
+  )
+
+# Calculate mean across days
+m10_clusters <- m10_clusters_wday %>%
   group_by(Id) %>%
+  mutate(brightest_10h_mean = exp_zero_inflated(brightest_10h_mean)) %>%
   summarize(
     m10_clusters = mean(brightest_10h_mean, na.rm = TRUE),
     .groups = "drop"
@@ -1068,15 +1075,15 @@ clean_wrlg <- ggpubr::ggscatter(data = m10_all,
           size = 1.5) +
   geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
   ggplot2::scale_x_continuous(
-    limits = c(50, 3285),
-    breaks = c(50, 1667, 3285), 
-    labels = c("50", "1667", "3285")
+    limits = c(10, 690),
+    breaks = c(10, 450, 690), 
+    labels = c("10", "450", "690")
   ) +
   scale_y_continuous(
-    limits = c(50, 3285),
-    breaks = c(50, 1667, 3285), 
-    labels = c("50", "1667", "3285")
-  ) + 
+    limits = c(10, 690),
+    breaks = c(10, 450, 690), 
+    labels = c("10", "450", "690")
+  ) +
   labs(x = "Raw dataset", y = "Clean dataset (Wear log)") +
   coord_fixed(ratio = 1) +
   ggpubr::rremove("legend") +
@@ -1091,15 +1098,15 @@ clean_clusters <- ggpubr::ggscatter(data = m10_all,
           size = 1.5) +
    geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
   ggplot2::scale_x_continuous(
-    limits = c(50, 3285),
-    breaks = c(50, 1667, 3285), 
-    labels = c("50", "1667", "3285")
+    limits = c(10, 690),
+    breaks = c(10, 450, 690), 
+    labels = c("10", "450", "690")
   ) +
   scale_y_continuous(
-    limits = c(50, 3285),
-    breaks = c(50, 1667, 3285), 
-    labels = c("50", "1667", "3285")
-  ) + 
+    limits = c(10, 690),
+    breaks = c(10, 450, 690), 
+    labels = c("10", "450", "690")
+  ) +
   labs(x = "Raw dataset", y = "Clean dataset (algorithm)") +
   coord_fixed(ratio = 1) +
   ggpubr::rremove("legend") +
@@ -1123,9 +1130,9 @@ delta_hist <- ggplot(m10_all_long, aes(x = delta, fill = metric)) +
     labels = c("Algorithm dataset", "Wear log dataset")
     ) +
   scale_x_continuous(
-    limits= c(-1040, 1040),
-    breaks = c(-1040, 0.00, 1040),
-    labels = c("-1040", "0", "1040")) +
+    limits= c(-116, 116),
+    breaks = c(-116, 0, 116),
+    labels = c("-116", "0", "116")) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5), 
         aspect.ratio = 1,
