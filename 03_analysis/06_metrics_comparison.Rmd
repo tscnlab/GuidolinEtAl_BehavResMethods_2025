@@ -318,12 +318,7 @@ p2
 - MLIT250, FLIT250, LLIT250
 -  FLIT10, LLIT10
 - TAT250, TAT1000
-- 
-- M10 (mean of the brightest cotinuous period)
 ```{r}
-#Specifying coordinates (latitude/longitude)
-coordinates <- c(48.521637, 9.057645)
-
 raw_dataset_wdays<- raw_dataset %>%
   LightLogR::add_Time_col() %>%
   mutate(wDay = wday(Datetime, label = TRUE, week_start = 1))
@@ -351,12 +346,6 @@ batch_raw <-
       duration_above_threshold(MEDI, Time, threshold = 250, as.df = TRUE, na.rm = TRUE),
     TAT1000 = 
       duration_above_threshold(MEDI, Time, threshold = 1000, as.df = TRUE, na.rm = TRUE),
-    average_MEDI = 
-       exp_zero_inflated(mean(log_zero_inflated(MEDI), na.rm = TRUE)), #log transforming in base ten after adding a small number, then back transforming
-    median_MEDI = 
-      median(MEDI, na.rm = TRUE),
-    M10 =
-      bright_dark_period(MEDI, Datetime, na.rm = TRUE, as.df = TRUE),
     .groups = "drop_last"
     ) %>% 
   unnest(-Id)
@@ -376,12 +365,6 @@ batch_wrlg <-
       duration_above_threshold(MEDI, Time, threshold = 250, as.df = TRUE, na.rm = TRUE),
     TAT1000 = 
       duration_above_threshold(MEDI, Time, threshold = 1000, as.df = TRUE, na.rm = TRUE),
-    average_MEDI = 
-       exp_zero_inflated(mean(log_zero_inflated(MEDI), na.rm = TRUE)),
-    median_MEDI = 
-      median(MEDI, na.rm = TRUE),
-    M10 =
-      bright_dark_period(MEDI, Datetime, na.rm = TRUE, as.df = TRUE),
     .groups = "drop_last"
     ) %>% 
   unnest(-Id)
@@ -401,12 +384,6 @@ batch_clusters <-
       duration_above_threshold(MEDI, Time, threshold = 250, as.df = TRUE, na.rm = TRUE),
     TAT1000 = 
       duration_above_threshold(MEDI, Time, threshold = 1000, as.df = TRUE, na.rm = TRUE),
-    average_MEDI = 
-       exp_zero_inflated(mean(log_zero_inflated(MEDI), na.rm = TRUE)),
-    median_MEDI = 
-      median(MEDI, na.rm = TRUE),
-    M10 =
-      bright_dark_period(MEDI, Datetime, na.rm = TRUE, as.df = TRUE),
     .groups = "drop_last"
     ) %>% 
   unnest(-Id)
@@ -1021,19 +998,42 @@ p14
 ```{r}
 # Raw dataset
 m10_raw <- raw_dataset_wdays %>%
+  group_by(Id, wDay) %>%
+  summarize(
+    brightest_10h_mean = bright_dark_period(MEDI, Datetime, as.df = TRUE)$brightest_10h_mean,
+    .groups = "drop"
+  ) %>%
   group_by(Id) %>%
-  mutate(m10 = bright_dark_period(exp_zero_inflated(mean(log_zero_inflated(MEDI),
-                                                         Datetime, as.df = TRUE))))
-                                              
+  summarize(
+    m10_raw = mean(brightest_10h_mean, na.rm = TRUE),
+    .groups = "drop"
+  )
+
 # Wear log dataset
-m10_wrlg <- batch_wrlg %>%
+m10_wrlg <- nw_wrlg_wdays %>%
+  group_by(Id, wDay) %>%
+  summarize(
+    brightest_10h_mean = bright_dark_period(MEDI, Datetime, as.df = TRUE)$brightest_10h_mean,
+    .groups = "drop"
+  ) %>%
   group_by(Id) %>%
-  summarise(m10_wrlg = mean(brightest_10h_mean))
+  summarize(
+    m10_wrlg = mean(brightest_10h_mean, na.rm = TRUE),
+    .groups = "drop"
+  )
 
 # Algorithm dataset
-m10_clusters <- batch_clusters %>%
+m10_clusters <- nw_clusters_wdays %>%
+  group_by(Id, wDay) %>%
+  summarize(
+    brightest_10h_mean = bright_dark_period(MEDI, Datetime, as.df = TRUE)$brightest_10h_mean,
+    .groups = "drop"
+  ) %>%
   group_by(Id) %>%
-  summarise(m10_clusters=mean(brightest_10h_mean))
+  summarize(
+    m10_clusters = mean(brightest_10h_mean, na.rm = TRUE),
+    .groups = "drop"
+  )
 
 # Combining the dfs 
 temp <- full_join(m10_raw, m10_wrlg, by = "Id") #first, combine raw and wrlg data sets
@@ -1056,14 +1056,14 @@ clean_wrlg <- ggpubr::ggscatter(data = m10_all,
           size = 1.5) +
   geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
   ggplot2::scale_x_continuous(
-    limits = c(50, 3700),
-    breaks = c(50, 1875, 3700), 
-    labels = c("50", "1875", "3700")
+    limits = c(50, 3285),
+    breaks = c(50, 1667, 3285), 
+    labels = c("50", "1667", "3285")
   ) +
   scale_y_continuous(
-    limits = c(50, 3700),
-    breaks = c(50, 1875, 3700), 
-    labels = c("50", "1875", "3700")
+    limits = c(50, 3285),
+    breaks = c(50, 1667, 3285), 
+    labels = c("50", "1667", "3285")
   ) + 
   labs(x = "Raw dataset", y = "Clean dataset (Wear log)") +
   coord_fixed(ratio = 1) +
@@ -1079,14 +1079,14 @@ clean_clusters <- ggpubr::ggscatter(data = m10_all,
           size = 1.5) +
    geom_abline(intercept = 0, slope = 1, colour = "darkgrey", linetype = "dashed") + # adding unity line
   ggplot2::scale_x_continuous(
-    limits = c(50, 3700),
-    breaks = c(50, 1875, 3700), 
-    labels = c("50", "1875", "3700")
+    limits = c(50, 3285),
+    breaks = c(50, 1667, 3285), 
+    labels = c("50", "1667", "3285")
   ) +
   scale_y_continuous(
-    limits = c(50, 3700),
-    breaks = c(50, 1875, 3700), 
-    labels = c("50", "1875", "3700")
+    limits = c(50, 3285),
+    breaks = c(50, 1667, 3285), 
+    labels = c("50", "1667", "3285")
   ) + 
   labs(x = "Raw dataset", y = "Clean dataset (algorithm)") +
   coord_fixed(ratio = 1) +
@@ -1111,9 +1111,9 @@ delta_hist <- ggplot(m10_all_long, aes(x = delta, fill = metric)) +
     labels = c("Algorithm dataset", "Wear log dataset")
     ) +
   scale_x_continuous(
-    limits= c(-415, 415),
-    breaks = c(-415, 0.00, 415),
-    labels = c("-415", "0", "415")) +
+    limits= c(-1040, 1040),
+    breaks = c(-1040, 0.00, 1040),
+    labels = c("-1040", "0", "1040")) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5), 
         aspect.ratio = 1,
