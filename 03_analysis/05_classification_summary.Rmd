@@ -18,6 +18,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ### Importing function
 ```{r}
+# Fuction to identify clusters
+base::source(here::here("03_analysis", "functions", "find_clusters_fun.R"))
+
 # Function to visualise algorithm performance 
 base::source(here::here("03_analysis", "functions", "alg_perf_fun.R"))
 ```
