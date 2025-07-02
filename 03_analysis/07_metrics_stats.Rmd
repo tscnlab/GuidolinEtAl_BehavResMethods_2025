@@ -54,60 +54,105 @@ for (df in metrics_dfs) {
 
 ```
 
-### Performing the non-parametric Friedman test for the metrics
-#### First, we  create a function to perform the test for all metrics
+### Performing the non-parametric Friedman test for the metrics, and calculate pairwise comparisons (post-hoc tests) using Wilcoxon test 
+
+#### First, we  create a function to perform the two test for all metrics
 ```{r}
 # Friedman test
 ## First, we create a function for the metrics that have been calculated as average of 6 participation days
 ## These are: mlit250, mlit1000, llit10, llit250, llit1000, flit10, flit250, flit1000, tat1000, tat250, mean (daytime, M10m)
 
-friedman_test_perform <- function (df) {
+friedman_and_posthoc <- function(df, pval_threshold = 0.05) {
   
   # Get the name of the input df as a string
   df_name <- deparse(substitute(df))
   
-# Turning df into long form to perform computations
+  # Turn into long format
   df_long <- df %>%
-  select(Id, mean_raw, mean_wrlg, mean_clusters) %>%
-  pivot_longer(cols = c(mean_raw, mean_wrlg, mean_clusters),
-               names_to = "dataset",
-               values_to = "mean")
-  
-  # Turn mean column to numeric (seconds) for the duration and timing metrics
-  # for daytime average and M10m, it is already numeric
-  df_long <- df_long %>%
+    select(Id, mean_raw, mean_wrlg, mean_clusters) %>%
+    pivot_longer(cols = c(mean_raw, mean_wrlg, mean_clusters),
+                 names_to = "dataset",
+                 values_to = "mean") %>%
     mutate(mean = as.numeric(mean),
-    Id = as.factor(Id)
-    ) %>%
-    ungroup() # need to ungroup for the test to be performed correctly
+           Id = as.factor(Id)) %>%
+    ungroup()
   
-  # Performing friedman test
-  friedmantest <- df_long %>%
-    rstatix::friedman_test(mean ~ dataset | Id) 
+  # Friedman test and effect size (Kendall's W)
+  friedman <- df_long %>%
+    rstatix::friedman_test(mean ~ dataset | Id) %>%
+    mutate(
+      kendallsw = rstatix::friedman_effsize(df_long, mean ~ dataset | Id)$effsize,
+      metric = df_name
+    )
   
-  # Adding the effect size (Kendall's W)
-  kendalls_w <- df_long %>%
-    rstatix::friedman_effsize(mean ~ dataset | Id)
+  # Initialise empty posthoc variable
+  posthoc <- NULL
   
-  # Merging into only one df
-  friedmantest <- friedmantest %>%
-    mutate(kendallsw = kendalls_w$effsize) # added as new column
+  # Post-hoc only if friedman test is significant
+  if (friedman$p < pval_threshold) {
+    # Perform Wilcoxon pairwise comparisons
+    posthoc <- df_long %>%
+      rstatix::pairwise_wilcox_test(
+        mean ~ dataset,
+        paired = TRUE,
+        p.adjust.method = "fdr"
+      ) %>%
+      # Calculate the effect size for Wilcoxon test
+      mutate(
+        r = abs(statistic) / sqrt(length(unique(df_long$Id))),
+        metric = df_name # add metric name
+    )
+  } 
   
-  # Adding a column indicating which metric the test corresponds to
-  friedmantest$metric <- (df_name)
+  list(friedman = friedman, posthoc = posthoc)
+}
+
+# Helper function to combine results
+combine_friedman_posthoc <- function(results_list) {
   
-  return(friedmantest)
+  friedman_all <- purrr::map_dfr(results_list, "friedman")
+  posthoc_all <- purrr::map_dfr(results_list, "posthoc", .id = "metric_source")
   
-}    
+  list(friedman_all = friedman_all, posthoc_all = posthoc_all)
+}
 ```
 
+```{r}
+library(purrr)
+
+metrics_list <- list(
+  mlit250_all,
+  mlit1000_all,
+  llit10_all,
+  llit250_all,
+  llit1000_all,
+  flit10_all,
+  flit250_all,
+  flit1000_all,
+  tat1000_all,
+  tat250_all,
+  mean_all,
+  m10_all
+)
+
+results <- map(metrics_list, friedman_and_posthoc)
+
+combined <- combine_friedman_posthoc(results)
+
+# All Friedman test results together:
+combined$friedman_all
+
+# All Wilcoxon posthoc results together (only significant metrics):
+combined$posthoc_all
+
+```
 
 
 #### Applying the function to the metrics dfs
 ```{r}
 
 #MLiT250
-mlit250_friedman <- friedman_test_perform(mlit250_all)
+mlit250_friedman <- friedman_and_posthoc(mlit250_all)
 
 # MLiT1000
 mlit1000_friedman <- friedman_test_perform(mlit1000_all)
@@ -137,7 +182,7 @@ tat250_friedman <- friedman_test_perform(tat250_all)
 tat1000_friedman <- friedman_test_perform(tat1000_all)
 
 # Daily average
-mean_friedman <- friedman_test_perform(mean_all)
+mean_friedman <- friedman_and_posthoc(mean_all)
 
 #M10m
 m10_friedman <- friedman_test_perform(m10_all)
