@@ -1011,7 +1011,7 @@ m10_raw_wday<- raw_dataset_wdays %>%
 m10_raw <- m10_raw_wday %>%
   group_by(Id) %>%
   mutate(brightest_10h_mean = exp_zero_inflated(brightest_10h_mean)) %>%
-  summarize(m10_raw = mean(brightest_10h_mean, na.rm = TRUE),
+  summarize(mean_raw = mean(brightest_10h_mean, na.rm = TRUE),
             .groups = "drop")
 
 
@@ -1031,7 +1031,7 @@ m10_wrlg <- m10_wrlg_wday %>%
   group_by(Id) %>%
   mutate(brightest_10h_mean = exp_zero_inflated(brightest_10h_mean)) %>%
   summarize(
-    m10_wrlg = mean(brightest_10h_mean, na.rm = TRUE),
+    mean_wrlg = mean(brightest_10h_mean, na.rm = TRUE),
     .groups = "drop"
   )
 
@@ -1050,7 +1050,7 @@ m10_clusters <- m10_clusters_wday %>%
   group_by(Id) %>%
   mutate(brightest_10h_mean = exp_zero_inflated(brightest_10h_mean)) %>%
   summarize(
-    m10_clusters = mean(brightest_10h_mean, na.rm = TRUE),
+    mean_clusters = mean(brightest_10h_mean, na.rm = TRUE),
     .groups = "drop"
   )
 
@@ -1060,16 +1060,16 @@ m10_all <- full_join(temp, m10_clusters, by = "Id") #second, add clusters data s
 
 # Calculating the delta
 m10_all <- m10_all %>%
-  mutate(delta_wrlg = m10_wrlg - m10_raw,
-         delta_clusters = m10_clusters - m10_raw)
+  mutate(delta_wrlg = mean_wrlg - mean_raw,
+         delta_clusters = mean_clusters - mean_raw)
 ```
 
 # Visualising M10
 ```{r}
 # Raw vs clean (wrlg) scatterplot
 clean_wrlg <- ggpubr::ggscatter(data = m10_all,
-          x = "m10_raw",
-          y = "m10_wrlg",
+          x = "mean_raw",
+          y = "mean_wrlg",
           color = "Id",
           ggtheme = theme_bw(),
           size = 1.5) +
@@ -1091,8 +1091,8 @@ clean_wrlg <- ggpubr::ggscatter(data = m10_all,
 
 # Raw vs clean (clusters) scatterplot
 clean_clusters <- ggpubr::ggscatter(data = m10_all,
-          x = "m10_raw",
-          y = "m10_clusters",
+          x = "mean_raw",
+          y = "mean_clusters",
           color = "Id",
           ggtheme = theme_bw(),
           size = 1.5) +
