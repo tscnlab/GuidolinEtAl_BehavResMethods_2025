@@ -18,13 +18,14 @@ To calculate differences between metrics calculated in the script 06_metrics_com
 # Function to check normality
 base::source(here::here("03_analysis", "functions", "norm_check_funs.R"))
 
-library(afex)
 library(ggpubr)
 library(rstatix)
 ```
 
 ### Testing for normality of residuals 
 ```{r}
+options(scipen = 999) # avoid scientific notation 
+
 # Create list of data frames containing metric values
 metrics_dfs <- list(
   mlit250_all,
@@ -62,284 +63,168 @@ for (df in metrics_dfs) {
 ## First, we create a function for the metrics that have been calculated as average of 6 participation days
 ## These are: mlit250, mlit1000, llit10, llit250, llit1000, flit10, flit250, flit1000, tat1000, tat250, mean (daytime, M10m)
 
-friedman_and_posthoc <- function(df, pval_threshold = 0.05) {
+friedman_and_posthoc <- function(df, pval_threshold = 0.05, metric_name = NULL) {
   
   # Get the name of the input df as a string
-  df_name <- deparse(substitute(df))
+    if (is.null(metric_name)) {
+    metric_name <- deparse(substitute(df))  
+  }
   
   # Turn into long format
   df_long <- df %>%
-    select(Id, mean_raw, mean_wrlg, mean_clusters) %>%
-    pivot_longer(cols = c(mean_raw, mean_wrlg, mean_clusters),
-                 names_to = "dataset",
-                 values_to = "mean") %>%
-    mutate(mean = as.numeric(mean),
+ # Drop any delta cols and sd cols if they exist
+    select(-any_of(c("delta_wrlg", "delta_clusters", "sd_raw", "sd_wrlg", "sd_clusters"))) %>%
+    # Automatically select *_raw, *_wrlg, *_clusters
+    pivot_longer(
+      cols = matches("(_raw|_wrlg|_clusters)$"),
+      names_to = "dataset",
+      values_to = "value"
+    ) %>%
+    mutate(value = as.numeric(value),
            Id = as.factor(Id)) %>%
     ungroup()
   
+  summary(df_long$value)
+  
   # Friedman test and effect size (Kendall's W)
   friedman <- df_long %>%
-    rstatix::friedman_test(mean ~ dataset | Id) %>%
+    rstatix::friedman_test(value ~ dataset | Id) %>%
     mutate(
-      kendallsw = rstatix::friedman_effsize(df_long, mean ~ dataset | Id)$effsize,
-      metric = df_name
+      kendallsw = rstatix::friedman_effsize(df_long, value ~ dataset | Id)$effsize,
+      metric = metric_name
     )
-  
-  # Initialise empty posthoc variable
-  posthoc <- NULL
   
   # Post-hoc only if friedman test is significant
   if (friedman$p < pval_threshold) {
     # Perform Wilcoxon pairwise comparisons
     posthoc <- df_long %>%
       rstatix::pairwise_wilcox_test(
-        mean ~ dataset,
+        value ~ dataset,
         paired = TRUE,
         p.adjust.method = "fdr"
       ) %>%
       # Calculate the effect size for Wilcoxon test
       mutate(
         r = abs(statistic) / sqrt(length(unique(df_long$Id))),
-        metric = df_name # add metric name
+        metric = metric_name # add metric name
     )
   } 
+  else {
+  posthoc <- NULL
+  }
   
-  list(friedman = friedman, posthoc = posthoc)
+return(list(
+    friedman = friedman,
+    posthoc = posthoc
+  ))
+  
 }
 
-# Helper function to combine results
-combine_friedman_posthoc <- function(results_list) {
+```
+
+### Function to perform equivalence testing
+```{r}
+perform_equivalence_tests <- function(df, metric_name = NULL, pval_threshold = 0.05, equiv_bound = 0.5) {
   
-  friedman_all <- purrr::map_dfr(results_list, "friedman")
-  posthoc_all <- purrr::map_dfr(results_list, "posthoc", .id = "metric_source")
+  if (is.null(metric_name)) {
+    metric_name <- deparse(substitute(df))
+  }
   
-  list(friedman_all = friedman_all, posthoc_all = posthoc_all)
+  df_long <- df %>%
+    # Drop any delta cols and sd cols if they exist
+    select(-any_of(c("delta_wrlg", "delta_clusters", "sd_raw", "sd_wrlg", "sd_clusters"))) %>%
+    pivot_longer(
+      cols = matches("(_raw|_wrlg|_clusters)$"),
+      names_to = "dataset",
+      values_to = "value"
+    ) %>%
+    mutate(value = as.numeric(value),
+           Id = as.factor(Id)) %>%
+    ungroup()
+  
+  datasets <- unique(df_long$dataset)
+  ids <- unique(df_long$Id)
+  
+  equivalence_results <- list()
+  
+  combs <- combn(datasets, 2)
+  
+  for (i in seq_len(ncol(combs))) {
+    d1 <- combs[1, i]
+    d2 <- combs[2, i]
+    
+    vals1 <- df_long %>% filter(dataset == d1) %>% arrange(Id) %>% pull(value)
+    vals2 <- df_long %>% filter(dataset == d2) %>% arrange(Id) %>% pull(value)
+    
+    tost_res <- TOSTER::tsum_TOST(
+      n = n,
+      mean = mean_diff,
+      sd = sd_diff,
+      low_eqbound = low_eqbound,
+      high_eqbound = high_eqbound,
+      alpha = pval_threshold,
+      var.equal = TRUE,
+      verbose = FALSE
+    )
+    
+    equivalence_results[[paste0(d1, "_vs_", d2)]] <- data.frame(
+      comparison = paste(d1, "vs", d2),
+      TOST_p_lower = tost_res$TOST$p.value[1],
+      TOST_p_upper = tost_res$TOST$p.value[2],
+      TOST_significant = all(tost_res$TOST$p.value < pval_threshold),
+      metric = metric_name
+    )
+  }
+  
+  do.call(rbind, equivalence_results)
 }
 ```
 
+
+### Apply function to all metrics dfs
 ```{r}
 library(purrr)
 
 metrics_list <- list(
-  mlit250_all,
-  mlit1000_all,
-  llit10_all,
-  llit250_all,
-  llit1000_all,
-  flit10_all,
-  flit250_all,
-  flit1000_all,
-  tat1000_all,
-  tat250_all,
-  mean_all,
-  m10_all
+  mlit250_all = mlit250_all,
+  mlit1000_all = mlit1000_all,
+  llit10_all = llit10_all,
+  llit250_all = llit250_all,
+  llit1000_all = llit1000_all,
+  flit10_all = flit10_all,
+  flit250_all = flit250_all,
+  flit1000_all = flit1000_all,
+  tat1000_all = tat1000_all,
+  tat250_all = tat250_all,
+  mean_all = mean_all,
+  m10_all = m10_all,
+  iv_all = iv_all,
+  is_all = is_all
 )
 
-results <- map(metrics_list, friedman_and_posthoc)
-
-combined <- combine_friedman_posthoc(results)
-
-# All Friedman test results together:
-combined$friedman_all
-
-# All Wilcoxon posthoc results together (only significant metrics):
-combined$posthoc_all
-
-```
-
-
-#### Applying the function to the metrics dfs
-```{r}
-
-#MLiT250
-mlit250_friedman <- friedman_and_posthoc(mlit250_all)
-
-# MLiT1000
-mlit1000_friedman <- friedman_test_perform(mlit1000_all)
-
-# FLitT 10
-flit10_friedman <- friedman_test_perform(flit10_all)
-
-#FLitT250
-flit250_friedman <- friedman_test_perform(flit250_all)
-
-#FLiT1000
-flit1000_friedman <- friedman_test_perform(flit1000_all)
-
-# LLitT 10
-llit10_friedman <- friedman_test_perform(llit10_all)
-
-# LLitT 250
-llit250_friedman <- friedman_test_perform(llit250_all)
-
-# LLitT 1000
-llit1000_friedman <- friedman_test_perform(llit1000_all)
-
-# TAT 250
-tat250_friedman <- friedman_test_perform(tat250_all)
-
-# TAT 1000
-tat1000_friedman <- friedman_test_perform(tat1000_all)
-
-# Daily average
-mean_friedman <- friedman_and_posthoc(mean_all)
-
-#M10m
-m10_friedman <- friedman_test_perform(m10_all)
-
-
-```
-
-### Peform Friedman test on remaining metrics (IV and IS)
-```{r}
-# Turning into long format
-
-# IV
-iv_means_long <- iv_all %>%
-  pivot_longer(cols = c(IV_raw, IV_wrlg, IV_clusters),
-               names_to = "dataset",
-               values_to = "mean") %>%
-  select(-c(delta_wrlg, delta_clusters)) %>%
-  mutate(mean = as.numeric(mean),
-         Id = as.factor(Id))
-
-# IS
-is_means_long <- is_all %>%
-  pivot_longer(cols = c(IS_raw, IS_wrlg, IS_clusters),
-               names_to = "dataset",
-               values_to = "mean") %>%
-  select(-c(delta_wrlg, delta_clusters))  %>%
-  mutate(mean = as.numeric(mean),
-         Id = as.factor(Id))
-
-
-# Performing test
-
-# IV
-iv_friedman <- iv_means_long %>%
-    rstatix::friedman_test(mean ~ dataset | Id) %>%
-    mutate(metric = "iv") 
-
-iv_kendallsw <- iv_means_long %>%
-  rstatix::friedman_effsize(mean ~ dataset | Id) 
-
-iv_friedman <- iv_friedman %>%
-  mutate(
-    kendallsw = iv_kendallsw$effsize
-  )
-
-# IS
-is_friedman <- is_means_long %>%
-    rstatix::friedman_test(mean ~ dataset | Id) %>%
-    mutate(metric = "is") 
-
-is_kendallsw <- is_means_long %>%
-  rstatix::friedman_effsize(mean ~ dataset | Id) 
-
-is_friedman <- is_friedman %>%
-  mutate(
-    kendallsw = is_kendallsw$effsize
-  )
-
-
-
-#Combining all dfs into one
-friedmantest_all <- dplyr::bind_rows(mlit250_friedman,
-                              mlit1000_friedman,
-                              flit10_friedman,
-                              flit250_friedman,
-                              flit1000_friedman,
-                              llit10_friedman,
-                              llit250_friedman,
-                              llit1000_friedman,
-                              tat250_friedman,
-                              tat1000_friedman,
-                              mean_friedman,
-                              m10_friedman,
-                              iv_friedman,
-                              is_friedman)
-```
-
-### Post-hoc pairwise comparisons
-
-Identify which metrics have significant p values
-```{r}
-# Identify which metrics have significant Friedman p-values
-significant_metrics <- friedmantest_all %>%
-  filter(p < 0.05) %>%
-  pull(metric)
-
-print(significant_metrics)
-
-```
-Create function to perform post-hoc tests
-```{r}
-wilcoxon_posthoc <- function (df) {
+results <- lapply(names(metrics_list), function(nm) {
+  fried_res <- friedman_and_posthoc(metrics_list[[nm]], nm, 0.05)
   
-  # Get the name of the input df as a string
-  df_name <- deparse(substitute(df))
+  if (fried_res$friedman$p >= 0.05) {
+    equiv_res <- perform_equivalence_tests(metrics_list[[nm]], nm, 0.05, 0.5)
+  } else {
+    equiv_res <- NULL
+  }
   
-# Turning df into long form to perform computations
-  df_long <- df %>%
-  select(Id, mean_raw, mean_wrlg, mean_clusters) %>%
-  pivot_longer(cols = c(mean_raw, mean_wrlg, mean_clusters),
-               names_to = "dataset",
-               values_to = "mean")
-  
-  # Turn mean column to numeric (seconds) for the duration and timing metrics
-  # for daytime average and M10m, it is already numeric
-  df_long <- df_long %>%
-    mutate(mean = as.numeric(mean),
-    Id = as.factor(Id)
-    ) %>%
-    ungroup() # need to ungroup for the test to be performed correctly
-  
-  # Pairwise Wilcoxon signed-rank test
-  posthoc <- df_long %>%
-    rstatix::pairwise_wilcox_test(
-      mean ~ dataset,
-      paired = TRUE,
-      p.adjust.method = "fdr"
-    )
-  
-  posthoc <- posthoc %>%
-    mutate(metric = metric_name)
-  
-  return(posthoc)
-}
-
-```
-
-Apply to each metric that had a significant result
-```{r}
-# Update metrics_dfs to include iv and is
-metric_dfs <- list(
-  mlit250 = mlit250_all,
-  mlit1000 = mlit1000_all,
-  flit10 = flit10_all,
-  flit250 = flit250_all,
-  flit1000 = flit1000_all,
-  llit10 = llit10_all,
-  llit250 = llit250_all,
-  llit1000 = llit1000_all,
-  tat250 = tat250_all,
-  tat1000 = tat1000_all,
-  mean = mean_all,
-  m10 = m10_all,
-  iv = iv_all,
-  is = is_all
-)
-
-# Run post-hoc for significant ones
-posthoc_results <- purrr::map_dfr(significant_metrics, function(metric) {
-  df <- metric_dfs[[metric]]
-  wilcoxon_posthoc(df, metric)
+  list(friedman = fried_res, equivalence = equiv_res)
 })
 
-# View results
-posthoc_results
+# Save results in dfs
+friedman_all <- purrr::map_dfr(results_list, "friedman")
+posthoc_all  <- purrr::map_dfr(results_list, "posthoc") 
+```
+
+### Should we adjust also across metrics (the p value)?
+```{r}
 
 ```
+
+
 
 
 ```{r}
