@@ -103,9 +103,8 @@ friedman_and_posthoc <- function(df, pval_threshold = 0.05, metric_name = NULL) 
         paired = TRUE,
         p.adjust.method = "fdr"
       ) %>%
-      # Calculate the effect size for Wilcoxon test
+      # Add metric name
       mutate(
-        r = abs(statistic) / sqrt(length(unique(df_long$Id))),
         metric = metric_name # add metric name
     )
   } 
@@ -181,7 +180,7 @@ perform_equivalence_tests <- function(df, metric_name = NULL, pval_threshold = 0
 ```
 
 
-### Apply function to all metrics dfs
+### Apply Friedman testing function to all metrics dfs
 ```{r}
 library(purrr)
 
@@ -203,20 +202,13 @@ metrics_list <- list(
 )
 
 results <- lapply(names(metrics_list), function(nm) {
-  fried_res <- friedman_and_posthoc(metrics_list[[nm]], nm, 0.05)
-  
-  if (fried_res$friedman$p >= 0.05) {
-    equiv_res <- perform_equivalence_tests(metrics_list[[nm]], nm, 0.05, 0.5)
-  } else {
-    equiv_res <- NULL
-  }
-  
-  list(friedman = fried_res, equivalence = equiv_res)
+  fried_res <- friedman_and_posthoc(metrics_list[[nm]], 0.05, nm)
+  return(fried_res)
 })
 
 # Save results in dfs
-friedman_all <- purrr::map_dfr(results_list, "friedman")
-posthoc_all  <- purrr::map_dfr(results_list, "posthoc") 
+friedman_all <- purrr::map_dfr(results, "friedman")
+posthoc_all  <- purrr::map_dfr(results, "posthoc") 
 ```
 
 ### Should we adjust also across metrics (the p value)?
