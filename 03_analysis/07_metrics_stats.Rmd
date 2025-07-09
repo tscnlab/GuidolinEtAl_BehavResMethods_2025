@@ -10,10 +10,13 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # Aim
+
 To calculate differences between metrics calculated in the script 06_metrics_comparison.Rmd. Specifically, we will be using a t-test to do this.
 
 ## Let's first check the normality of our data
+
 ### Import the norm_check functions before running this as well as necessary packages
+
 ```{r}
 # Function to check normality
 base::source(here::here("03_analysis", "functions", "norm_check_funs.R"))
@@ -22,7 +25,8 @@ library(ggpubr)
 library(rstatix)
 ```
 
-### Testing for normality of residuals 
+### Testing for normality of residuals
+
 ```{r}
 options(scipen = 999) # avoid scientific notation 
 set.seed(20250709)
@@ -58,9 +62,10 @@ for (i in seq_along(light_metrics_list)) {
 
 ```
 
-### Performing the non-parametric Friedman test for the metrics, and calculate pairwise comparisons (post-hoc tests) using Wilcoxon test 
+### Performing the non-parametric Friedman test for the metrics, and calculate pairwise comparisons (post-hoc tests) using Wilcoxon test
 
-#### First, we  create a function to perform the two test for all metrics
+#### First, we create a function to perform the two test for all metrics
+
 ```{r}
 # Friedman test
 ## First, we create a function for the metrics that have been calculated as average of 6 participation days
@@ -125,6 +130,7 @@ return(list(
 ```
 
 ### Apply Friedman testing function to all metrics dfs
+
 ```{r}
 library(purrr)
 
@@ -155,10 +161,12 @@ friedman_all <- purrr::map_dfr(results, "friedman")
 posthoc_all  <- purrr::map_dfr(results, "posthoc") 
 ```
 
-### Performing equivalence testing 
+### Performing equivalence testing
+
 The main idea of performing equivalence testing here is to compare the metrics across datasets and identify whether the difference is small enough to treat the three datasets as practically the same. We perform equivalence testing using bootstrapping. Bootstrapping is a way to get an empirical distribution of possible effect sizes (as if we repeated the study many times), i.e. estimating the sampling distribution of our effect size. So put simply, bootstrapping gives us a way to answer: How consistent (robust) is my evidence that this difference is small enough to be ignorable?
 
-### Applying bootstrap eq testing 
+### Applying bootstrap eq testing
+
 ```{r}
 run_bootstrap_equiv_test <- function(metric_name, group1, group2, metrics_list,
                                      n_bootstraps = 10^4, SESOI = 0.2, alpha = 0.05) {
@@ -241,6 +249,7 @@ run_bootstrap_equiv_test <- function(metric_name, group1, group2, metrics_list,
 ```
 
 ## Try out on one metric only
+
 ```{r}
 # Pick random metric manually 
 metric_name <- "tat1000_all"
@@ -252,6 +261,7 @@ result_single <- run_bootstrap_equiv_test(metric_name, group1, group2, metrics_l
 ```
 
 ## Try out on all pairwise combinations from the post-hoc tests
+
 ```{r}
 # Example: join equivalence to your post-hoc results
 equiv_results <- posthoc_all %>%
@@ -263,8 +273,6 @@ equiv_results <- posthoc_all %>%
   tidyr::unnest(equiv_result)
 
 ```
-
-
 
 ```{r}
 # Apply multiple corrections
@@ -281,6 +289,7 @@ ttest_final <- ttest_final %>%
 ```
 
 ## Turning this into a gt table
+
 ```{r}
 ttest_table <- ttest_final %>%
   select(-c(.y., p.signif)) %>% #we do not need this col in the final summary
@@ -302,7 +311,9 @@ ttest_table <- ttest_final %>%
                 
   
 ```
+
 ### Saving this gt object
+
 ```{r}
 # Load chromote, needed to save using g
 library(chromote)
@@ -322,8 +333,8 @@ gt::gtsave(ttest_table,
            vheight = 800)
 ```
 
-
 ## Calculating mean and sd of all timing functions in order to report result of the t-test
+
 ```{r}
 # Define a function that calculates the mean of each id metric
 ## Note that this function uses the function style_time, which is already imported in metrics_comparison.Rmd from the file vis_metrics_funs.R
@@ -383,6 +394,7 @@ means_metrics_df <- bind_rows(means_metric_list)
 ```
 
 ## Calculating mean and sd of is and iv
+
 ```{r}
 is_means <- is_all %>%
     summarise(
@@ -409,7 +421,9 @@ iv_means <- iv_all %>%
 ```
 
 ## Now we would like to have a single table for all metrics.
+
 The issue with this is that bind_rows() will not merge cols that are of different data types (hms and numeric, in our case). Hence, we first convert everything to character, and then combine. We can do this since we are creating this table for display only, and not for any calculations.
+
 ```{r}
 # Convert means_metrics_df cols to character
 means_metrics_df <- means_metrics_df %>%
@@ -434,6 +448,7 @@ means_dfs <- means_dfs %>%
 ```
 
 ### Create gt table for this dataframe
+
 ```{r}
 means_table <- means_dfs %>%
   gt::gt() %>%
@@ -464,8 +479,8 @@ gt::gtsave(means_table,
 ```
 
 ## Calculating the unstandardised effect size for the significant result, as we need to report this in the paper
+
 ```{r}
 tat250_unst_effsize <- tat250_all %>%
   summarise(mean = mean(delta_clusters))
 ```
-
