@@ -25,30 +25,33 @@ library(rstatix)
 ### Testing for normality of residuals 
 ```{r}
 options(scipen = 999) # avoid scientific notation 
+set.seed(20250709)
 
 # Create list of data frames containing metric values
-metrics_dfs <- list(
-  mlit250_all,
-  mlit1000_all,
-  llit10_all,
-  llit250_all,
-  llit1000_all,
-  flit10_all,
-  flit250_all,
-  flit1000_all,
-  tat1000_all,
-  tat250_all,
-  mean_all,
-  m10_all
+light_metrics_list <- list(
+  mlit250_all = mlit250_all,
+  mlit1000_all = mlit1000_all,
+  llit10_all = llit10_all,
+  llit250_all = llit250_all,
+  llit1000_all = llit1000_all,
+  flit10_all = flit10_all,
+  flit250_all = flit250_all,
+  flit1000_all = flit1000_all,
+  tat1000_all = tat1000_all,
+  tat250_all = tat250_all,
+  mean_all = mean_all,
+  m10_all = m10_all,
+  iv_all = iv_all,
+  is_all = is_all
 )
 
 # Visualise normality of the means for each df
-
-for (df in metrics_dfs) {
-
-    print(norm_check_means(df))
-  
+for (i in seq_along(light_metrics_list)) {
+  df <- light_metrics_list[[i]]
+  df_name <- names(light_metrics_list)[i]
+  print(norm_check_means(df, df_name = df_name))
 }
+
 
 ## The distribution does not look normal, and for several metrics the Shapiro Wilk test also returns significant results
 ## Hence, non-parametric alternative is needed
@@ -121,65 +124,6 @@ return(list(
 
 ```
 
-### Function to perform equivalence testing
-```{r}
-perform_equivalence_tests <- function(df, metric_name = NULL, pval_threshold = 0.05, equiv_bound = 0.5) {
-  
-  if (is.null(metric_name)) {
-    metric_name <- deparse(substitute(df))
-  }
-  
-  df_long <- df %>%
-    # Drop any delta cols and sd cols if they exist
-    select(-any_of(c("delta_wrlg", "delta_clusters", "sd_raw", "sd_wrlg", "sd_clusters"))) %>%
-    pivot_longer(
-      cols = matches("(_raw|_wrlg|_clusters)$"),
-      names_to = "dataset",
-      values_to = "value"
-    ) %>%
-    mutate(value = as.numeric(value),
-           Id = as.factor(Id)) %>%
-    ungroup()
-  
-  datasets <- unique(df_long$dataset)
-  ids <- unique(df_long$Id)
-  
-  equivalence_results <- list()
-  
-  combs <- combn(datasets, 2)
-  
-  for (i in seq_len(ncol(combs))) {
-    d1 <- combs[1, i]
-    d2 <- combs[2, i]
-    
-    vals1 <- df_long %>% filter(dataset == d1) %>% arrange(Id) %>% pull(value)
-    vals2 <- df_long %>% filter(dataset == d2) %>% arrange(Id) %>% pull(value)
-    
-    tost_res <- TOSTER::tsum_TOST(
-      n = n,
-      mean = mean_diff,
-      sd = sd_diff,
-      low_eqbound = low_eqbound,
-      high_eqbound = high_eqbound,
-      alpha = pval_threshold,
-      var.equal = TRUE,
-      verbose = FALSE
-    )
-    
-    equivalence_results[[paste0(d1, "_vs_", d2)]] <- data.frame(
-      comparison = paste(d1, "vs", d2),
-      TOST_p_lower = tost_res$TOST$p.value[1],
-      TOST_p_upper = tost_res$TOST$p.value[2],
-      TOST_significant = all(tost_res$TOST$p.value < pval_threshold),
-      metric = metric_name
-    )
-  }
-  
-  do.call(rbind, equivalence_results)
-}
-```
-
-
 ### Apply Friedman testing function to all metrics dfs
 ```{r}
 library(purrr)
@@ -211,11 +155,114 @@ friedman_all <- purrr::map_dfr(results, "friedman")
 posthoc_all  <- purrr::map_dfr(results, "posthoc") 
 ```
 
-### Should we adjust also across metrics (the p value)?
+### Performing equivalence testing 
+The main idea of performing equivalence testing here is to compare the metrics across datasets and identify whether the difference is small enough to treat the three datasets as practically the same. We perform equivalence testing using bootstrapping. Bootstrapping is a way to get an empirical distribution of possible effect sizes (as if we repeated the study many times), i.e. estimating the sampling distribution of our effect size. So put simply, bootstrapping gives us a way to answer: How consistent (robust) is my evidence that this difference is small enough to be ignorable?
+
+### Applying bootstrap eq testing 
 ```{r}
+run_bootstrap_equiv_test <- function(metric_name, group1, group2, metrics_list,
+                                     n_bootstraps = 10^4, SESOI = 0.2, alpha = 0.05) {
+  
+  # Pull the original data
+  df <- metrics_list[[metric_name]]
+  if (is.null(df)) stop(paste0("Metric '", metric_name, "' not found!"))
+  
+  # Add 'mean_' prefix if needed (is and iv)
+  special_metrics <- c("iv_all", "is_all")  # these don't have mean_* cols
+  if (!(metric_name %in% special_metrics)) {
+    if (!(group1 %in% names(df))) group1 <- paste0("mean_", group1)
+    if (!(group2 %in% names(df))) group2 <- paste0("mean_", group2)
+  }
+  
+  data1 <- as.numeric(df[[group1]])
+  data2 <- as.numeric(df[[group2]])
+  
+  # Checking if cols are correctl identified 
+  if (any(is.null(c(data1, data2)))) {
+    return(tibble::tibble(
+      error = paste0("Group columns not found: ", group1, ", ", group2),
+      cohens_d = NA_real_,
+      lower_CI = NA_real_,
+      upper_CI = NA_real_,
+      is_equivalent = NA,
+      prop_inside_SESOI = NA_real_
+    ))
+  }
+  
+  # Check for missing pairs
+  missing_pairs <- sum(is.na(data1) | is.na(data2))
+  total_pairs <- length(data1)
+  
+  if (missing_pairs > 0) {
+    return(tibble::tibble(
+      error = paste0("Data contains ", missing_pairs, " missing pairs out of ", total_pairs),
+      cohens_d = NA_real_,
+      lower_CI = NA_real_,
+      upper_CI = NA_real_,
+      is_equivalent = NA,
+      prop_inside_SESOI = NA_real_
+    ))
+  }
+  
+  # Calculate effect size and bootstraps
+  effect.size <- effectsize::cohens_d(data1, data2)$Cohens_d
+  bootstraps <- bootstrap_differences(n_bootstraps, data1, data2)
+  
+  # Filtering non-NA bootstraps 
+  bootstraps <- bootstraps[!is.na(bootstraps)]
+  
+  if (length(bootstraps) == 0) {
+    return(tibble::tibble(
+      error = "All bootstrap samples are NA",
+      cohens_d = effect.size,
+      lower_CI = NA_real_,
+      upper_CI = NA_real_,
+      is_equivalent = NA,
+      prop_inside_SESOI = NA_real_
+    ))
+  }
+  
+  # Calculating confidence intervals 
+  ci <- quantile(bootstraps, probs = c(alpha, 1 - alpha), na.rm = TRUE)
+  is_equiv <- (ci[1] > -SESOI) && (ci[2] < SESOI)
+  prop_inside <- mean(bootstraps > -SESOI & bootstraps < SESOI, na.rm = TRUE)
+  
+  tibble::tibble(
+    cohens_d = effect.size,
+    lower_CI = ci[1],
+    upper_CI = ci[2],
+    is_equivalent = is_equiv,
+    prop_inside_SESOI = prop_inside
+  )
+}
+
+
 
 ```
 
+## Try out on one metric only
+```{r}
+# Pick random metric manually 
+metric_name <- "tat1000_all"
+group1 <- "mean_clusters"
+group2 <- "mean_wrlg"
+
+# Run the equivalence test for this one case
+result_single <- run_bootstrap_equiv_test(metric_name, group1, group2, metrics_list)
+```
+
+## Try out on all pairwise combinations from the post-hoc tests
+```{r}
+# Example: join equivalence to your post-hoc results
+equiv_results <- posthoc_all %>%
+  mutate(equiv_result = pmap(
+    list(metric, group1, group2),
+    # For each row, run bootrasp eq test on paurs of groups for given metric using original data in metrics_list 
+    ~ run_bootstrap_equiv_test(..1, ..2, ..3, metrics_list)
+  )) %>%
+  tidyr::unnest(equiv_result)
+
+```
 
 
 
