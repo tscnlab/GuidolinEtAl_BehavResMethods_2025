@@ -134,25 +134,10 @@ return(list(
 ```{r}
 library(purrr)
 
-metrics_list <- list(
-  mlit250_all = mlit250_all,
-  mlit1000_all = mlit1000_all,
-  llit10_all = llit10_all,
-  llit250_all = llit250_all,
-  llit1000_all = llit1000_all,
-  flit10_all = flit10_all,
-  flit250_all = flit250_all,
-  flit1000_all = flit1000_all,
-  tat1000_all = tat1000_all,
-  tat250_all = tat250_all,
-  mean_all = mean_all,
-  m10_all = m10_all,
-  iv_all = iv_all,
-  is_all = is_all
-)
+# Use list of light metrics indicated above
 
-results <- lapply(names(metrics_list), function(nm) {
-  fried_res <- friedman_and_posthoc(metrics_list[[nm]], 0.05, nm)
+results <- lapply(names(light_metrics_list), function(nm) {
+  fried_res <- friedman_and_posthoc(light_metrics_list[[nm]], 0.05, nm)
   return(fried_res)
 })
 
@@ -168,11 +153,11 @@ The main idea of performing equivalence testing here is to compare the metrics a
 ### Applying bootstrap eq testing
 
 ```{r}
-run_bootstrap_equiv_test <- function(metric_name, group1, group2, metrics_list,
-                                     n_bootstraps = 10^4, SESOI = 0.2, alpha = 0.05) {
+run_bootstrap_equiv_test <- function(metric_name, group1, group2, light_metrics_list,
+                                     n_bootstraps = 10^4, SESOI = NULL, alpha = 0.05) {
   
   # Pull the original data
-  df <- metrics_list[[metric_name]]
+  df <- light_metrics_list[[metric_name]]
   if (is.null(df)) stop(paste0("Metric '", metric_name, "' not found!"))
   
   # Add 'mean_' prefix if needed (is and iv)
@@ -185,7 +170,7 @@ run_bootstrap_equiv_test <- function(metric_name, group1, group2, metrics_list,
   data1 <- as.numeric(df[[group1]])
   data2 <- as.numeric(df[[group2]])
   
-  # Checking if cols are correctl identified 
+  # Checking if cols are correctly identified 
   if (any(is.null(c(data1, data2)))) {
     return(tibble::tibble(
       error = paste0("Group columns not found: ", group1, ", ", group2),
@@ -230,21 +215,71 @@ run_bootstrap_equiv_test <- function(metric_name, group1, group2, metrics_list,
     ))
   }
   
+  # Visualise the bootstraps
+  ci <- quantile(bootstraps, probs = c(0.05, 0.95))
+  lower_CI <- ci[1]
+  upper_CI <- ci[2]
+  
+  plot_obj <- tibble::tibble(value = bootstraps) |>
+  ggplot(aes(x = value)) +
+  geom_histogram(binwidth = 0.02,
+                 aes(fill = value >= SESOI | value <= -SESOI)) +
+  coord_cartesian(xlim = c(-1, 1)) +
+  labs(
+    title = paste0("Bootstrap distribution for ", metric_name, ": ", group1, " vs ", group2),
+    subtitle = paste0("Smallest effect size of interest (SESOI):", SESOI),
+    x = "Effect size",
+    fill = "Effect larger than SESOI"
+  ) +
+  # Add SESOI region, CIs and observed eff size 
+  geom_vline(
+    aes(xintercept = effect.size, color = "Observed Cohen's d"),
+  linetype = "dashed",
+  linewidth = 1
+  ) +
+  geom_vline(
+    aes(xintercept = lower_CI, color = "CI bounds"),
+  linetype = "dashed",
+  linewidth = 1
+  ) +
+  geom_vline(
+    aes(xintercept = upper_CI, color = "CI bounds"),
+    linetype = "dashed",
+    linewidth = 1
+  ) +
+  # Shaded SESOI region
+  annotate(
+    "rect",
+    xmin = -SESOI, xmax = SESOI,
+    ymin = 0, ymax = Inf,
+    fill = "grey", alpha = 0.2
+  ) +
+  scale_color_manual(
+    values = c(
+      "Observed Cohen's d" = "red",
+      "CI bounds" = "blue"
+    )
+  ) +
+  theme_minimal()
+
+  print(plot_obj)
+  
   # Calculating confidence intervals 
   ci <- quantile(bootstraps, probs = c(alpha, 1 - alpha), na.rm = TRUE)
   is_equiv <- (ci[1] > -SESOI) && (ci[2] < SESOI)
   prop_inside <- mean(bootstraps > -SESOI & bootstraps < SESOI, na.rm = TRUE)
   
-  tibble::tibble(
+return(list(
+  result_table = tibble::tibble(
     cohens_d = effect.size,
     lower_CI = ci[1],
     upper_CI = ci[2],
     is_equivalent = is_equiv,
     prop_inside_SESOI = prop_inside
-  )
+  ),
+  plot = plot_obj  
+))
 }
-
-
 
 ```
 
@@ -252,27 +287,50 @@ run_bootstrap_equiv_test <- function(metric_name, group1, group2, metrics_list,
 
 ```{r}
 # Pick random metric manually 
-metric_name <- "tat1000_all"
-group1 <- "mean_clusters"
-group2 <- "mean_wrlg"
+# Pick one example
+run_bootstrap_equiv_test(
+  metric_name = "llit10_all",
+  group1 = "clusters",
+  group2 = "wrlg",
+  SESOI = 0.4
+)
 
-# Run the equivalence test for this one case
-result_single <- run_bootstrap_equiv_test(metric_name, group1, group2, metrics_list)
 ```
 
 ## Try out on all pairwise combinations from the post-hoc tests
 
 ```{r}
-# Example: join equivalence to your post-hoc results
+# Adding equivalence to post-hoc results 
 equiv_results <- posthoc_all %>%
   mutate(equiv_result = pmap(
     list(metric, group1, group2),
     # For each row, run bootrasp eq test on paurs of groups for given metric using original data in metrics_list 
-    ~ run_bootstrap_equiv_test(..1, ..2, ..3, metrics_list)
+    ~ run_bootstrap_equiv_test(..1, ..2, ..3, SESOI = 0.3, light_metrics_list)
   )) %>%
   tidyr::unnest(equiv_result)
 
 ```
+## Only saving the plots
+```{r}
+for (metric_name in names(light_metrics_list)) {
+  result <- run_bootstrap_equiv_test(
+    metric_name, group1, group2, light_metrics_list, SESOI = 0.3
+  )
+  # Save plot with dynamic name
+  ggsave(
+    paste0("bootstrap_", metric_name, ".png"),
+    plot = result$plot_obj, 
+    path = here::here("equivalence_test_analysis", "outputs"),
+    width = 8,
+    height = 5,
+    dpi = 300
+  )
+}
+
+```
+
+
+
 
 ```{r}
 # Apply multiple corrections
