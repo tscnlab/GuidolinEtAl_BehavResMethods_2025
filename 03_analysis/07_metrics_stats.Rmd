@@ -264,38 +264,32 @@ run_bootstrap_equiv_test <- function(metric_name, group1, group2, light_metrics_
 
   print(plot_obj)
   
+    # Save plot with dynamic name
+  ggsave(
+    paste0("bootstrap_", metric_name, ".png"),
+    plot = plot_obj, 
+    path = here::here("equivalence_test_analysis", "outputs"),
+    width = 8,
+    height = 5,
+    dpi = 300
+  )
+  
   # Calculating confidence intervals 
   ci <- quantile(bootstraps, probs = c(alpha, 1 - alpha), na.rm = TRUE)
   is_equiv <- (ci[1] > -SESOI) && (ci[2] < SESOI)
   prop_inside <- mean(bootstraps > -SESOI & bootstraps < SESOI, na.rm = TRUE)
   
-return(list(
-  result_table = tibble::tibble(
+  tibble::tibble(
     cohens_d = effect.size,
     lower_CI = ci[1],
     upper_CI = ci[2],
     is_equivalent = is_equiv,
     prop_inside_SESOI = prop_inside
-  ),
-  plot = plot_obj  
-))
+  )
 }
 
 ```
 
-## Try out on one metric only
-
-```{r}
-# Pick random metric manually 
-# Pick one example
-run_bootstrap_equiv_test(
-  metric_name = "llit10_all",
-  group1 = "clusters",
-  group2 = "wrlg",
-  SESOI = 0.4
-)
-
-```
 
 ## Try out on all pairwise combinations from the post-hoc tests
 
@@ -310,24 +304,7 @@ equiv_results <- posthoc_all %>%
   tidyr::unnest(equiv_result)
 
 ```
-## Only saving the plots
-```{r}
-for (metric_name in names(light_metrics_list)) {
-  result <- run_bootstrap_equiv_test(
-    metric_name, group1, group2, light_metrics_list, SESOI = 0.3
-  )
-  # Save plot with dynamic name
-  ggsave(
-    paste0("bootstrap_", metric_name, ".png"),
-    plot = result$plot_obj, 
-    path = here::here("equivalence_test_analysis", "outputs"),
-    width = 8,
-    height = 5,
-    dpi = 300
-  )
-}
 
-```
 
 
 
