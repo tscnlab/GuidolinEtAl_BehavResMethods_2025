@@ -1183,3 +1183,36 @@ ggsave(filename = "results_fig10_b.png",
        path = here::here("outputs", "fig10"))
 ```
 
+#### Saving the metrics as csv files (optional)
+```{r}
+# Choose output directory
+output_dir <- here::here("outputs")
+
+# Create a list of metrics
+light_metrics_list <- list(
+  mlit250_all = mlit250_all,
+  mlit1000_all = mlit1000_all,
+  llit10_all = llit10_all,
+  llit250_all = llit250_all,
+  llit1000_all = llit1000_all,
+  flit10_all = flit10_all,
+  flit250_all = flit250_all,
+  flit1000_all = flit1000_all,
+  tat1000_all = tat1000_all,
+  tat250_all = tat250_all,
+  mean_all = mean_all,
+  m10_all = m10_all,
+  iv_all = iv_all,
+  is_all = is_all
+)
+
+# Save each metric data frame to a separate CSV
+for (name in names(light_metrics_list)) {
+  write_csv(
+    light_metrics_list[[name]], 
+    file = file.path(output_dir, paste0(name, ".csv"))
+  )
+}
+
+```
+
