@@ -222,8 +222,10 @@ run_bootstrap_equiv_test <- function(metric_name, group1, group2, light_metrics_
   }
   
   # Calculate proportion inside and outside of SESOI
-  prop_inside_SESOI <- mean(bootstraps >= -SESOI & bootstraps <= SESOI, na.rm = TRUE)
-  prop_outside_SESOI <- mean(bootstraps < -SESOI | bootstraps > SESOI, na.rm = TRUE)
+  prop_inside_SESOI <- sum(bootstraps >= -SESOI & bootstraps <= SESOI, na.rm = TRUE)/
+                  length(bootstraps)
+  prop_outside_SESOI <- sum(bootstraps < -SESOI | bootstraps > SESOI, na.rm = TRUE)/
+                  length(bootstraps)
 
   # Visualise the bootstraps
   ci <- quantile(bootstraps, probs = c(0.05, 0.95))
@@ -264,6 +266,12 @@ run_bootstrap_equiv_test <- function(metric_name, group1, group2, light_metrics_
     ymin = 0, ymax = Inf,
     fill = "grey", alpha = 0.2
   ) +
+  scale_fill_manual(
+    values = c(
+      "FALSE" = "lightblue",   
+      "TRUE" = "orange"        
+    )
+  ) +
   scale_color_manual(
     values = c(
       "Observed Cohen's d" = "red",
@@ -292,13 +300,22 @@ run_bootstrap_equiv_test <- function(metric_name, group1, group2, light_metrics_
   
   # Calculating confidence intervals 
   ci <- quantile(bootstraps, probs = c(alpha, 1 - alpha), na.rm = TRUE)
-  is_equiv <- (ci[1] > -SESOI) && (ci[2] < SESOI)
+  eq_decision <- if ((ci[1] >= -SESOI) && (ci[2] <= SESOI)) {
+    "equivalence"
+  } else if ((ci[1] < SESOI) && (ci[2] < SESOI)) {
+    "meanginfully negative effect"
+  } else if ((ci[1] > SESOI) && (ci[2] > SESOI)) {
+    "meaningfully positive effect"
+  } else {
+    "inconclusive"
+  }
+    
   
   tibble::tibble(
     cohens_d = effect.size,
     lower_CI = ci[1],
     upper_CI = ci[2],
-    is_equivalent = is_equiv,
+    equivalence = eq_decision,
     prop_inside_SESOI = prop_inside_SESOI,
     prop_outside_SESOI = prop_outside_SESOI,
     SESOI = SESOI
@@ -310,8 +327,10 @@ run_bootstrap_equiv_test <- function(metric_name, group1, group2, light_metrics_
 
 ## Try out on all pairwise combinations from the post-hoc tests
 Interpretation of the results
-- If both ends of the CI lie within SESOI bounds, then your data is statistically equivalent at this alpha level — no meaningful difference.
-- If any part of the CI extends outside SESOI, can’t conclude equivalence.
+- If both ends of the CI lie within SESOI bounds: equivalence
+- If any part of the CI extends outside SESOI, can’t conclude equivalence -> inconclusive
+- If both CIs are below SESOI: meaningfully negative effect
+- Both CIs are above SESOI: meaningfully positive effect
 
 ```{r}
 # Import boottrapping function
