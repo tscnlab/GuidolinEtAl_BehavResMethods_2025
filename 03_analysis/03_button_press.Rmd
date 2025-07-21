@@ -236,3 +236,40 @@ ggsave(filename = "results_fig06.png",
 
 ```
 
+## Are there any instances were button presses are occurring within a non-wear interval? Or within a wear interval?
+```{r}
+# Define the proximity window (in minutes)
+window_minutes <- 2
+window_seconds <- window_minutes * 60
+
+# Create a combined interval table for 'off' intervals
+off_intervals <- wrlg_int %>%
+  filter(!is.na(State), State == "off") %>%
+  mutate(start = lubridate::int_start(Interval),
+         end = lubridate::int_end(Interval)) %>%
+  select(-Interval)
+
+# Only keep relevant cols of data.bp.clean
+data.bp.clean <- data.bp.clean %>%
+  select(Id, EVENT, Datetime)
+
+# Join each button press with all non-wear intervals to check if it falls inside any
+bp_in_middle <- data.bp.clean %>%
+  inner_join(off_intervals, by = "Id") %>% # will return warning, but not a problem since we filter next
+  filter(Datetime > start + window_seconds &
+         Datetime < end - window_seconds)
+```
+```{r}
+wear_intervals <- wrlg_int %>%
+  filter(!is.na(State), State == "on") %>%
+  mutate(start = lubridate::int_start(Interval),
+         end = lubridate::int_end(Interval))
+
+bp_in_middle_wear <- data.bp.clean %>%
+  inner_join(wear_intervals, by = "Id") %>%
+  filter(Datetime > start + window_seconds &
+         Datetime < end - window_seconds)
+
+num_bp_middle_wear <- nrow(bp_in_middle_wear)
+```
+
