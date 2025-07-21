@@ -25,6 +25,7 @@ We would like to visualise this as a distribution of time spent in each State, w
 ```{r}
 library(ggdist) # to create raincloud plots
 library(patchwork) 
+library(hms)
 ```
 
 
@@ -55,7 +56,7 @@ int_duration <- wrlg_int %>%
 #Normalise it to the total time participants spent in the experiment, expressed in percentage
 int_duration <- int_duration %>%
   left_join(exp_duration, by ="Id") %>% #append the column containing total participation hours from the exp_duration df
-  mutate(id_duration_n= as.numeric(tot_intlength)/as.numeric(id_duration), #convert to numeric as division betwen difftime objects is not supported, n stands for "normalised"
+  mutate(id_duration_n= as.numeric(tot_intlength)/as.numeric(id_duration), #convert to numeric as division between difftime objects is not supported, n stands for "normalised"
          id_duration_per = id_duration_n*100) #calculate percentage of time
 
 #Turn State into a factor
@@ -389,5 +390,31 @@ daytype_summary <- wknd_wkday %>%
             median = median(perc_length),
             range = max-min) %>%
   ungroup()
+```
+
+### Calculating the % of non-wear time only during wake periods 
+Given that participants were not instructed to wear the sensor during the night. 
+```{r}
+int_duration_wake <- int_duration %>%
+  # Only select on and off periods
+  dplyr::filter(!State == "sleep") %>%
+  # Select cols of interest
+  dplyr::select(-c(id_duration_n, id_duration_per, tot_intlength_hours, id_duration)) %>%
+  group_by(Id) %>%
+  # Calculate total wake period as sum of off and on periods
+  mutate(wakeperiod = as_hms(sum(tot_intlength)
+                             ),
+         intlength_off = as_hms(sum(tot_intlength[State == "off"])
+                                ),
+         non_wear_percent = (as.numeric(intlength_off) / as.numeric(wakeperiod))
+         *100)
+
+# Summary statistics
+int_duration_wake_summary <- int_duration_wake %>%
+  ungroup() %>%
+  summarise(mean = mean(non_wear_percent),
+            sd = sd(non_wear_percent))
+
+print(int_duration_wake_summary)
 ```
 
