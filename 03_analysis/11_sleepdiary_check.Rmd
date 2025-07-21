@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ## Perform a quality check for raw sleep diary files sanity check between wear log detected intervals and sleep and wake time from sleep diary 
 As part of the non-wear analysis, we visualised time spent in each of the non-wear states: off (device not worn), on (device worn) and off for sleep (device not worn during sleep). As a sanity check, the time that the device is not worn during sleep should be similar to the time that the participants reported actually sleeping, as indicated by the sleep diary. For this reason, we follow a similar approach to the code above to visualise the amount of time participants spend asleep or awake according to the sleep diary. 
 
-### NOTE! This scripts assumes you have run the script 02_wrlg_plots.Rmd.
+### NOTE! This script assumes you have run the script 02_wrlg_plots.Rmd.
 
 ```{r}
 #Locate the sleep diary files
@@ -197,9 +197,6 @@ ggsave(filename = "sleep_dist_2axis.png",
 
 ## Differences in sleep and wake time between sleep diary and wear log
 We compare sleep times and wake times between these two sources.
-Approach
-1. Filter sleep times in wrlg and sleepdiary dfs 
-2. Unify these two dfs 
 ```{r}
 # Filter only sleep times in the wear log dataset 
 sleepdiary_sleep <- sleepdiary_df %>%
@@ -291,6 +288,10 @@ ggsave(filename = "sleeponset_difference.png",
        path= here::here("outputs")
        )
 
+print(p)
 
 ```
+Two remarkable outliers:
+- Participant 222 on 2023-10-29 reports going to bed at 23:53, but trying to go to sleep at 02:27:00 on the sleep diary. However, on the wear log, they report removing the glasses before going to sleep at 23:01. 
+- Participant 230 on 2023-11-12 reports going to bed at 5:15 and also to sleep at 5:15 -- however takes off the glasses way earlier on the previous night, i.e. 23:32. 
 
