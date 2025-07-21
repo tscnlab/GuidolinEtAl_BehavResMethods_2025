@@ -23,6 +23,7 @@ base::source(here::here("03_analysis", "functions", "norm_check_funs.R"))
 
 library(ggpubr)
 library(rstatix)
+library(tidyverse)
 ```
 ### Importing metrics dfs if they are not already in global environment
 ```{r}
@@ -298,11 +299,11 @@ run_bootstrap_equiv_test <- function(metric_name, group1, group2, light_metrics_
 )
 
   
-  # Calculating confidence intervals 
+  # Calculating confidence intervals and classifying results 
   ci <- quantile(bootstraps, probs = c(alpha, 1 - alpha), na.rm = TRUE)
   eq_decision <- if ((ci[1] >= -SESOI) && (ci[2] <= SESOI)) {
     "equivalence"
-  } else if ((ci[1] < SESOI) && (ci[2] < SESOI)) {
+  } else if ((ci[1] < -SESOI) && (ci[2] < -SESOI)) {
     "meanginfully negative effect"
   } else if ((ci[1] > SESOI) && (ci[2] > SESOI)) {
     "meaningfully positive effect"
@@ -401,19 +402,29 @@ noplot_bootstrap_equiv_test <- function(metric_name, group1, group2, light_metri
     ))
   }
   
-  # Proportions inside/outside SESOI
-  prop_inside_SESOI <- mean(bootstraps >= -SESOI & bootstraps <= SESOI, na.rm = TRUE)
-  prop_outside_SESOI <- mean(bootstraps < -SESOI | bootstraps > SESOI, na.rm = TRUE)
+  # Calculate proportion inside and outside of SESOI
+  prop_inside_SESOI <- sum(bootstraps >= -SESOI & bootstraps <= SESOI, na.rm = TRUE)/
+                  length(bootstraps)
+  prop_outside_SESOI <- sum(bootstraps < -SESOI | bootstraps > SESOI, na.rm = TRUE)/
+                  length(bootstraps)
   
-  # Equivalence decision
+  # Calculating confidence intervals and classifying results 
   ci <- quantile(bootstraps, probs = c(alpha, 1 - alpha), na.rm = TRUE)
-  is_equiv <- (ci[1] > -SESOI) && (ci[2] < SESOI)
+  eq_decision <- if ((ci[1] >= -SESOI) && (ci[2] <= SESOI)) {
+    "equivalence"
+  } else if ((ci[1] < -SESOI) && (ci[2] < -SESOI)) {
+    "meanginfully negative effect"
+  } else if ((ci[1] > SESOI) && (ci[2] > SESOI)) {
+    "meaningfully positive effect"
+  } else {
+    "inconclusive"
+  }
   
   tibble::tibble(
     cohens_d = effect.size,
     lower_CI = ci[1],
     upper_CI = ci[2],
-    is_equivalent = is_equiv,
+    is_equivalent = eq_decision,
     prop_inside_SESOI = prop_inside_SESOI,
     prop_outside_SESOI = prop_outside_SESOI,
     SESOI = SESOI
@@ -428,7 +439,8 @@ sesoi_sweep_all <- tibble(
   group1 = character(),
   group2 = character(),
   SESOI = numeric(),
-  prop_outside_SESOI = numeric()
+  prop_outside_SESOI = numeric(),
+  equivalence = character()
 )
 
 # Loop over posthoc_all rows and SESOI values
@@ -455,7 +467,8 @@ for (i in seq_len(nrow(posthoc_all))) {
         group1 = group1,
         group2 = group2,
         SESOI = s,
-        prop_outside_SESOI = res$prop_outside_SESOI
+        prop_outside_SESOI = res$prop_outside_SESOI,
+        equivalence = res$is_equivalent
       )
     )
   }
@@ -476,12 +489,12 @@ plots <- sesoi_sweep_all %>%
       geom_line() +
       geom_point() +
       labs(
-        title = paste0("Proportion Outside SESOI\nMetric: ", metric_name,
+        title = paste0("Proportion outside SESOI\nMetric: ", metric_name,
                        "\n", g1, " vs ", g2),
         x = "SESOI",
-        y = "Proportion Outside SESOI"
+        y = "Proportion outside SESOI"
       ) +
-      theme_minimal()
+      theme_bw()
     
     # Save if you want:
     ggsave(
@@ -499,6 +512,52 @@ plots <- sesoi_sweep_all %>%
 
 ```
 
+## Different visualisation: stacked bar plot of "equivalence classification results" based on SESOI choice
+In other words, visualise of choice of SESOI affects results for each metric pairwise-comparisons.
+
+### First: Calculation across metrics 
+```{r}
+# Turn equivalence col into factor
+sesoi_sweep_all$equivalence <- as.factor(sesoi_sweep_all$equivalence)
+
+# Calculate number of pairwise comparisons yielding to unique equivalence result
+sesoi_sweep_all_proportions <- sesoi_sweep_all %>%
+  group_by(SESOI, equivalence) %>%
+  summarise(count = n(), .groups = "drop") 
+
+
+ggplot(sesoi_sweep_all_proportions, aes(x = as.factor(SESOI), fill = equivalence)) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Equivalence test results across pairwise-comparisons based on SESOI",
+    x = "SESOI",
+    y = "Proportion",
+    fill = "Equivalence test outcome"
+  ) +
+  scale_fill_brewer(palette = "Set2") +
+  theme_minimal()
+
+```
+
+### Second, Calculation for each metric 
+```{r}
+# Calculate number of pairwise comparisons yielding to unique equivalence result
+eq_results_indivmetric <- sesoi_sweep_all %>%
+  group_by(SESOI, metric, equivalence) %>%
+  summarise(count = n(), .groups = "drop") 
+
+ggplot(eq_results_indivmetric, aes(x = as.factor(SESOI), fill = equivalence)) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Equivalence test results across SESOI",
+    x = "SESOI",
+    y = "Proportion",
+    fill = "Equivalence Result"
+  ) +
+  scale_fill_brewer(palette = "Set2") +
+  theme_minimal()
+
+```
 
 
 ```{r}
