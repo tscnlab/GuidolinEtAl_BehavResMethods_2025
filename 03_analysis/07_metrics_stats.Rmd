@@ -508,14 +508,15 @@ plots <- sesoi_sweep_all %>%
     
     p <- ggplot(df, aes(x = SESOI, y = prop_outside_SESOI)) +
       geom_line() +
-      geom_point() +
+      geom_point(size = 1) +
       labs(
         title = paste0("Proportion outside SESOI\nMetric: ", metric_name,
                        "\n", g1, " vs ", g2),
         x = "SESOI",
         y = "Proportion outside SESOI"
       ) +
-      theme_bw()
+      theme_bw() 
+    
     
     # Save if you want:
     ggsave(
@@ -548,7 +549,7 @@ sesoi_sweep_all_proportions <- sesoi_sweep_all %>%
 
 
 ggplot(sesoi_sweep_all_proportions, aes(x = as.factor(SESOI), fill = equivalence)) +
-  geom_bar(position = "fill") +
+  geom_bar(position = "fill", alpha = 0.9) +
   labs(
     title = "Equivalence test results across pairwise-comparisons based on SESOI",
     x = "SESOI",
@@ -557,6 +558,8 @@ ggplot(sesoi_sweep_all_proportions, aes(x = as.factor(SESOI), fill = equivalence
   ) +
   scale_fill_brewer(palette = "Set2") +
   theme_minimal()
+
+## problem with how this plot looks like? check y axis
 
 ```
 
@@ -568,12 +571,12 @@ eq_results_indivmetric <- sesoi_sweep_all %>%
   summarise(count = n(), .groups = "drop") 
 
 ggplot(eq_results_indivmetric, aes(x = as.factor(SESOI), fill = equivalence)) +
-  geom_bar(position = "fill") +
+  geom_bar(position = "fill", alpha = 0.9) +
   labs(
     title = "Equivalence test results across SESOI",
     x = "SESOI",
     y = "Proportion",
-    fill = "Equivalence Result"
+    fill = "Equivalence result"
   ) +
   scale_fill_brewer(palette = "Set2") +
   theme_minimal()
