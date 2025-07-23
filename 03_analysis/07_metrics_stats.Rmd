@@ -83,7 +83,35 @@ for (i in seq_along(light_metrics_list)) {
 
 ### Performing the non-parametric Friedman test for the metrics, and calculate pairwise comparisons (post-hoc tests) using Wilcoxon test
 
-#### First, we create a function to perform the two test for all metrics
+The first step is some renaming of columns across datasets, i.e. changing cols to "raw", "clusters", "wrlg" and eliminating the "_all" from the metric
+```{r}
+# Keep copy (need for later)
+light_metrics_cleaned <- lapply(light_metrics_list, function(df) {
+  # Make a copy of the dataframe
+  df_new <- df
+
+  # Rename mean, IV, and IS columns
+  names(df_new) <- sub("^mean_raw$", "raw", names(df_new))
+  names(df_new) <- sub("^mean_wrlg$", "wrlg", names(df_new))
+  names(df_new) <- sub("^mean_clusters$", "clusters", names(df_new))
+
+  names(df_new) <- sub("^IV_raw$", "raw", names(df_new))
+  names(df_new) <- sub("^IV_wrlg$", "wrlg", names(df_new))
+  names(df_new) <- sub("^IV_clusters$", "clusters", names(df_new))
+  
+  names(df_new) <- sub("^IS_raw$", "raw", names(df_new))
+  names(df_new) <- sub("^IS_wrlg$", "wrlg", names(df_new))
+  names(df_new) <- sub("^IS_clusters$", "clusters", names(df_new))
+
+  # Remove 'delta_' and 'sd_' columns
+  df_new <- df_new[ , !grepl("^delta_|^sd_", names(df_new)) ]
+
+  return(df_new)
+})
+```
+
+
+#### Function to perform the two test for all metrics
 
 ```{r}
 # Friedman test
@@ -93,22 +121,23 @@ for (i in seq_along(light_metrics_list)) {
 friedman_and_posthoc <- function(df, pval_threshold = 0.05, metric_name = NULL) {
   
   # Get the name of the input df as a string
-    if (is.null(metric_name)) {
-    metric_name <- deparse(substitute(df))  
-  }
+    if (!is.null(metric_name)) {
+      metric_name <- sub("_all$", "", metric_name) # removes _all from metric name
+      } else {
+        metric_name <- "unknown_metric"
+        }
   
   # Turn into long format
   df_long <- df %>%
- # Drop any delta cols and sd cols if they exist
-    select(-any_of(c("delta_wrlg", "delta_clusters", "sd_raw", "sd_wrlg", "sd_clusters"))) %>%
-    # Automatically select *_raw, *_wrlg, *_clusters
     pivot_longer(
-      cols = matches("(_raw|_wrlg|_clusters)$"),
+      cols = c("raw", "wrlg", "clusters"),
       names_to = "dataset",
       values_to = "value"
     ) %>%
     mutate(value = as.numeric(value),
-           Id = as.factor(Id)) %>%
+           Id = as.factor(Id),
+           dataset = factor(dataset, levels = c("raw", "wrlg", "clusters")) # order the levels, makes the post-hoc comparisons easier to interpret
+           ) %>%
     ungroup()
   
   summary(df_long$value)
@@ -155,14 +184,16 @@ library(purrr)
 
 # Use list of light metrics indicated above
 
-results <- lapply(names(light_metrics_list), function(nm) {
-  fried_res <- friedman_and_posthoc(light_metrics_list[[nm]], 0.05, nm)
+results <- lapply(names(light_metrics_cleaned), function(nm) {
+  fried_res <- friedman_and_posthoc(light_metrics_cleaned[[nm]], 0.05, nm)
   return(fried_res)
 })
 
 # Save results in dfs
 friedman_all <- purrr::map_dfr(results, "friedman")
 posthoc_all  <- purrr::map_dfr(results, "posthoc") 
+
+# Rename some 
 ```
 
 ### Performing equivalence testing
@@ -172,19 +203,16 @@ The main idea of performing equivalence testing here is to compare the metrics a
 ### Applying bootstrap eq testing
 
 ```{r}
-run_bootstrap_equiv_test <- function(metric_name, group1, group2, light_metrics_list,
+
+# First, rename the metric names in light_metric_list so that do not contain _all after the metric name
+names(light_metrics_cleaned) <- sub("_all$", "", names(light_metrics_cleaned))
+
+run_bootstrap_equiv_test <- function(metric_name, group1, group2, light_metrics_cleaned,
                                      n_bootstraps = 10^4, SESOI = NULL, alpha = 0.05) {
   
   # Pull the original data
-  df <- light_metrics_list[[metric_name]]
+  df <- light_metrics_cleaned[[metric_name]]
   if (is.null(df)) stop(paste0("Metric '", metric_name, "' not found!"))
-  
-  # Add 'mean_' prefix if needed (is and iv)
-  special_metrics <- c("iv_all", "is_all")  # these don't have mean_* cols
-  if (!(metric_name %in% special_metrics)) {
-    if (!(group1 %in% names(df))) group1 <- paste0("mean_", group1)
-    if (!(group2 %in% names(df))) group2 <- paste0("mean_", group2)
-  }
   
   data1 <- as.numeric(df[[group1]])
   data2 <- as.numeric(df[[group2]])
@@ -344,7 +372,7 @@ equiv_results <- posthoc_all %>%
   mutate(equiv_result = pmap(
     list(metric, group1, group2),
     # For each row, run bootstrap eq test on pairs of groups for given metric using original data in metrics_list 
-    ~ run_bootstrap_equiv_test(..1, ..2, ..3, SESOI = 0.3, light_metrics_list)
+    ~ run_bootstrap_equiv_test(..1, ..2, ..3, SESOI = 0.3, light_metrics_cleaned)
   )) %>%
   tidyr::unnest(equiv_result)
 
@@ -353,19 +381,12 @@ equiv_results <- posthoc_all %>%
 
 ```{r}
 # Same function but without the plot being created, and saving the sesoi
-noplot_bootstrap_equiv_test <- function(metric_name, group1, group2, light_metrics_list,
+noplot_bootstrap_equiv_test <- function(metric_name, group1, group2, light_metrics_cleaned,
                                      n_bootstraps = 10^4, SESOI = NULL, alpha = 0.05) {
   
   # Pull the original data
-  df <- light_metrics_list[[metric_name]]
+  df <- light_metrics_cleaned[[metric_name]]
   if (is.null(df)) stop(paste0("Metric '", metric_name, "' not found!"))
-  
-  # Add 'mean_' prefix if needed (is and iv)
-  special_metrics <- c("iv_all", "is_all")
-  if (!(metric_name %in% special_metrics)) {
-    if (!(group1 %in% names(df))) group1 <- paste0("mean_", group1)
-    if (!(group2 %in% names(df))) group2 <- paste0("mean_", group2)
-  }
   
   data1 <- as.numeric(df[[group1]])
   data2 <- as.numeric(df[[group2]])
@@ -456,7 +477,7 @@ for (i in seq_len(nrow(posthoc_all))) {
       metric_name = metric_name,
       group1 = group1,
       group2 = group2,
-      light_metrics_list = light_metrics_list,
+      light_metrics_cleaned = light_metrics_cleaned,
       SESOI = s
     )
     
