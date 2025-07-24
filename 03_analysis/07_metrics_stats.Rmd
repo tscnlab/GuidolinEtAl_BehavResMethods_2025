@@ -740,8 +740,65 @@ gt::gtsave(posthoc_equiv_table,
 
   
 ```
-## Calculating mean and sd of all timing functions in order to report result of the t-test
 
+## Table for meaningfully positive or negative effects of the equivalence test
+```{r}
+equiv_meanginful_results <- equiv_results %>%
+  filter(equivalence == "positive effect" | equivalence == "negative effect") %>%
+  # Creating a column for directionality of effect
+  mutate(direction = if_else(equivalence == "positive effect", paste0(group1, " > ", group2),
+                             paste0(group1, " < ", group2)
+                             ),
+         lower_CI = round(lower_CI, 2),
+         upper_CI = round(upper_CI, 2)
+         ) %>%
+  # Making the rows look nicer for later gt table output
+  mutate(
+    direction = case_when(
+      direction == "raw > wrlg" ~ "Raw > Wear log",
+      direction == "raw < wrlg" ~ "Raw < Wear log",
+      direction == "raw > clusters" ~ "Raw > Algorithm",
+      direction == "raw < clusters" ~ "Raw < Algorithm",
+      direction == "wrlg < clusters" ~ "Wear log < Algorithm")
+    ) %>%
+  # Superscript formatting using HTML
+  # mutate(
+  #   metric = case_when(
+  #   metric == "tat1000" ~ gt::html("TAT<sup>1000</sup>"),
+  #   metric == "tat250" ~ gt::html("TAT<sup>250</sup>"),
+  #   metric == "mean" ~ gt::html("Average daytime mEDI"),
+  #   metric == "m10" ~ gt::html("M10m")
+  #   )
+  # ) %>%
+  dplyr::select(-c(.y., n1, n2, statistic, p, p.adj, p.adj.signif, cohens_d, prop_inside_SESOI, prop_outside_SESOI, SESOI, plot_obj)) %>%
+  dplyr::relocate(metric, .before= group1) %>%
+  gt::gt() %>%
+  gt::tab_header(title = gt::md("**Equivalence testing results: positive and negative effects**"),
+                 subtitle = gt::md("**Smallest effect size of interest = 0.3**")
+                 ) %>%
+  gt::text_transform(
+    locations = gt::cells_body(
+      columns = c(metric)
+    ),
+    fn = function(val) {
+      if (starts_with("TAT")) {
+      sup <- stringr::str_extract(val, "\\d+")
+      glue::glue("TAT<sup>{sup}</sup>")
+    } else 
+  ) %>%
+  gt::cols_label(metric = "Metric",
+                 equivalence = "Equivalence test result",
+                 group1 = "Group 1",
+                 group2 = "Group 2",
+                 lower_CI = "Lower CI",
+                 upper_CI = "Upper CI",
+                 direction = "Directionality of effect"
+                 )
+    
+  
+```
+
+## Calculating mean and sd of all timing functions in order to report result of the t-test
 ```{r}
 # Define a function that calculates the mean of each id metric
 ## Note that this function uses the function style_time, which is already imported in 06_metrics_comparison.Rmd from the file vis_metrics_funs.R
