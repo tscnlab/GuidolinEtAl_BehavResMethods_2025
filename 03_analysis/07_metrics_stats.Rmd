@@ -148,7 +148,8 @@ friedman_and_posthoc <- function(df, pval_threshold = 0.05, metric_name = NULL) 
     mutate(
       kendallsw = rstatix::friedman_effsize(df_long, value ~ dataset | Id)$effsize,
       metric = metric_name
-    )
+    ) %>%
+    add_significance("p") # to show *
   
   # Post-hoc only if friedman test is significant
   if (friedman$p < pval_threshold) {
@@ -261,32 +262,36 @@ run_bootstrap_equiv_test <- function(metric_name, group1, group2, light_metrics_
   lower_CI <- ci[1]
   upper_CI <- ci[2]
   
-  plot_obj <- tibble::tibble(value = bootstraps) |>
-  ggplot(aes(x = value)) +
-  geom_histogram(binwidth = 0.02,
-                 aes(fill = value >= SESOI | value <= -SESOI)) +
+  plot_obj <- tibble::tibble(value = bootstraps) %>%
+    mutate(outside_SESOI = factor(value >= SESOI | value <= -SESOI,
+                                  levels = c(FALSE, TRUE)
+                                  )
+                             ) %>%
+  ggplot(aes(x = value,
+             fill = outside_SESOI)) +
+  geom_histogram(binwidth = 0.02)+
   coord_cartesian(xlim = c(-1.5, 1.5)) +
   labs(
-    title = paste0("Bootstrap distribution for ", metric_name, ": ", group1, " vs ", group2),
-    subtitle = paste0("Smallest effect size of interest (SESOI):", SESOI),
+    title = paste0("Metric: ", metric_name, "\n", group1, " vs ", group2),
+    #subtitle = paste0("Smallest effect size of interest (SESOI):", SESOI),
     x = "Effect size",
-    fill = "Effect larger than SESOI"
+    fill = "Effect outside SESOI"
   ) +
   # Add SESOI region, CIs and observed eff size 
   geom_vline(
     aes(xintercept = effect.size, color = "Observed Cohen's d"),
   linetype = "dashed",
-  linewidth = 1
+  linewidth = 0.7
   ) +
   geom_vline(
     aes(xintercept = lower_CI, color = "CI bounds"),
   linetype = "dashed",
-  linewidth = 1
+  linewidth = 0.7
   ) +
   geom_vline(
     aes(xintercept = upper_CI, color = "CI bounds"),
     linetype = "dashed",
-    linewidth = 1
+    linewidth = 0.7
   ) +
   # Shaded SESOI region
   annotate(
@@ -298,16 +303,16 @@ run_bootstrap_equiv_test <- function(metric_name, group1, group2, light_metrics_
   scale_fill_manual(
     values = c(
       "FALSE" = "lightblue",   
-      "TRUE" = "orange"        
-    )
-  ) +
+      "TRUE" = "orange"),
+    drop = FALSE) +
   scale_color_manual(
+    name = "Colour",
     values = c(
       "Observed Cohen's d" = "red",
       "CI bounds" = "blue"
     )
   ) +
-  theme_minimal()
+  theme_bw() 
 
   print(plot_obj)
   
@@ -319,7 +324,7 @@ run_bootstrap_equiv_test <- function(metric_name, group1, group2, light_metrics_
     group1, "_vs_", group2, ".png"
   ),
   plot = plot_obj,
-  path = here::here("equivalence_test_analysis", "outputs"),
+  path = here::here("equivalence_test_analysis", "outputs", "bootstraps"),
   width = 8,
   height = 5,
   bg = "white",
@@ -332,9 +337,9 @@ run_bootstrap_equiv_test <- function(metric_name, group1, group2, light_metrics_
   eq_decision <- if ((ci[1] >= -SESOI) && (ci[2] <= SESOI)) {
     "equivalence"
   } else if ((ci[1] < -SESOI) && (ci[2] < -SESOI)) {
-    "meanginfully negative effect"
+    "negative effect"
   } else if ((ci[1] > SESOI) && (ci[2] > SESOI)) {
-    "meaningfully positive effect"
+    "positive effect"
   } else {
     "inconclusive"
   }
@@ -347,7 +352,8 @@ run_bootstrap_equiv_test <- function(metric_name, group1, group2, light_metrics_
     equivalence = eq_decision,
     prop_inside_SESOI = prop_inside_SESOI,
     prop_outside_SESOI = prop_outside_SESOI,
-    SESOI = SESOI
+    SESOI = SESOI, 
+    plot_obj = list(plot_obj) # needed for plotting later on 
   )
 }
 
@@ -377,8 +383,44 @@ equiv_results <- posthoc_all %>%
   tidyr::unnest(equiv_result)
 
 ```
-### Visualising how the proportion inside/outside the SESOI varies based on SESOI values
+#### Creating multiplot for bootstraps distributions
+```{r}
+library(patchwork)
+library(grid)
 
+# Extract all the plot objects
+all_plots <- equiv_results$plot_obj
+
+# Combine and collect guide (legend) to the bottom
+combined_plot <- wrap_plots(all_plots) +
+  plot_layout(guides = "collect") 
+    
+
+combined_plot_final <- combined_plot + 
+  plot_annotation(
+    title = "Bootstrap distributions for pairwise comparisons",
+    subtitle = "SESOI = 0.3",
+    theme = theme(plot.title = element_text(size=20),
+                  plot.subtitle = element_text(size=14),
+                  legend.position = "right",
+                  legend.direction = "vertical") # Make the legend stack vertically
+  )
+
+ggsave(
+  filename = "combined_bootstrap_plots.png",
+  plot = combined_plot_final,
+  width = 14,
+  height = 13,
+  dpi = 600,
+  path = here::here("equivalence_test_analysis", "outputs", "bootstraps"),
+  bg = "white"
+)
+
+```
+
+
+### Visualising how the proportion inside/outside the SESOI varies based on SESOI values
+First, slightly modify the function 
 ```{r}
 # Same function but without the plot being created, and saving the sesoi
 noplot_bootstrap_equiv_test <- function(metric_name, group1, group2, light_metrics_cleaned,
@@ -434,9 +476,9 @@ noplot_bootstrap_equiv_test <- function(metric_name, group1, group2, light_metri
   eq_decision <- if ((ci[1] >= -SESOI) && (ci[2] <= SESOI)) {
     "equivalence"
   } else if ((ci[1] < -SESOI) && (ci[2] < -SESOI)) {
-    "meanginfully negative effect"
+    "negative effect"
   } else if ((ci[1] > SESOI) && (ci[2] > SESOI)) {
-    "meaningfully positive effect"
+    "positive effect"
   } else {
     "inconclusive"
   }
@@ -496,7 +538,10 @@ for (i in seq_len(nrow(posthoc_all))) {
 }
 
 print(sesoi_sweep_all)
+```
 
+### Create individual plots as well as multiplot 
+```{r}
 # Create plots for each unique metric + group pair
 plots <- sesoi_sweep_all %>%
   group_by(metric, group1, group2) %>%
@@ -509,6 +554,14 @@ plots <- sesoi_sweep_all %>%
     p <- ggplot(df, aes(x = SESOI, y = prop_outside_SESOI)) +
       geom_line() +
       geom_point(size = 1) +
+      scale_y_continuous(breaks = c(0.0, 0.25, 0.50, 0.75, 1.0),
+                         labels = c("0.0", "0.25", "0.50", "0.75", "1.0"),
+                         limits = c(0, 1)
+                         ) +
+      scale_x_continuous(breaks = c(0.0, 0.25, 0.50, 0.75, 1.0),
+                         labels = c("0.0", "0.25", "0.50", "0.75", "1.0"),
+                         limits = c(0, 1)
+                         ) +
       labs(
         title = paste0("Proportion outside SESOI\nMetric: ", metric_name,
                        "\n", g1, " vs ", g2),
@@ -518,7 +571,7 @@ plots <- sesoi_sweep_all %>%
       theme_bw() 
     
     
-    # Save if you want:
+    # Save
     ggsave(
       filename = paste0("prop_outside_", metric_name, "_", g1, "_vs_", g2, ".png"),
       plot = p,
@@ -532,7 +585,44 @@ plots <- sesoi_sweep_all %>%
     p
   })
 
+## 
+# Create a new combined facet label
+sesoi_sweep_faceted <- sesoi_sweep_all %>%
+  mutate(facet_label = paste0("Metric: ", metric, "\n", group1, " vs ", group2))
+
+sesoi_multiplot <- ggplot(sesoi_sweep_faceted, aes(x = SESOI, y = prop_outside_SESOI)) +
+      geom_line() +
+      geom_point(size = 1) +
+      scale_y_continuous(breaks = c(0.0, 0.25, 0.50, 0.75, 1.0),
+                         labels = c("0.0", "0.25", "0.50", "0.75", "1.0"),
+                         limits = c(0, 1)
+                         ) +
+      scale_x_continuous(breaks = c(0.0, 0.25, 0.50, 0.75, 1.0),
+                         labels = c("0.0", "0.25", "0.50", "0.75", "1.0"),
+                         limits = c(0, 1)
+                         ) +
+      labs(
+        title = "Proportion bootstraps outside SESOI",
+        x = "SESOI",
+        y = "Proportion outside SESOI [0-1]"
+      ) +
+      theme_bw() +
+  facet_wrap(~facet_label,
+             ncol = 5)
+
+# Save multiplot
+ggsave(
+      filename = "SESOI_multiplot.png",
+      plot = sesoi_multiplot,
+      path = here::here("equivalence_test_analysis", "outputs", "sesoi"),
+      width = 10,
+      height = 8,
+      dpi = 600,
+      bg = "white"
+    )
 ```
+
+
 
 ## Different visualisation: stacked bar plot of "equivalence classification results" based on SESOI choice
 In other words, visualise of choice of SESOI affects results for each metric pairwise-comparisons.
@@ -548,8 +638,12 @@ sesoi_sweep_all_proportions <- sesoi_sweep_all %>%
   summarise(count = n(), .groups = "drop") 
 
 
-ggplot(sesoi_sweep_all_proportions, aes(x = as.factor(SESOI), fill = equivalence)) +
-  geom_bar(position = "fill", alpha = 0.9) +
+sesoi_barplot <- 
+  ggplot(sesoi_sweep_all_proportions, aes(x = as.factor(SESOI),
+                                        fill = equivalence,
+                                        weight = count)) +
+  geom_bar(position = "fill",
+           alpha = 0.9) +
   labs(
     title = "Equivalence test results across pairwise-comparisons based on SESOI",
     x = "SESOI",
@@ -559,95 +653,98 @@ ggplot(sesoi_sweep_all_proportions, aes(x = as.factor(SESOI), fill = equivalence
   scale_fill_brewer(palette = "Set2") +
   theme_minimal()
 
-## problem with how this plot looks like? check y axis
+# Save barplot
+ggsave(
+      filename = "eq_results_barplot.png",
+      plot = sesoi_barplot,
+      path = here::here("equivalence_test_analysis", "outputs"),
+      width = 8,
+      height = 6,
+      dpi = 600,
+      bg = "white"
+    )
 
 ```
 
-### Second, Calculation for each metric 
+## Creating gt tables to report statistical analyses
+
+### First: Table for Friedman test
 ```{r}
-# Calculate number of pairwise comparisons yielding to unique equivalence result
-eq_results_indivmetric <- sesoi_sweep_all %>%
-  group_by(SESOI, metric, equivalence) %>%
-  summarise(count = n(), .groups = "drop") 
-
-ggplot(eq_results_indivmetric, aes(x = as.factor(SESOI), fill = equivalence)) +
-  geom_bar(position = "fill", alpha = 0.9) +
-  labs(
-    title = "Equivalence test results across SESOI",
-    x = "SESOI",
-    y = "Proportion",
-    fill = "Equivalence result"
-  ) +
-  scale_fill_brewer(palette = "Set2") +
-  theme_minimal()
-
-```
-
-
-```{r}
-# Apply multiple corrections
-ttest_final <- ttest_all %>% 
-  mutate(p.adj = stats::p.adjust(p,
-                           "fdr", # we choose FDR (or BH - same thing) as method
-                           n=length(p))) %>% # we want to correct for all comparisons, i.e. n=36
-  rstatix::add_significance("p.adj") %>%
-  dplyr::relocate(metric, .before= .y.) # re-order columns
-
-# Rename some columns to eliminate the "_all" from the metric col
-ttest_final <- ttest_final %>%
-  mutate(metric = stringr::str_replace(metric, "_all$", ""))
-```
-
-## Turning this into a gt table
-
-```{r}
-ttest_table <- ttest_final %>%
-  select(-c(.y., p.signif)) %>% #we do not need this col in the final summary
+friedman_table <- friedman_all %>%
+  select(-c(.y., method)) %>% # do not need this col 
+  # re-order columns
+  dplyr::relocate(metric, .before= n) %>%
+  dplyr::relocate(p.signif, .before= kendallsw) %>% 
+  dplyr::relocate(df, .before = statistic) %>% 
+  # round decimal numbers
+  mutate(p = round(p, 5),
+         statistic = round(statistic, 2),
+         kendallsw = round(kendallsw, 2)
+         ) %>%
   gt::gt() %>%
-  gt::tab_header(title = gt::md("**T-test results**")) %>% #Add title
+  gt::tab_header(title =gt::md("**Friedman test results**")) %>% # title for the whole table
+  gt::cols_label(metric = "Metric",
+                 n = "N",
+                 df = "Df",
+                 statistic = "Statistic",
+                 kendallsw = "Kendall's W",
+                 p.signif = "Significance")
+
+print(friedman_table)
+
+gt::gtsave(friedman_table,
+           filename = "friedman_table.png",
+           path = here::here("outputs"),
+           vwidth = 1450,
+           vheight = 800)
+
+  
+```
+
+### Second: Table for post-hoc comparisons and equivalence testing
+```{r}
+posthoc_equiv_table <- equiv_results %>%
+  select(-c(.y., prop_inside_SESOI, prop_outside_SESOI, plot_obj, SESOI)) %>% #we do not need these cols in the final summary
+  # again, re-order columns
+  dplyr::relocate(metric, .before= group1) %>%
+  mutate(p = round( p, 4),
+         p.adj = round(p.adj, 4),
+         cohens_d= round(cohens_d, 4),
+         lower_CI = round(lower_CI, 4),
+         upper_CI = round(upper_CI, 4)
+  ) %>%
+  gt::gt() %>% 
+  gt::tab_header(title = gt::md("**Post-hoc pairwise comparisons and equivalence test results**"),
+                 subtitle = gt::md("**Smallest effect size of interest for equivalence testing = 0.3**")
+                 ) %>% #Add title
   gt::cols_label(metric = "Metric",
              group1 = "Group 1",
              group2 = "Group 2",
              n1 = "N1",
              n2 = "N2",
              statistic = "Statistic",
-             df = "Df",
              cohens_d = "Cohen's d",
              p.adj = "Adjusted p",
-             p.adj.signif = "Significance") %>%
-  gt::cols_align(align = "center",
-                 columns = dplyr::everything()) %>%
-  gt::tab_options(table.width=gt::pct(80)) #increasing table width so that it does not get cropped when saving
-                
+             p.adj.signif = "Significance",
+             lower_CI = "Lower CI",
+             upper_CI = "Upper CI",
+             equivalence = "Equivalence test result") 
+
+posthoc_equiv_table
+
+gt::gtsave(posthoc_equiv_table,
+           filename = "posthoc_equiv_table.png",
+           path = here::here("outputs"),
+           vwidth = 1950,
+           vheight = 800)
+
   
 ```
-
-### Saving this gt object
-
-```{r}
-# Load chromote, needed to save using g
-library(chromote)
-
-# Make sure you set your path to Chrome using Sys.setenv(CHROMOTE_CHROME = "path/to/chrome.exe") and check this was correct by running chromote::find_chrome()
-
-# Also, make sure to have a folder called "supplementary" in the "outputs" folder!
-## The following line ensures that such folder exists
-supp_dir <-  here::here("outputs", "supplementary")
-if (!dir.exists(supp_dir)) dir.create(supp_dir, recursive = TRUE)
-
-
-gt::gtsave(ttest_table,
-           filename = "ttest_table.png",
-           path = here::here("outputs", "supplementary"),
-           vwidth = 1450,
-           vheight = 800)
-```
-
 ## Calculating mean and sd of all timing functions in order to report result of the t-test
 
 ```{r}
 # Define a function that calculates the mean of each id metric
-## Note that this function uses the function style_time, which is already imported in metrics_comparison.Rmd from the file vis_metrics_funs.R
+## Note that this function uses the function style_time, which is already imported in 06_metrics_comparison.Rmd from the file vis_metrics_funs.R
 
 metrics_means <- function(df, df_name) {
   
@@ -703,7 +800,7 @@ for (df_name in names(metrics_dfs)) {
 means_metrics_df <- bind_rows(means_metric_list)
 ```
 
-## Calculating mean and sd of is and iv
+## Calculating mean and sd of is and iv and the "quantity metrics" (mean and M10)
 
 ```{r}
 is_means <- is_all %>%
@@ -728,6 +825,29 @@ iv_means <- iv_all %>%
     ) %>%
   mutate(metric = "iv")
 
+mean_means <- mean_all %>%
+  summarise(
+      mean_ids_raw = mean(mean_raw, na.rm = TRUE),
+      sd_ids_raw = sd(mean_raw, na.rm = TRUE),
+      mean_ids_wrlg = mean(mean_wrlg, na.rm = TRUE),
+      sd_ids_wrlg = sd(mean_wrlg, na.rm = TRUE),
+      mean_ids_clusters = mean(mean_clusters, na.rm = TRUE),
+      sd_ids_clusters = sd(mean_clusters, na.rm = TRUE),
+    ) %>%
+  mutate(metric = "mean (daytime)")
+
+m10_means <- m10_all %>%
+  summarise(
+      mean_ids_raw = mean(mean_raw, na.rm = TRUE),
+      sd_ids_raw = sd(mean_raw, na.rm = TRUE),
+      mean_ids_wrlg = mean(mean_wrlg, na.rm = TRUE),
+      sd_ids_wrlg = sd(mean_wrlg, na.rm = TRUE),
+      mean_ids_clusters = mean(mean_clusters, na.rm = TRUE),
+      sd_ids_clusters = sd(mean_clusters, na.rm = TRUE),
+    ) %>%
+  mutate(metric = "m10")
+
+
 ```
 
 ## Now we would like to have a single table for all metrics.
@@ -742,14 +862,15 @@ means_metrics_df <- means_metrics_df %>%
 # Convert numeric cols to character and round to 4 digits
 iv_means <- iv_means %>%
   mutate(dplyr::across(where(is.numeric), ~ format(.x, digits = 4)))
-
-# Convert numeric cols to character and round to 4 digits
 is_means <- is_means %>%
   mutate(dplyr::across(where(is.numeric), ~ format(.x, digits = 4)))
-
-
+mean_means <- mean_means %>%
+  mutate(dplyr::across(where(is.numeric), ~ format(.x, digits = 4)))
+m10_means <- m10_means %>%
+  mutate(dplyr::across(where(is.numeric), ~ format(.x, digits = 4)))
+  
 # Combine the data using bind_rows
-means_dfs <- dplyr::bind_rows(means_metrics_df, is_means, iv_means)
+means_dfs <- dplyr::bind_rows(means_metrics_df, is_means, iv_means, mean_means, m10_means)
 
 # Rename some columns to eliminate the "_all" from the metric col
 means_dfs <- means_dfs %>%
@@ -762,7 +883,7 @@ means_dfs <- means_dfs %>%
 ```{r}
 means_table <- means_dfs %>%
   gt::gt() %>%
-  gt::tab_header(title = gt::md("**Means and SDs of light exposure metrics (n=12)**")) %>% #Add title
+  gt::tab_header(title = gt::md("**Means and SDs of light exposure metrics (n=14)**")) %>% #Add title
   gt::cols_label(metric = "Metric",
              mean_ids_raw = "Raw dataset (mean)",
              sd_ids_raw = "Raw dataset (SD)",
@@ -776,21 +897,11 @@ means_table <- means_dfs %>%
 # Save the gt table
 ## Make sure you set your path to Chrome using Sys.setenv(CHROMOTE_CHROME = "path/to/chrome.exe") and check this was correct by running chromote::find_chrome()
 
-# AGain, if not already there: make sure you have a folder called "supplementary" in the "outputs" folder!
-## The following line ensures that such folder exists
-supp_dir <-  here::here("outputs", "supplementary")
-if (!dir.exists(supp_dir)) dir.create(supp_dir, recursive = TRUE)
 
 gt::gtsave(means_table,
            filename = "means_table.png",
-           path = here::here("outputs", "supplementary"))
+           path = here::here("outputs"))
 
 
 ```
 
-## Calculating the unstandardised effect size for the significant result, as we need to report this in the paper
-
-```{r}
-tat250_unst_effsize <- tat250_all %>%
-  summarise(mean = mean(delta_clusters))
-```
