@@ -774,7 +774,10 @@ posthoc_equiv_table <- equiv_results %>%
     ) %>%
   ## col equivalence
   mutate(
-    equivalence = if_else(equivalence == "positive effect", "Positive effect", "Negative effect")
+    equivalence = case_when(
+      equivalence == "positive effect" ~ "Positive effect",
+      equivalence == "negative effect" ~ "Negative effect",
+      equivalence == "inconclusive" ~ "Inconclusive")
   ) %>%
   gt::gt() %>% 
   gt::tab_header(title = gt::md("**Post-hoc Wilcoxon pairwise comparisons and equivalence test results**"),
@@ -835,7 +838,7 @@ gt::gtsave(posthoc_equiv_table,
   
 ```
 
-## Table for meaningfully positive or negative effects of the equivalence test
+## Third: Table for meaningfully positive or negative effects of the equivalence test
 ```{r}
 equiv_meanginful_results <- equiv_results %>%
   filter(equivalence == "positive effect" | equivalence == "negative effect") %>%
@@ -924,7 +927,8 @@ gt::gtsave(equiv_meanginful_results,
            vheight = 800)
   
 ```
-
+What does this table show?
+- TAT1000 and TAT250: raw wearlog values are higher in raw dataset compared to datasets cleaned by either wear log +
 ## Calculating mean and sd of all timing functions in order to report result of the t-test
 ```{r}
 # Define a function that calculates the mean of each id metric
