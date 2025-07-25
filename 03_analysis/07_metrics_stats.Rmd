@@ -681,8 +681,42 @@ friedman_table <- friedman_all %>%
          statistic = round(statistic, 2),
          kendallsw = round(kendallsw, 2)
          ) %>%
+  # Rename values in rows to make output prettier
+  mutate(
+    metric = case_when(
+      metric == "mean" ~ "Average daytime mEDI",
+      metric == "m10" ~ "M10m",
+      metric == "iv" ~ "IV",
+      metric == "is" ~ "IS",
+      TRUE ~ metric
+      )
+    ) %>%
   gt::gt() %>%
   gt::tab_header(title =gt::md("**Friedman test results**")) %>% # title for the whole table
+  # Workaround to create superscipts in the table
+  gt::text_transform(
+  locations = gt::cells_body(columns = c(metric)),
+  fn = function(x) {
+    sapply(x, function(val) {
+      if (str_detect(val, "^(tat|llit|mlit|flit)\\d+")) {
+        prefix <- str_extract(val, "^[a-z]+")
+        sup <- str_extract(val, "\\d+")
+
+        formatted <- case_when(
+          prefix == "tat" ~ glue::glue("TAT<sup>{sup}</sup>"),
+          prefix == "llit" ~ glue::glue("LLiT<sup>{sup}</sup>"),
+          prefix == "mlit" ~ glue::glue("MLiT<sup>{sup}</sup>"),
+          prefix == "flit" ~ glue::glue("FLiT<sup>{sup}</sup>"),
+          TRUE ~ val
+        )
+
+        gt::html(formatted)
+      } else {
+        gt::html(val)
+      }
+    })
+  }
+) %>%
   gt::cols_label(metric = "Metric",
                  n = "N",
                  df = "Df",
@@ -713,10 +747,65 @@ posthoc_equiv_table <- equiv_results %>%
          lower_CI = round(lower_CI, 4),
          upper_CI = round(upper_CI, 4)
   ) %>%
+  # Rename values in rows to make output prettier
+  ## col metric
+  mutate(
+    metric = case_when(
+      metric == "mean" ~ "Average daytime mEDI",
+      metric == "m10" ~ "M10m",
+      metric == "iv" ~ "IV",
+      TRUE ~ metric
+      )
+    ) %>%
+  ## cols group 1 and group 2
+  mutate(
+    group1 = case_when(
+      group1 == "raw" ~ "Raw",
+      group1 == "wrlg" ~ "Wear log",
+      group1 == "clusters" ~ "Algorithm"
+      )
+    ) %>%
+  mutate(
+    group2 = case_when(
+      group2 == "raw" ~ "Raw",
+      group2 == "wrlg" ~ "Wear log",
+      group2 == "clusters" ~ "Algorithm"
+      )
+    ) %>%
+  ## col equivalence
+  mutate(
+    equivalence = if_else(equivalence == "positive effect", "Positive effect", "Negative effect")
+  ) %>%
   gt::gt() %>% 
-  gt::tab_header(title = gt::md("**Post-hoc pairwise comparisons and equivalence test results**"),
+  gt::tab_header(title = gt::md("**Post-hoc Wilcoxon pairwise comparisons and equivalence test results**"),
                  subtitle = gt::md("**Smallest effect size of interest for equivalence testing = 0.3**")
                  ) %>% #Add title
+  # Workaround to get superscript formatting using HTML within the rows
+  gt::text_transform(
+    locations = gt::cells_body(
+      columns = c(metric)
+    ),
+    fn = function(x) {
+    sapply(x, function(val) {
+      if (str_detect(val, "^tat\\d+")) {
+        sup <- str_extract(val, "\\d+")
+        gt::html(glue::glue("TAT<sup>{sup}</sup>"))
+      } else if (str_detect(val, "^llit\\d+")) {
+        sup <- str_extract(val, "\\d+")
+        gt::html(glue::glue("LLiT<sup>{sup}</sup>"))
+      } else {
+        gt::html(val)
+      }
+    })
+  }
+) %>%
+  gt::tab_style(
+  style = gt::cell_borders(
+    sides = "right",
+    color = "darkgrey"
+  ),
+  locations = gt::cells_body(columns = "metric")
+) %>%
   gt::cols_label(metric = "Metric",
              group1 = "Group 1",
              group2 = "Group 2",
@@ -736,7 +825,12 @@ gt::gtsave(posthoc_equiv_table,
            filename = "posthoc_equiv_table.png",
            path = here::here("outputs"),
            vwidth = 1950,
-           vheight = 800)
+           vheight = 800,
+           # To make sure table does not get cropped out
+           expand = c(5, #top
+                      20, #right
+                      5, #bottom
+                      15)) #left
 
   
 ```
@@ -753,6 +847,7 @@ equiv_meanginful_results <- equiv_results %>%
          upper_CI = round(upper_CI, 2)
          ) %>%
   # Making the rows look nicer for later gt table output
+  ## col direction
   mutate(
     direction = case_when(
       direction == "raw > wrlg" ~ "Raw > Wear log",
@@ -761,31 +856,57 @@ equiv_meanginful_results <- equiv_results %>%
       direction == "raw < clusters" ~ "Raw < Algorithm",
       direction == "wrlg < clusters" ~ "Wear log < Algorithm")
     ) %>%
-  # Superscript formatting using HTML
-  # mutate(
-  #   metric = case_when(
-  #   metric == "tat1000" ~ gt::html("TAT<sup>1000</sup>"),
-  #   metric == "tat250" ~ gt::html("TAT<sup>250</sup>"),
-  #   metric == "mean" ~ gt::html("Average daytime mEDI"),
-  #   metric == "m10" ~ gt::html("M10m")
-  #   )
-  # ) %>%
+  # Change other rows
+  ## col metric
+  mutate(
+    metric = case_when(
+      metric == "mean" ~ "Average daytime mEDI",
+      metric == "m10" ~ "M10m",
+      TRUE ~ metric
+      )
+    ) %>%
+  ## cols group 1 and group 2
+  mutate(
+    group1 = case_when(
+      group1 == "raw" ~ "Raw",
+      group1 == "wrlg" ~ "Wear log",
+      group1 == "clusters" ~ "Algorithm"
+      )
+    ) %>%
+  mutate(
+    group2 = case_when(
+      group2 == "raw" ~ "Raw",
+      group2 == "wrlg" ~ "Wear log",
+      group2 == "clusters" ~ "Algorithm"
+      )
+    ) %>%
+  ## col equivalence
+  mutate(
+    equivalence = if_else(equivalence == "positive effect", "Positive effect", "Negative effect")
+  ) %>%
   dplyr::select(-c(.y., n1, n2, statistic, p, p.adj, p.adj.signif, cohens_d, prop_inside_SESOI, prop_outside_SESOI, SESOI, plot_obj)) %>%
   dplyr::relocate(metric, .before= group1) %>%
   gt::gt() %>%
   gt::tab_header(title = gt::md("**Equivalence testing results: positive and negative effects**"),
                  subtitle = gt::md("**Smallest effect size of interest = 0.3**")
                  ) %>%
+  # Workaround to get superscript formatting using HTML within the rows
   gt::text_transform(
     locations = gt::cells_body(
       columns = c(metric)
     ),
-    fn = function(val) {
-      if (starts_with("TAT")) {
-      sup <- stringr::str_extract(val, "\\d+")
-      glue::glue("TAT<sup>{sup}</sup>")
-    } else 
+    fn = function(x) {
+      sapply(x, function(val) {
+        if (str_detect(val, "tat\\d+")) {
+          sup <- str_extract(val, "\\d+")
+          gt::html(glue::glue("TAT<sup>{sup}</sup>"))
+        } else {
+          gt::html(val)
+        }
+      })
+    }
   ) %>%
+
   gt::cols_label(metric = "Metric",
                  equivalence = "Equivalence test result",
                  group1 = "Group 1",
@@ -794,7 +915,13 @@ equiv_meanginful_results <- equiv_results %>%
                  upper_CI = "Upper CI",
                  direction = "Directionality of effect"
                  )
-    
+
+# Saving table
+gt::gtsave(equiv_meanginful_results,
+           filename = "equiv_meanginful_results.png",
+           path = here::here("outputs"),
+           vwidth = 1000,
+           vheight = 800)
   
 ```
 
@@ -939,8 +1066,42 @@ means_dfs <- means_dfs %>%
 
 ```{r}
 means_table <- means_dfs %>%
+  # Rename values in rows to make output prettier
+  mutate(
+    metric = case_when(
+      metric == "mean" ~ "Average daytime mEDI",
+      metric == "m10" ~ "M10m",
+      metric == "iv" ~ "IV",
+      metric == "is" ~ "IS",
+      TRUE ~ metric
+      )
+    ) %>%
   gt::gt() %>%
   gt::tab_header(title = gt::md("**Means and SDs of light exposure metrics (n=14)**")) %>% #Add title
+  # Workaround to create superscripts
+  gt::text_transform(
+  locations = gt::cells_body(columns = c(metric)),
+  fn = function(x) {
+    sapply(x, function(val) {
+      if (str_detect(val, "^(tat|llit|mlit|flit)\\d+")) {
+        prefix <- str_extract(val, "^[a-z]+")
+        sup <- str_extract(val, "\\d+")
+
+        formatted <- case_when(
+          prefix == "tat" ~ glue::glue("TAT<sup>{sup}</sup>"),
+          prefix == "llit" ~ glue::glue("LLiT<sup>{sup}</sup>"),
+          prefix == "mlit" ~ glue::glue("MLiT<sup>{sup}</sup>"),
+          prefix == "flit" ~ glue::glue("FLiT<sup>{sup}</sup>"),
+          TRUE ~ val
+        )
+
+        gt::html(formatted)
+      } else {
+        gt::html(val)
+      }
+    })
+  }
+) %>%
   gt::cols_label(metric = "Metric",
              mean_ids_raw = "Raw dataset (mean)",
              sd_ids_raw = "Raw dataset (SD)",
@@ -958,6 +1119,8 @@ means_table <- means_dfs %>%
 gt::gtsave(means_table,
            filename = "means_table.png",
            path = here::here("outputs"))
+
+
 
 
 ```
