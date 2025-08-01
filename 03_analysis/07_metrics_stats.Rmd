@@ -700,13 +700,13 @@ friedman_table <- friedman_all %>%
     sapply(x, function(val) {
       if (str_detect(val, "^(tat|llit|mlit|flit)\\d+")) {
         prefix <- str_extract(val, "^[a-z]+")
-        sup <- str_extract(val, "\\d+")
+        sub <- str_extract(val, "\\d+")
 
         formatted <- case_when(
-          prefix == "tat" ~ glue::glue("TAT<sup>{sup}</sup>"),
-          prefix == "llit" ~ glue::glue("LLiT<sup>{sup}</sup>"),
-          prefix == "mlit" ~ glue::glue("MLiT<sup>{sup}</sup>"),
-          prefix == "flit" ~ glue::glue("FLiT<sup>{sup}</sup>"),
+          prefix == "tat" ~ glue::glue("TAT<sub>{sub}</sub>"),
+          prefix == "llit" ~ glue::glue("LLiT<sub>{sub}</sub>"),
+          prefix == "mlit" ~ glue::glue("MLiT<sub>{sub}</sub>"),
+          prefix == "flit" ~ glue::glue("FLiT<sub>{sub}</sub>"),
           TRUE ~ val
         )
 
@@ -760,16 +760,16 @@ posthoc_equiv_table <- equiv_results %>%
   ## cols group 1 and group 2
   mutate(
     group1 = case_when(
-      group1 == "raw" ~ "Raw",
-      group1 == "wrlg" ~ "Wear log",
-      group1 == "clusters" ~ "Algorithm"
+      group1 == "raw" ~ "Raw data",
+      group1 == "wrlg" ~ "Wear log-corrected",
+      group1 == "clusters" ~ "Algorithm-corrected"
       )
     ) %>%
   mutate(
     group2 = case_when(
-      group2 == "raw" ~ "Raw",
-      group2 == "wrlg" ~ "Wear log",
-      group2 == "clusters" ~ "Algorithm"
+      group2 == "raw" ~ "Raw data",
+      group2 == "wrlg" ~ "Wear log-corrected",
+      group2 == "clusters" ~ "Algorithm-corrected"
       )
     ) %>%
   ## col equivalence
@@ -791,11 +791,11 @@ posthoc_equiv_table <- equiv_results %>%
     fn = function(x) {
     sapply(x, function(val) {
       if (str_detect(val, "^tat\\d+")) {
-        sup <- str_extract(val, "\\d+")
-        gt::html(glue::glue("TAT<sup>{sup}</sup>"))
+        sub <- str_extract(val, "\\d+")
+        gt::html(glue::glue("TAT<sub>{sub}</sub>"))
       } else if (str_detect(val, "^llit\\d+")) {
-        sup <- str_extract(val, "\\d+")
-        gt::html(glue::glue("LLiT<sup>{sup}</sup>"))
+        sub <- str_extract(val, "\\d+")
+        gt::html(glue::glue("LLiT<sub>{sub}</sub>"))
       } else {
         gt::html(val)
       }
@@ -838,7 +838,7 @@ gt::gtsave(posthoc_equiv_table,
   
 ```
 
-## Third: Table for meaningfully positive or negative effects of the equivalence test
+## Third, option 1: Table for meaningfully positive or negative effects of the equivalence test
 ```{r}
 equiv_meanginful_results <- equiv_results %>%
   filter(equivalence == "positive effect" | equivalence == "negative effect") %>%
@@ -927,8 +927,156 @@ gt::gtsave(equiv_meanginful_results,
            vheight = 800)
   
 ```
-What does this table show?
-- TAT1000 and TAT250: raw wearlog values are higher in raw dataset compared to datasets cleaned by either wear log +
+## Third, option 2: show same thing in a 2x2 table 
+We need to create this table manually 
+```{r}
+# Create data with a grouping label
+equiv_tibble_manual <- tibble::tibble(
+  Group = c("Difference between correction methods", "Difference between correction methods"),
+  Difference = c("Inconclusive", "Yes"),
+  `Inconclusive` = c(
+    "LLiT<sub>10</sub><br>LLiT<sub>1000</sub><br>IV<br>IS",
+    "/"
+  ),
+  `Yes` = c(
+    "<span style='color:red;'>Average daytime mEDI<br>M10m</span>",
+    "<span style='color:green;'>TAT<sub>1000</sub><br>TAT<sub>250</sub></span>"
+  )
+)
+
+
+# Build gt table with group_rows to simulate vertical merge
+equiv_table_manual <- equiv_tibble_manual %>%
+  gt::gt(groupname_col = "Group") %>%
+  tab_spanner(
+    label = md("**Difference from no correction**"),
+    columns = c(Inconclusive, Yes)
+  ) %>%
+  # Insert separation line after Difference col
+  gt::tab_style(
+  style = gt::cell_borders(
+    sides = "right",
+    color = "lightgrey",
+    weight = px(2)
+  ),
+  locations = gt::cells_body(columns = "Difference")
+) %>%
+  # Insert separation line after Group col 
+  gt::tab_style(
+  style = gt::cell_borders(
+    sides = "right",
+    color = "lightgrey"
+  ),
+  locations = gt::cells_body(columns = "Group")
+  ) %>%
+  # Make text bold in the Difference col
+    tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(
+      columns = "Difference",
+      rows = Difference %in% c("Yes", "Inconclusive")
+    )
+  ) %>%
+  # Hide the Difference col name, as we do not need it
+  cols_label(
+    Difference = md("")
+  ) %>%
+  fmt_markdown(columns = everything()) %>%
+  # Format all cols to be bold
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels(everything())
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold", align = "center"),
+    locations = cells_row_groups(groups = "Difference between correction methods")
+  ) %>%
+  # Centre the col names 
+  tab_style(
+    style = cell_text(align = "center", weight = "bold"),
+    locations = cells_column_labels(columns = c("Inconclusive", "Yes"))
+    ) %>%
+  tab_options(
+    table.width = pct(90),
+    row_group.as_column = TRUE
+  ) %>%
+  # Left border on the first column (Group)
+  tab_style(
+    style = cell_borders(
+      sides = "left",
+      color = "lightgrey",
+      weight = px(2)
+    ),
+    locations = cells_row_groups()
+  ) %>%
+  # Right border within table
+  tab_style(
+  style = cell_borders(
+    sides = "right",
+    color = "lightgrey",
+    weight = px(1)
+  ),
+  locations = cells_body(columns = "Inconclusive")
+) %>%
+  # Right border on the last column (Yes)
+  tab_style(
+    style = cell_borders(
+      sides = "right",
+      color = "lightgrey",
+      weight = px(2)
+    ),
+    locations = cells_body(columns = "Yes")
+  ) %>%
+  # Line between Inconclusive and yes columns
+  tab_style(
+  style = cell_borders(
+    sides = c("right"),
+    color = "lightgrey",
+    weight = px(1)
+  ),
+  locations = cells_column_labels(columns = "Inconclusive")
+) %>%
+  # Line after the yes col, to close the table
+  tab_style(
+    style = cell_borders(
+    sides = c("right"),
+    color = "lightgrey",
+    weight = px(2)
+  ),
+  locations = cells_column_labels(columns = "Yes")
+) %>%
+  # Line before the Incoclusive col, to close the table
+  tab_style(
+    style = cell_borders(
+    sides = c("left"),
+    color = "lightgrey",
+    weight = px(2)
+  ),
+  locations = cells_column_labels(columns = "Inconclusive")
+) %>%  
+  tab_options(
+  column_labels.border.top.width = px(0),
+  column_labels.border.top.color = "red"
+) %>%
+  tab_source_note(
+    md("<span style='color:red;'>Uncorrected metric value is lower</span><br>
+        <span style='color:green;'>Uncorrected metric value is higher</span>")
+  )
+
+equiv_table_manual
+
+# Saving table
+gt::gtsave(equiv_table_manual,
+           filename = "equiv_table_manual.png",
+           path = here::here("outputs"),
+           vwidth = 800,
+           vheight = 600)
+
+
+```
+
+
+
 ## Calculating mean and sd of all timing functions in order to report result of the t-test
 ```{r}
 # Define a function that calculates the mean of each id metric
