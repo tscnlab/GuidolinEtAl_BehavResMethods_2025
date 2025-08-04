@@ -778,7 +778,23 @@ posthoc_equiv_table <- equiv_results %>%
       equivalence == "positive effect" ~ "Positive effect",
       equivalence == "negative effect" ~ "Negative effect",
       equivalence == "inconclusive" ~ "Inconclusive")
-  ) %>%
+    ) %>%
+  # Making new col for directionality
+  mutate(direction = case_when(
+    equivalence == "Positive effect" ~ paste0(group1, " > ", group2),
+    equivalence == "Negative effect" ~ paste0(group1, " < ", group2),
+    equivalence == "Inconclusive" ~ "/")
+    ) %>%
+  # # Making the rows look nicer for later gt table output
+  # ## col direction
+  # mutate(
+  #   direction = case_when(
+  #     direction == "Raw data > Wear log-corrected" ~ "Raw > Wear log-corrected",
+  #     direction == "Raw data < Wear log-corrected" ~ "Raw < Wear log-corrected",
+  #     direction == "Raw data > Algorithm-corrected" ~ "Raw > Algorithm-corrected",
+  #     direction == "Raw data < Algorithm-corrected" ~ "Raw < Algorithm-corrected",
+  #     direction == "Wear log-corrected < Algorithm-corrected" ~ "Wear log < Algorithm-corrected")
+  #   ) %>%
   gt::gt() %>% 
   gt::tab_header(title = gt::md("**Post-hoc Wilcoxon pairwise comparisons and equivalence test results**"),
                  subtitle = gt::md("**Smallest effect size of interest for equivalence testing = 0.3**")
@@ -820,7 +836,8 @@ posthoc_equiv_table <- equiv_results %>%
              p.adj.signif = "Significance",
              lower_CI = "Lower CI",
              upper_CI = "Upper CI",
-             equivalence = "Equivalence test result") 
+             equivalence = "Equivalence test result",
+             direction = "Directionality of effect") 
 
 posthoc_equiv_table
 
