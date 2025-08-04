@@ -112,7 +112,7 @@ clean_wrlg <- ggpubr::ggscatter(data = is_all,
     breaks = c(0, 0.50, 1), 
     labels = c("0", "0.50", "1")
   ) + 
-  labs(x = "Raw dataset", y = "Clean dataset (Wear log)") +
+  labs(x = "Raw dataset", y = "Wear log-corrected dataset") +
   coord_fixed(ratio = 1) +
   ggpubr::rremove("legend") +
   theme(plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))
@@ -134,7 +134,7 @@ clean_clusters <- ggpubr::ggscatter(data = is_all,
     breaks = c(0, 0.50, 1), 
     labels = c("0", "0.50", "1")
   ) + 
-  labs(x = "Raw dataset", y = "Clean dataset (algorithm)") +
+  labs(x = "Raw dataset", y = "Algorithm-corrected dataset") +
   coord_fixed(ratio = 1) +
   ggpubr::rremove("legend") +
   theme(plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))
@@ -245,7 +245,7 @@ clean_wrlg <- ggpubr::ggscatter(data = iv_all,
     breaks = c(0, 1, 2), 
     labels = c("0", "1", "2")
   ) + 
-  labs(x = "Raw dataset", y = "Clean dataset (Wear log)") +
+  labs(x = "Raw dataset", y = "Wear log-corrected dataset") +
   coord_fixed(ratio = 1) + 
   ggpubr::rremove("legend")+
   theme(plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))
@@ -272,7 +272,7 @@ clean_clusters <- ggpubr::ggscatter(data = iv_all,
     breaks = c(0, 1, 2), 
     labels = c("0", "1", "2")
   ) + 
-  labs(x = "Raw dataset", y = "Clean dataset (algorithm)") +
+  labs(x = "Raw dataset", y = "Algorithm-corrected dataset") +
   coord_fixed(ratio = 1) + 
   ggpubr::rremove("legend") +
   theme(plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))
@@ -421,7 +421,7 @@ raw_vs_wrlg_vis <- visualize_comparison(
   x_col = "mean_raw", 
   y_col = "mean_wrlg", 
   x_label = "Raw dataset", 
-  y_label = "Clean dataset (Wear log)",
+  y_label = "Wear log-corrected dataset",
 )
 
 ## Raw vs clusters
@@ -430,7 +430,7 @@ raw_vs_clusters_vis <- visualize_comparison(
   x_col = "mean_raw", 
   y_col = "mean_clusters", 
   x_label = "Raw dataset", 
-  y_label = "Clean dataset (algorithm)",
+  y_label = "Algorithm-corrected dataset",
 )
 
 ## Histogram of deltas 
@@ -464,7 +464,7 @@ raw_vs_wrlg_vis <- visualize_comparison(
   x_col = "mean_raw", 
   y_col = "mean_wrlg", 
   x_label = "Raw dataset", 
-  y_label = "Clean dataset (Wear log)",
+  y_label = "Wear log-corrected dataset",
 )
 
 ## Raw vs clusters
@@ -473,7 +473,7 @@ raw_vs_clusters_vis <- visualize_comparison(
   x_col = "mean_raw", 
   y_col = "mean_clusters", 
   x_label = "Raw dataset", 
-  y_label = "Clean dataset (algorithm)",
+  y_label = "Algorithm-corrected dataset",
 )
 
 ## Histogram of deltas 
@@ -507,7 +507,7 @@ raw_vs_wrlg_vis <- visualize_comparison(
   x_col = "mean_raw", 
   y_col = "mean_wrlg", 
   x_label = "Raw dataset", 
-  y_label = "Clean dataset (Wear log)",
+  y_label = "Wear log-corrected dataset",
 )
 
 ## Raw vs clusters
@@ -516,7 +516,7 @@ raw_vs_clusters_vis <- visualize_comparison(
   x_col = "mean_raw", 
   y_col = "mean_clusters", 
    x_label = "Raw dataset", 
-  y_label = "Clean dataset (algorithm)",
+  y_label = "Algorithm-corrected dataset",
 )
 
 ## Histogram of deltas 
@@ -550,7 +550,7 @@ raw_vs_wrlg_vis <- visualize_comparison(
   x_col = "mean_raw", 
   y_col = "mean_wrlg", 
   x_label = "Raw dataset", 
-  y_label = "Clean dataset (Wear log)",
+  y_label = "Wear log-corrected dataset",
 )
 
 ## Raw vs clusters
@@ -559,7 +559,7 @@ raw_vs_clusters_vis <- visualize_comparison(
   x_col = "mean_raw", 
   y_col = "mean_clusters", 
   x_label = "Raw dataset", 
-  y_label = "Clean dataset (algorithm)",
+  y_label = "Algorithm-corrected dataset",
 )
 
 ## Histogram of deltas 
@@ -594,7 +594,7 @@ raw_vs_wrlg_vis <- visualize_comparison(
   x_col = "mean_raw", 
   y_col = "mean_wrlg", 
  x_label = "Raw dataset", 
-  y_label = "Clean dataset (Wear log)",
+  y_label = "Wear log-corrected dataset",
 )
 
 ## Raw vs clusters
@@ -603,7 +603,7 @@ raw_vs_clusters_vis <- visualize_comparison(
   x_col = "mean_raw", 
   y_col = "mean_clusters", 
   x_label = "Raw dataset", 
-  y_label = "Clean dataset (algorithm)",
+  y_label = "Algorithm-corrected dataset",
 )
 
 ## Histogram of deltas 
@@ -637,7 +637,7 @@ raw_vs_wrlg_vis <- visualize_comparison(
   x_col = "mean_raw", 
   y_col = "mean_wrlg", 
   x_label = "Raw dataset", 
-  y_label = "Clean dataset (Wear log)",
+  y_label = "Wear log-corrected dataset",
 )
 
 ## Raw vs clusters
@@ -646,7 +646,7 @@ raw_vs_clusters_vis <- visualize_comparison(
   x_col = "mean_raw", 
   y_col = "mean_clusters", 
   x_label = "Raw dataset", 
-  y_label = "Clean dataset (algorithm)",
+  y_label = "Algorithm-corrected dataset",
 )
 
 ## Histogram of deltas 
@@ -681,7 +681,7 @@ raw_vs_wrlg_vis <- visualize_comparison(
   x_col = "mean_raw", 
   y_col = "mean_wrlg", 
   x_label = "Raw dataset", 
-  y_label = "Clean dataset (Wear log)",
+  y_label = "Wear log-corrected dataset",
 )
 
 ## Raw vs clusters
@@ -690,7 +690,7 @@ raw_vs_clusters_vis <- visualize_comparison(
   x_col = "mean_raw", 
   y_col = "mean_clusters", 
   x_label = "Raw dataset", 
-  y_label = "Clean dataset (algorithm)",
+  y_label = "Algorithm-corrected dataset",
 )
 
 ## Histogram of deltas 
@@ -724,7 +724,7 @@ raw_vs_wrlg_vis <- visualize_comparison(
   x_col = "mean_raw", 
   y_col = "mean_wrlg", 
   x_label = "Raw dataset", 
-  y_label = "Clean dataset (Wear log)",
+  y_label = "Wear log-corrected dataset",
 )
 
 ## Raw vs clusters
@@ -733,7 +733,7 @@ raw_vs_clusters_vis <- visualize_comparison(
   x_col = "mean_raw", 
   y_col = "mean_clusters", 
   x_label = "Raw dataset", 
-  y_label = "Clean dataset (algorithm)",
+  y_label = "Algorithm-corrected dataset",
 )
 
 ## Histogram of deltas 
@@ -767,7 +767,7 @@ raw_vs_wrlg_vis <- visualize_comparison(
   x_col = "mean_raw", 
   y_col = "mean_wrlg", 
   x_label = "Raw dataset", 
-  y_label = "Clean dataset (Wear log)",
+  y_label = "Wear log-corrected dataset",
 )
 
 ## Raw vs clusters
@@ -776,7 +776,7 @@ raw_vs_clusters_vis <- visualize_comparison(
   x_col = "mean_raw", 
   y_col = "mean_clusters", 
   x_label = "Raw dataset", 
-  y_label = "Clean dataset (algorithm)",
+  y_label = "Algorithm-corrected dataset",
 )
 
 ## Histogram of deltas 
@@ -810,7 +810,7 @@ raw_vs_wrlg_vis <- visualize_comparison(
   x_col = "mean_raw", 
   y_col = "mean_wrlg", 
   x_label = "Raw dataset", 
-  y_label = "Clean dataset (Wear log)",
+  y_label = "Wear log-corrected dataset",
 )
 
 ## Raw vs clusters
@@ -819,7 +819,7 @@ raw_vs_clusters_vis <- visualize_comparison(
   x_col = "mean_raw", 
   y_col = "mean_clusters", 
   x_label = "Raw dataset", 
-  y_label = "Clean dataset (algorithm)",
+  y_label = "Algorithm-corrected dataset",
 )
 
 ## Histogram of deltas 
@@ -920,7 +920,7 @@ clean_wrlg <- ggpubr::ggscatter(data = mean_all,
   as.character(round(mean_all_max_wrlg, 1))
                )
   )+
-  labs(x = "Raw dataset", y = "Clean dataset (Wear log)") +
+  labs(x = "Raw dataset", y = "Wear log-corrected dataset") +
   coord_fixed(ratio = 1) +
   ggpubr::rremove("legend") +
   theme(plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))
@@ -951,7 +951,7 @@ clean_clusters <- ggpubr::ggscatter(data = mean_all,
   as.character(round(mean_all_max_clusters, 1))
                )
   )+
-  labs(x = "Raw dataset", y = "Clean dataset (algorithm)") +
+  labs(x = "Raw dataset", y = "Algorithm-corrected dataset") +
   coord_fixed(ratio = 1) +
   ggpubr::rremove("legend") +
   theme(plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))
@@ -1084,7 +1084,7 @@ clean_wrlg <- ggpubr::ggscatter(data = m10_all,
     breaks = c(10, 450, 690), 
     labels = c("10", "450", "690")
   ) +
-  labs(x = "Raw dataset", y = "Clean dataset (Wear log)") +
+  labs(x = "Raw dataset", y = "Wear log-corrected dataset") +
   coord_fixed(ratio = 1) +
   ggpubr::rremove("legend") +
   theme(plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))
@@ -1107,7 +1107,7 @@ clean_clusters <- ggpubr::ggscatter(data = m10_all,
     breaks = c(10, 450, 690), 
     labels = c("10", "450", "690")
   ) +
-  labs(x = "Raw dataset", y = "Clean dataset (algorithm)") +
+  labs(x = "Raw dataset", y = "Algorithm-corrected dataset") +
   coord_fixed(ratio = 1) +
   ggpubr::rremove("legend") +
   theme(plot.margin = unit(c(t=0,r=0.1,b=0.2,l=0), "cm"))
