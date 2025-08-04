@@ -1294,3 +1294,87 @@ gt::gtsave(means_table,
 
 ```
 
+### Pairwise differences across participant days
+```{r}
+# Adding v1, v2 etc 
+df1 <- batch_raw %>% rename_with(~ paste0(., "_v1"), -c(Id, wDay))
+df2 <- batch_wrlg %>% rename_with(~ paste0(., "_v2"), -c(Id, wDay))
+df3 <- batch_clusters %>% rename_with(~ paste0(., "_v3"), -c(Id, wDay))
+
+# Merging the three datasets
+merged_metrics <- df1 %>%
+  inner_join(df2, by = c("Id", "wDay")) %>%
+  inner_join(df3, by = c("Id", "wDay"))
+
+# Extract metric names out of the first dataset
+metric_names <- setdiff(names(df1), c("Id", "wDay")) %>% gsub("_v1", "", .)
+
+# For each pair, compute differences
+for (metric in metric_names) {
+  merged_metrics[[paste0(metric, "_v1_v2_diff")]] <- merged_metrics[[paste0(metric, "_v1")]] - merged_metrics[[paste0(metric, "_v2")]]
+  merged_metrics[[paste0(metric, "_v1_v3_diff")]] <- merged_metrics[[paste0(metric, "_v1")]] - merged_metrics[[paste0(metric, "_v3")]]
+  merged_metrics[[paste0(metric, "_v2_v3_diff")]] <- merged_metrics[[paste0(metric, "_v2")]] - merged_metrics[[paste0(metric, "_v3")]]
+}
+
+
+# Step 1: Mean per ID across their days
+participant_level_diff_means <- merged_metrics %>%
+  group_by(Id) %>%
+  summarise(across(ends_with("_diff"), ~ mean(.x, na.rm = TRUE)), .groups = "drop")
+
+# Step 2: Mean across all IDs (so each participant contributes equally)
+diff_means_across_IDs <- participant_level_diff_means %>%
+  summarise(across(where(is.numeric), ~ mean(abs(.x), na.rm = TRUE)))
+
+
+# Look into TAT values
+tat_diffs <- diff_means_across_IDs %>%
+  select(starts_with("duration_above") & ends_with("_diff")) %>%
+  rename_with(~ case_when(
+    .x == "duration_above_1000_v1_v2_diff" ~ "TAT1000 raw vs wear log",
+    .x == "duration_above_1000_v1_v3_diff" ~ "TAT1000 raw vs algorithm",
+    .x == "duration_above_1000_v2_v3_diff" ~ "TAT1000 wear log vs algorithm",
+    .x == "duration_above_250_v1_v2_diff"  ~ "TAT250 raw vs wear log",
+    .x == "duration_above_250_v1_v3_diff"  ~ "TAT250 raw vs algorithm",
+    .x == "duration_above_250_v2_v3_diff"  ~ "TAT250 wear log vs algorithm",
+    TRUE ~ .x  # keep other names as-is, just in case
+  ))
+
+tat_diffs_long <- tat_diffs %>%
+  pivot_longer(cols = everything(), names_to = "comparison", values_to = "mean_diff")
+
+# Converting into mins
+seconds_to_hms <- function(seconds) {
+  sign_str <- ifelse(seconds < 0, "-", "")
+  seconds <- abs(seconds)
+  hours <- floor(seconds / 3600)
+  minutes <- floor((seconds %% 3600) / 60)
+  secs <- round(seconds %% 60)
+  paste0(sign_str, sprintf("%02d:%02d:%02d", hours, minutes, secs))
+}
+
+
+tat_diffs_hms <- tat_diffs %>%
+  mutate(across(everything(), seconds_to_hms))
+
+tat_hms_diffs_long <- tat_diffs_hms %>%
+  pivot_longer(cols = everything(), names_to = "comparison", values_to = "mean_diff") %>%
+  mutate(mean_abs_diff = mean())
+
+tat_diffs_long <- tat_diffs_long %>%
+  mutate(
+    group = case_when(
+      grepl("TAT250", comparison) ~ "TAT250",
+      grepl("TAT1000", comparison) ~ "TAT1000",
+      TRUE ~ NA_character_
+    )
+  )
+
+tat_diffs_long <- tat_diffs_long %>%
+  group_by(group) %>%
+  mutate(mean_abs_diff = mean(abs(mean_diff), na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(across(where(is.numeric), seconds_to_hms))
+
+```
+
