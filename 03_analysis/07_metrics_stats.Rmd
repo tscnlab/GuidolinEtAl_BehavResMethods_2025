@@ -1295,6 +1295,7 @@ gt::gtsave(means_table,
 ```
 
 ### Pairwise differences across participant days
+Sanity check to confirm that differences across datasets are very small
 ```{r}
 # Adding v1, v2 etc 
 df1 <- batch_raw %>% rename_with(~ paste0(., "_v1"), -c(Id, wDay))
@@ -1375,6 +1376,8 @@ tat_diffs_long <- tat_diffs_long %>%
   mutate(mean_abs_diff = mean(abs(mean_diff), na.rm = TRUE)) %>%
   ungroup() %>%
   mutate(across(where(is.numeric), seconds_to_hms))
+
+
 
 ```
 
