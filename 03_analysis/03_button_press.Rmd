@@ -143,44 +143,58 @@ bp_wrlg_df_wide <- bd_wrlg_df %>%
 wrlg_int_classified <- ggplot(bp_wrlg_df_wide,
                               aes(x = n_per_bounded,
                                   y = n_per_unbounded,
-                                  shape = as.factor(window_size)
-                                  )
+                                  fill = factor(window_size))  # Categorical fill
                               ) +
-  geom_point(position = position_jitter(w=0.3),
-             alpha =0.5, size=2.5) +
+  geom_point(position = position_jitter(w = 0.3),
+             alpha = 0.7,
+             size = 3,
+             shape = 21,               
+             color = "black") +       
   xlim(0, 100) +
   ylim(0, 100) +
-  scale_shape_manual(values = c(15, 18, 16, 6, 1, 2, 3, 0)) +
+  scale_fill_brewer(palette = "Set2") +
   labs(x = "Closed intervals (%)",
        y = "Open intervals (%)") +
-  theme_bw()  +
-  geom_rect(aes(xmin = 60.0, xmax = Inf, ymin = -Inf, ymax = 40.0), fill = "#FFC20A", colour = NA, alpha = 0.01) +
+  theme_bw() +
+  geom_rect(aes(xmin = 60.0, xmax = Inf, ymin = -Inf, ymax = 40.0),
+            fill = "#FFC20A",
+            colour = NA,
+            alpha = 0.01,
+            inherit.aes = FALSE) +
   theme(plot.title = element_text(hjust = 0.5, size = 24),
         axis.text = element_text(size = 16),
         axis.title = element_text(size = 18),
-        legend.title = element_text(size = 14, hjust =0.5),
+        legend.title = element_text(size = 14, hjust = 0.5),
         legend.text = element_text(size = 14)) +
   coord_fixed(ratio = 1) +
   ggpubr::rremove("xylab") +
   guides(
-    shape = guide_legend("Window size\n(minutes)")
+    fill = guide_legend("Window size\n(minutes)")  # Now using only fill
   )
  
 
 #Zoom in the yellow shaded area
 
 wrlg_int_classified_zoom <- ggplot(bp_wrlg_df_wide,
-                                   aes(x = n_per_bounded,
-                                       y = n_per_unbounded,
-                                       shape =as.factor(window_size))) +
-  geom_point(position = position_jitter(w=0.3),
-             alpha =0.5, size=4) +
+       aes(x = n_per_bounded,
+           y = n_per_unbounded,
+           fill = factor(window_size))  # fill mapped to categorical variable
+       ) +
+  geom_point(position = position_jitter(w = 0.3),
+             alpha = 0.5,
+             size = 4,
+             shape = 21,               # allows fill + outline
+             colour = "black") +      # black contour
   xlim(60.0, 100) +
   ylim(0, 40.0) +
-  scale_shape_manual(values = c(15,18,16,6, 1, 2, 3, 0)) +
+  scale_fill_brewer(palette = "Set2") +  # categorical color palette
   labs(x = "Closed intervals (%)", y = "Open intervals (%)") +
-  theme_bw()  +
-  geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf), fill = "#FFC20A", colour = NA, alpha = 0.01) +
+  theme_bw() +
+  geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf),
+            fill = "#FFC20A",
+            colour = NA,
+            alpha = 0.01,
+            inherit.aes = FALSE) +  # prevent rect from using point aes
   theme(plot.title = element_text(hjust = 0.5),
         axis.text = element_text(size = 14),
         axis.title = element_text(size = 14),
@@ -189,7 +203,7 @@ wrlg_int_classified_zoom <- ggplot(bp_wrlg_df_wide,
   coord_fixed(ratio = 1) +
   ggpubr::rremove("xylab") +
   guides(
-    shape = guide_legend("Window size\n(minutes)")
+    fill = guide_legend("Window size\n(minutes)")  # legend now reflects fill
   )
 
 
@@ -236,40 +250,5 @@ ggsave(filename = "results_fig06.png",
 
 ```
 
-## Are there any instances were button presses are occurring within a non-wear interval? Or within a wear interval?
-```{r}
-# Define the proximity window (in minutes)
-window_minutes <- 2
-window_seconds <- window_minutes * 60
 
-# Create a combined interval table for 'off' intervals
-off_intervals <- wrlg_int %>%
-  filter(!is.na(State), State == "off") %>%
-  mutate(start = lubridate::int_start(Interval),
-         end = lubridate::int_end(Interval)) %>%
-  select(-Interval)
-
-# Only keep relevant cols of data.bp.clean
-data.bp.clean <- data.bp.clean %>%
-  select(Id, EVENT, Datetime)
-
-# Join each button press with all non-wear intervals to check if it falls inside any
-bp_in_middle <- data.bp.clean %>%
-  inner_join(off_intervals, by = "Id") %>% # will return warning, but not a problem since we filter next
-  filter(Datetime > start + window_seconds &
-         Datetime < end - window_seconds)
-```
-```{r}
-wear_intervals <- wrlg_int %>%
-  filter(!is.na(State), State == "on") %>%
-  mutate(start = lubridate::int_start(Interval),
-         end = lubridate::int_end(Interval))
-
-bp_in_middle_wear <- data.bp.clean %>%
-  inner_join(wear_intervals, by = "Id") %>%
-  filter(Datetime > start + window_seconds &
-         Datetime < end - window_seconds)
-
-num_bp_middle_wear <- nrow(bp_in_middle_wear)
-```
 
