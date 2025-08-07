@@ -522,3 +522,265 @@ ggsave(filename = "results_fig08.png",
 
 ```
 
+## Comparing algorithm performance during daytime and evening periods
+We will use the photoperiod function of LightLogR for this 
+```{r}
+# Specify experimental coordinates
+tubi_coordinates <- c(48.521637, 9.057645)
+
+# Add photoperiod col to the dataset
+# Note that we use the dataset where sleep states are NA
+photoperioded.dataset.LL.wrlg <- df.LL.nosleep %>%
+  LightLogR::add_photoperiod(tubi_coordinates)
+
+# Separate the datasets so that one corresponds to the day and one to the dusk 
+daytime.LL.wrlg <- photoperioded.dataset.LL.wrlg %>%
+  filter(photoperiod.state == "day")
+
+dusktime.LL.wrlg <- photoperioded.dataset.LL.wrlg %>%
+  filter(photoperiod.state == "night")
+```
+
+### Measuring algorithm performance for daytime
+We perform the same PRC analysis as for the whole dataset. We take the same input parameters of the algorithm as above (min length: 21 minutes, min interruption: 0 minutes) and iterate over mEDI values from 1 to 10 lux.
+```{r}
+medithresholds <- seq(1, 10, by = 1)
+
+#Empty list to store classification results
+prc_list <- list()
+
+for (threshold in medithresholds) {
+  
+  prc_result <- generate_prc(
+    dataset = daytime.LL.wrlg,
+    low_var = "MEDI",
+    min_length = 126, #21 minutes (n of observations)
+    max_interrupt = 0, #0 minute (n of observations)
+    threshold = threshold
+  )
+  
+  # Add the current threshold as a column in prc_m_result
+  prc_result <- prc_result %>%
+    mutate(threshold = threshold) # Add threshold column
+  
+  prc_list[[as.character(threshold)]] <- prc_result
+  
+}
+
+#Turn list into df
+daytime_prcurve_medi <- bind_rows(prc_list)
+#Turn threshold to numeric for plotting
+daytime_prcurve_medi$threshold <- as.numeric(daytime_prcurve_medi$threshold)
+
+
+daytime_prcurve_medi_f1 <- daytime_prcurve_medi %>%
+  mutate(f1_score = (2* PPV * TPR)/(PPV + TPR))
+
+# Visualisation 
+daytime_prc_medi_thresholds <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + # baseline classifier
+  geom_point(data = daytime_prcurve_medi_f1, aes(x = TPR, y = PPV, colour = threshold)) +
+  scale_colour_gradient(
+     name = "mEDI threshold (lx)",
+     low = "red", high = "orange",
+     limits= c(1,10),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Algorithm performance \n(daytime)") +
+   theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 10),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
+        legend.position = "bottom",
+        plot.margin = unit(c(0.5,0.5,0,0), unit ="cm")) +
+   coord_fixed(ratio = 1)
+```
+
+### Measuring algorithm performance for nighttime
+We perform the same PRC analysis as for the whole dataset. We take the same input parameters of the algorithm as above (min length: 21 minutes, min interruption: 0 minutes) and iterate over mEDI values from 1 to 10 lux.
+```{r}
+medithresholds <- seq(1, 10, by = 1)
+
+#Empty list to store classification results
+prc_list <- list()
+
+for (threshold in medithresholds) {
+  
+  prc_result <- generate_prc(
+    dataset = dusktime.LL.wrlg,
+    low_var = "MEDI",
+    min_length = 126, #21 minutes (n of observations)
+    max_interrupt = 0, #0 minute (n of observations)
+    threshold = threshold
+  )
+  
+  # Add the current threshold as a column in prc_m_result
+  prc_result <- prc_result %>%
+    mutate(threshold = threshold) # Add threshold column
+  
+  prc_list[[as.character(threshold)]] <- prc_result
+  
+}
+
+#Turn list into df
+dusktime_prcurve_medi <- bind_rows(prc_list)
+#Turn threshold to numeric for plotting
+dusktime_prcurve_medi$threshold <- as.numeric(prcurve_medi$threshold)
+
+
+dusktime_prcurve_medi_f1 <- dusktime_prcurve_medi %>%
+  mutate(f1_score = (2* PPV * TPR)/(PPV + TPR))
+
+# Visualisation 
+dusktime_prc_medi_thresholds <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + # baseline classifier
+  geom_point(data = dusktime_prcurve_medi_f1, aes(x = TPR, y = PPV, colour = threshold)) +
+  scale_colour_gradient(
+     name = "mEDI threshold (lx)",
+     low = "red", high = "orange",
+     limits= c(1,10),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Algorithm performance \n(after dusk)") +
+   theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 10),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
+        legend.position = "bottom",
+        plot.margin = unit(c(0.5,0.5,0,0), unit ="cm")) +
+   coord_fixed(ratio = 1)
+```
+
+### Re-create PRC visualisation of combined daytime and dusk time, without activity
+```{r}
+combined_prc_medi_thresholds <- ggplot() +
+   xlim(0,1) + 
+   ylim(0,1) +
+  geom_abline(slope = 0, intercept = 0.5, linetype = "dashed", color = "darkgrey") + # baseline classifier
+  geom_point(data = prcurve_medi_f1, aes(x = TPR, y = PPV, colour = threshold)) +
+  scale_colour_gradient(
+     name = "mEDI threshold (lx)",
+     low = "red", high = "orange",
+     limits= c(1,10),
+     guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  labs(x="True positive rate (recall)",
+       y = "Positive predictive value \n(precision)",
+       title = "Algorithm performance \n(daytime and after dusk)") +
+   theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 20),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 10),
+        legend.text = element_text(size = 8),
+        legend.key.size = unit(4, "mm"),
+        legend.position = "bottom",
+        plot.margin = unit(c(0.5,0.5,0,0), unit ="cm")) +
+   coord_fixed(ratio = 1)
+```
+
+### Plotting the three curves together
+```{r}
+library(patchwork)
+
+multiplot <- cowplot::plot_grid(combined_prc_medi_thresholds, daytime_prc_medi_thresholds, dusktime_prc_medi_thresholds,
+                                labels = c("A", "B", "C"),
+                                ncol = 3,
+                                nrow = 1,
+                                align = "hv")
+
+ggsave(filename = "daytime_dusk_multiplot.png",
+       plot = multiplot,
+       width = 14, 
+       height = 6,
+       dpi = 600, 
+       bg = "white",
+       path = here::here("outputs"))
+
+```
+
+### Sanity check: dataset where there are no sleep states at all
+```{r}
+df.LL.onoff <- dataset.LL.wrlg %>%
+  filter(! State == "sleep") 
+
+medithresholds <- seq(1, 10, by = 1)
+
+#Empty list to store classification results
+prc_list <- list()
+
+for (threshold in medithresholds) {
+  
+  prc_result <- generate_prc(
+    dataset = df.LL.onoff,
+    low_var = "MEDI",
+    min_length = 126, #21 minutes (n of observations)
+    max_interrupt = 0, #0 minute (n of observations)
+    threshold = threshold
+  )
+  
+  # Add the current threshold as a column in prc_m_result
+  prc_result <- prc_result %>%
+    mutate(threshold = threshold) # Add threshold column
+  
+  prc_list[[as.character(threshold)]] <- prc_result
+  
+}
+
+#Turn list into df
+onoff_prcurve_medi <- bind_rows(prc_list)
+#Turn threshold to numeric for plotting
+onoff_prcurve_medi$threshold <- as.numeric(onoff_prcurve_medi$threshold)
+
+onoff_prcurve_medi_f1 <- onoff_prcurve_medi %>%
+  mutate(f1_score = (2* PPV * TPR)/(PPV + TPR))
+
+```
+
+```{r}
+dusk.presleep.LL.wrlg <- photoperioded.dataset.LL.wrlg %>%
+  filter(photoperiod.state == "night" & State != "sleep")
+
+#Empty list to store classification results
+prc_list <- list()
+
+for (threshold in medithresholds) {
+  
+  prc_result <- generate_prc(
+    dataset = dusk.presleep.LL.wrlg,
+    low_var = "MEDI",
+    min_length = 126, #21 minutes (n of observations)
+    max_interrupt = 0, #0 minute (n of observations)
+    threshold = threshold
+  )
+  
+  # Add the current threshold as a column in prc_m_result
+  prc_result <- prc_result %>%
+    mutate(threshold = threshold) # Add threshold column
+  
+  prc_list[[as.character(threshold)]] <- prc_result
+  
+}
+
+#Turn list into df
+dusk.presleep_prcurve_medi <- bind_rows(prc_list)
+#Turn threshold to numeric for plotting
+dusk.presleep_prcurve_medi$threshold <- as.numeric(dusk.presleep_prcurve_medi$threshold)
+
+dusk.presleep_prcurve_medi_f1 <- dusk.presleep_prcurve_medi %>%
+  mutate(f1_score = (2* PPV * TPR)/(PPV + TPR))
+
+
+```
+
