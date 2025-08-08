@@ -52,6 +52,9 @@ generate_prc <- function(dataset, low_var, min_length, max_interrupt, threshold)
       State == 1 & !!sym(cluster_column) == 1 ~ "TN",
       .default = NA_character_))
   
+  # Count of non-NA rows used to compute metrics
+  n_valid <- sum(!is.na(clusters_clean_2$classification))
+  
   prc <- clusters_clean_2 %>%
     group_by(classification) %>% #!! if you want to visualise individual PRC, then you have to group_by(Id, classification). Else, only group_by(classification)
     summarise(count = n()) %>%
@@ -59,7 +62,8 @@ generate_prc <- function(dataset, low_var, min_length, max_interrupt, threshold)
     mutate(TPR = TP/(TP+FN), #true positive rate
            FPR = FP/(FP+TN), #false positive rate
            PPV = TP/(TP+FP), #positive predictive value
-           NPV = TN/(FN+TN)) #negative predictive value  
+           NPV = TN/(FN+TN)) %>% #negative predictive value  
+    mutate(n_valid = n_valid)
   
   return(prc)
 }
