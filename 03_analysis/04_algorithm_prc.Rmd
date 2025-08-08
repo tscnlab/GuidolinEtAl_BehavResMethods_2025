@@ -586,8 +586,7 @@ daytime_prcurve_medi$threshold <- as.numeric(daytime_prcurve_medi$threshold)
 
 
 daytime_prcurve_medi_f1 <- daytime_prcurve_medi %>%
-  mutate(f1_score = (2* PPV * TPR)/(PPV + TPR),
-         photoperiod = "day")
+  mutate(f1_score = (2* PPV * TPR)/(PPV + TPR))
 
 # Visualisation 
 daytime_prc_medi_thresholds <- ggplot() +
@@ -664,7 +663,7 @@ dusktime_prc_medi_thresholds <- ggplot() +
      guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
-       title = "Algorithm performance \n(after dusk)") +
+       title = "Algorithm performance \n(nighttime)") +
    theme_bw() +
   theme(plot.title = element_text(hjust = 0.5, size = 20),
         axis.text = element_text(size = 12),
@@ -677,30 +676,6 @@ dusktime_prc_medi_thresholds <- ggplot() +
    coord_fixed(ratio = 1)
 ```
 
-## Weighing algorithm performance by number of labelled observations
-```{r}
-# Combine day and dusk results
-all_prc <- bind_rows(daytime_prcurve_medi_f1, dusktime_prcurve_medi_f1)
-
-ggplot(all_prc, aes(x = threshold, y = f1_score, color = photoperiod)) +
-  geom_line() +
-  geom_point() +  # size reflects sample size
-  labs(title = "Algorithm F1 Performance by Photoperiod",
-       y = "F1 Score", x = "MEDI Threshold") +
-  theme_minimal()
-
-# Weighted across groups per threshold
-weighted_results <- all_prc %>%
-  group_by(threshold) %>%
-  summarise(
-    weighted_TPR = sum(TPR * n_valid) / sum(n_valid),
-    weighted_PPV = sum(PPV * n_valid) / sum(n_valid),
-    total_n_valid = sum(n_valid)
-  ) %>%
-  mutate(weighted_F1 = (2 * weighted_TPR * weighted_PPV) / 
-                       (weighted_TPR + weighted_PPV))
-
-```
 
 ### Re-create PRC visualisation of combined daytime and dusk time, without activity
 ```{r}
@@ -716,7 +691,7 @@ combined_prc_medi_thresholds <- ggplot() +
      guide = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
   labs(x="True positive rate (recall)",
        y = "Positive predictive value \n(precision)",
-       title = "Algorithm performance \n(daytime and after dusk)") +
+       title = "Algorithm performance \n(entire dataset)") +
    theme_bw() +
   theme(plot.title = element_text(hjust = 0.5, size = 20),
         axis.text = element_text(size = 12),
