@@ -242,6 +242,18 @@ prcurve_medi <- bind_rows(prc_list)
 #Turn threshold to numeric for plotting
 prcurve_medi$threshold <- as.numeric(prcurve_medi$threshold)
 
+weighted_ppv <- sum(prcurve_medi$PPV * prcurve_medi$n_valid) / sum(prcurve_medi$n_valid)
+weighted_tpr <- sum(prcurve_medi$TPR * prcurve_medi$n_valid) / sum(prcurve_medi$n_valid)
+weighted_fpr <- sum(prcurve_medi$FPR * prcurve_medi$n_valid) / sum(prcurve_medi$n_valid)
+weighted_npv <- sum(prcurve_medi$NPV * prcurve_medi$n_valid) / sum(prcurve_medi$n_valid)
+
+overall_metrics <- tibble(
+  weighted_PPV = weighted_ppv,
+  weighted_TPR = weighted_tpr,
+  weighted_FPR = weighted_fpr,
+  weighted_NPV = weighted_npv
+)
+
 
 ```
 
@@ -574,7 +586,8 @@ daytime_prcurve_medi$threshold <- as.numeric(daytime_prcurve_medi$threshold)
 
 
 daytime_prcurve_medi_f1 <- daytime_prcurve_medi %>%
-  mutate(f1_score = (2* PPV * TPR)/(PPV + TPR))
+  mutate(f1_score = (2* PPV * TPR)/(PPV + TPR),
+         photoperiod = "day")
 
 # Visualisation 
 daytime_prc_medi_thresholds <- ggplot() +
@@ -635,7 +648,8 @@ dusktime_prcurve_medi$threshold <- as.numeric(prcurve_medi$threshold)
 
 
 dusktime_prcurve_medi_f1 <- dusktime_prcurve_medi %>%
-  mutate(f1_score = (2* PPV * TPR)/(PPV + TPR))
+  mutate(f1_score = (2* PPV * TPR)/(PPV + TPR),
+         photoperiod = "night")
 
 # Visualisation 
 dusktime_prc_medi_thresholds <- ggplot() +
@@ -661,6 +675,31 @@ dusktime_prc_medi_thresholds <- ggplot() +
         legend.position = "bottom",
         plot.margin = unit(c(0.5,0.5,0,0), unit ="cm")) +
    coord_fixed(ratio = 1)
+```
+
+## Weighing algorithm performance by number of labelled observations
+```{r}
+# Combine day and dusk results
+all_prc <- bind_rows(daytime_prcurve_medi_f1, dusktime_prcurve_medi_f1)
+
+ggplot(all_prc, aes(x = threshold, y = f1_score, color = photoperiod)) +
+  geom_line() +
+  geom_point() +  # size reflects sample size
+  labs(title = "Algorithm F1 Performance by Photoperiod",
+       y = "F1 Score", x = "MEDI Threshold") +
+  theme_minimal()
+
+# Weighted across groups per threshold
+weighted_results <- all_prc %>%
+  group_by(threshold) %>%
+  summarise(
+    weighted_TPR = sum(TPR * n_valid) / sum(n_valid),
+    weighted_PPV = sum(PPV * n_valid) / sum(n_valid),
+    total_n_valid = sum(n_valid)
+  ) %>%
+  mutate(weighted_F1 = (2 * weighted_TPR * weighted_PPV) / 
+                       (weighted_TPR + weighted_PPV))
+
 ```
 
 ### Re-create PRC visualisation of combined daytime and dusk time, without activity
@@ -710,77 +749,5 @@ ggsave(filename = "daytime_dusk_multiplot.png",
 
 ```
 
-### Sanity check: dataset where there are no sleep states at all
-```{r}
-df.LL.onoff <- dataset.LL.wrlg %>%
-  filter(! State == "sleep") 
 
-medithresholds <- seq(1, 10, by = 1)
-
-#Empty list to store classification results
-prc_list <- list()
-
-for (threshold in medithresholds) {
-  
-  prc_result <- generate_prc(
-    dataset = df.LL.onoff,
-    low_var = "MEDI",
-    min_length = 126, #21 minutes (n of observations)
-    max_interrupt = 0, #0 minute (n of observations)
-    threshold = threshold
-  )
-  
-  # Add the current threshold as a column in prc_m_result
-  prc_result <- prc_result %>%
-    mutate(threshold = threshold) # Add threshold column
-  
-  prc_list[[as.character(threshold)]] <- prc_result
-  
-}
-
-#Turn list into df
-onoff_prcurve_medi <- bind_rows(prc_list)
-#Turn threshold to numeric for plotting
-onoff_prcurve_medi$threshold <- as.numeric(onoff_prcurve_medi$threshold)
-
-onoff_prcurve_medi_f1 <- onoff_prcurve_medi %>%
-  mutate(f1_score = (2* PPV * TPR)/(PPV + TPR))
-
-```
-
-```{r}
-dusk.presleep.LL.wrlg <- photoperioded.dataset.LL.wrlg %>%
-  filter(photoperiod.state == "night" & State != "sleep")
-
-#Empty list to store classification results
-prc_list <- list()
-
-for (threshold in medithresholds) {
-  
-  prc_result <- generate_prc(
-    dataset = dusk.presleep.LL.wrlg,
-    low_var = "MEDI",
-    min_length = 126, #21 minutes (n of observations)
-    max_interrupt = 0, #0 minute (n of observations)
-    threshold = threshold
-  )
-  
-  # Add the current threshold as a column in prc_m_result
-  prc_result <- prc_result %>%
-    mutate(threshold = threshold) # Add threshold column
-  
-  prc_list[[as.character(threshold)]] <- prc_result
-  
-}
-
-#Turn list into df
-dusk.presleep_prcurve_medi <- bind_rows(prc_list)
-#Turn threshold to numeric for plotting
-dusk.presleep_prcurve_medi$threshold <- as.numeric(dusk.presleep_prcurve_medi$threshold)
-
-dusk.presleep_prcurve_medi_f1 <- dusk.presleep_prcurve_medi %>%
-  mutate(f1_score = (2* PPV * TPR)/(PPV + TPR))
-
-
-```
 
