@@ -1094,7 +1094,7 @@ gt::gtsave(equiv_table_manual,
 
 
 
-## Calculating mean and sd of all timing functions in order to report result of the t-test
+## Calculating mean and sd of all timing functions
 ```{r}
 # Define a function that calculates the mean of each id metric
 ## Note that this function uses the function style_time, which is already imported in 06_metrics_comparison.Rmd from the file vis_metrics_funs.R
@@ -1247,20 +1247,20 @@ means_table <- means_dfs %>%
     ) %>%
   gt::gt() %>%
   gt::tab_header(title = gt::md("**Means and SDs of light exposure metrics (n=14)**")) %>% #Add title
-  # Workaround to create superscripts
+  # Workaround to create subscripts
   gt::text_transform(
   locations = gt::cells_body(columns = c(metric)),
   fn = function(x) {
     sapply(x, function(val) {
       if (str_detect(val, "^(tat|llit|mlit|flit)\\d+")) {
         prefix <- str_extract(val, "^[a-z]+")
-        sup <- str_extract(val, "\\d+")
+        sub <- str_extract(val, "\\d+")
 
         formatted <- case_when(
-          prefix == "tat" ~ glue::glue("TAT<sup>{sup}</sup>"),
-          prefix == "llit" ~ glue::glue("LLiT<sup>{sup}</sup>"),
-          prefix == "mlit" ~ glue::glue("MLiT<sup>{sup}</sup>"),
-          prefix == "flit" ~ glue::glue("FLiT<sup>{sup}</sup>"),
+          prefix == "tat" ~ glue::glue("TAT<sub>{sub}</sub>"),
+          prefix == "llit" ~ glue::glue("LLiT<sub>{sub}</sub>"),
+          prefix == "mlit" ~ glue::glue("MLiT<sub>{sub}</sub>"),
+          prefix == "flit" ~ glue::glue("FLiT<sub>{sub}</sub>"),
           TRUE ~ val
         )
 
